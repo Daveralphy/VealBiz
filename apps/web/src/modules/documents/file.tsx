@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Archive, ArchiveRestore, ChevronLeft, Download, FileQuestion, Link2, MoreHorizontal, MoveRight, Pencil, Plus, Share2, Tag, Trash2, Upload, X } from "lucide-react";
-import { Avatar, Button, Card, ConfirmDialog, EmptyState, Loading, Menu, Modal, Notice, Pill, useToast } from "@windveal/ui";
+import { Avatar, Button, Card, ConfirmDialog, EmptyState, Loading, Menu, Modal, Notice, Pill, useConfirm, useToast } from "@windveal/ui";
 import { formatBytes } from "@windveal/shared";
 import { ApiError, api, fileUrl } from "../../lib/api";
 import { fmtDate, timeAgo } from "../../lib/format";
@@ -40,6 +40,7 @@ export function FilePage() {
   const [details, setDetails] = useState(false);
   const [del, setDel] = useState(false);
   const [access, setAccess] = useState(false);
+  const { confirm, dialog } = useConfirm();
 
   if (isLoading) return <Loading />;
   if (error || !data) {
@@ -172,7 +173,10 @@ export function FilePage() {
                   return (
                     <div key={l.id} className="dc-link">
                       {route ? <a href={route} onClick={(e) => { e.preventDefault(); navigate(route); }}>{body}</a> : <span className="dc-link-body">{body}</span>}
-                      {data.canEdit && <button className="icon-btn" aria-label={`Remove link to ${l.label}`} onClick={() => run(() => api.del(`/api/documents/files/${f.id}/links/${l.id}`), "Link removed")}><X size={15} /></button>}
+                      {data.canEdit && <button className="icon-btn" aria-label={`Remove link to ${l.label}`} onClick={async () => {
+                        if (!(await confirm({ title: "Remove this link?", message: `The file will no longer show on ${l.label}. The file itself is kept.`, confirmLabel: "Remove" }))) return;
+                        run(() => api.del(`/api/documents/files/${f.id}/links/${l.id}`), "Link removed");
+                      }}><X size={15} /></button>}
                     </div>
                   );
                 })}
@@ -225,6 +229,7 @@ export function FilePage() {
         }}>
         It will be removed everywhere it's linked. If you might need it later, archive it instead.
       </ConfirmDialog>
+      {dialog}
     </div>
   );
 }

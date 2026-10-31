@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Check, CheckCircle2, Flag, History, Link2, MessageSquare, MoreHorizontal, Paperclip, Plus, Repeat, Trash2, X, FileText, UserRoundCog,
+  Check, CheckCircle2, Flag, History, Link2, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Repeat, Trash2, X, FileText, UserRoundCog,
 } from "lucide-react";
 import {
-  Avatar, Button, ConfirmDialog, Drawer, EmptyState, Input, Loading, Menu, Modal, Notice, Pill, SearchInput, Select, Textarea, useToast,
+  Avatar, Button, ConfirmDialog, Drawer, EmptyState, Input, Loading, Menu, Modal, Notice, Pill, SearchInput, Select, Textarea, useConfirm, useToast,
 } from "@windveal/ui";
 import { WORKSPACE_LABELS, formatBytes } from "@windveal/shared";
 import { ApiError, api, fileUrl, qs } from "../../lib/api";
@@ -336,12 +336,17 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
   const fileInput = useRef<HTMLInputElement>(null);
   const assigneeRef = useRef<HTMLSelectElement>(null);
   const toggle = useToggleComplete();
-  useEffect(() => { setShowActivity(false); setComment(""); setNewItem(""); }, [id]);
+  const { confirm, dialog } = useConfirm();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ title: "", status: "todo", assignee: "", due: "", priority: "medium" });
+  const [saving, setSaving] = useState(false);
+  const focusAssignee = useRef(false);
+  useEffect(() => { setShowActivity(false); setComment(""); setNewItem(""); setEditing(false); }, [id]);
+  useEffect(() => { if (editing && focusAssignee.current) { focusAssignee.current = false; assigneeRef.current?.focus(); } }, [editing]);
 
   const run = async (fn: () => Promise<unknown>, ok?: string) => {
     try { await fn(); refresh(); if (ok) toast(ok); } catch (e) { toast(e instanceof ApiError ? e.message : "Something went wrong. Please try again.", "error"); }
   };
-  const patch = (body: Record<string, unknown>, ok?: string) => run(() => api.patch(`/api/workflows/tasks/${id}`, body), ok);
 
   const t = data?.task;
   const editable = !!data?.canEdit;
@@ -361,65 +366,96 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
 
   const dueLocal = t?.dueAt ? (() => { const d = new Date(t.dueAt); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })() : "";
   const mentionHint = /@\S*$/.test(comment);
+  const set = (k: keyof typeof draft, v: string) => setDraft((d) => ({ ...d, [k]: v }));
+
+  function startEdit(assignee = false) {
+    if (!t) return;
+    setDraft({ title: t.title, status: t.status, assignee: t.assignee?.id ?? "", due: dueLocal, priority: t.priority });
+    focusAssignee.current = assignee;
+    setEditing(true);
+  }
+
+  async function saveEdit() {
+    if (!t) return;
+    const title = draft.title.trim();
+    if (!title) { toast("Give the task a title.", "error"); return; }
+    const body: Record<string, unknown> = {};
+    if (title !== t.title) body.title = title;
+    if (draft.status !== t.status && draft.status !== "done") body.status = draft.status;
+    if (draft.assignee !== (t.assignee?.id ?? "")) body.assigneeUserId = draft.assignee || null;
+    if (draft.due !== dueLocal) body.dueAt = draft.due ? new Date(draft.due).toISOString() : null;
+    if (draft.priority !== t.priority) body.priority = draft.priority;
+    const changed = Object.keys(body).length > 0;
+    setSaving(true);
+    try {
+      if (changed) await api.patch(`/api/workflows/tasks/${t.id}`, body);
+      setEditing(false);
+      if (draft.status === "done" && t.status !== "done") toggle.mutate(t);
+      else if (changed) { refresh(); toast("Task updated"); }
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : "Couldn't save the task.", "error");
+    } finally { setSaving(false); }
+  }
 
   return (
     <Drawer open={!!id} onClose={onClose} title={t?.title ?? (isLoading ? "Loading…" : "Task")}
-      headerExtra={t && <CircleToggle done={t.status === "done"} disabled={!editable || toggle.isPending} onClick={() => toggle.mutate(t)} label={t.status === "done" ? "Reopen task" : "Mark complete"} />}
+      headerExtra={t && <CircleToggle done={t.status === "done"} disabled={!editable || editing || toggle.isPending} onClick={() => toggle.mutate(t)} label={t.status === "done" ? "Reopen task" : "Mark complete"} />}
       footer={t && (
         <>
           <button className="link wf-activity-btn" onClick={() => setShowActivity((s) => !s)}><History size={16} />{showActivity ? "Hide activity" : "Activity"}</button>
-          <div className="row">
+          {editing ? (
+            <div className="row">
+              <Button variant="secondary" onClick={() => setEditing(false)} disabled={saving}>Cancel</Button>
+              <Button loading={saving} onClick={saveEdit}>Save</Button>
+            </div>
+          ) : <div className="row">
             {data.canDelete && (
               <Menu trigger={(tg) => <button className="icon-btn bordered" aria-label="More" onClick={tg}><MoreHorizontal size={18} /></button>}>
                 {(close) => <button className="danger" onClick={() => { close(); setConfirmDelete(true); }}><Trash2 size={16} />Delete task</button>}
               </Menu>
             )}
-            {editable && <Button variant="secondary" className="hide-sm" icon={<UserRoundCog size={16} />} onClick={() => assigneeRef.current?.focus()}>Reassign</Button>}
+            {editable && <Button variant="secondary" className="hide-sm" icon={<UserRoundCog size={16} />} onClick={() => startEdit(true)}>Reassign</Button>}
+            {editable && <Button variant="secondary" icon={<Pencil size={16} />} onClick={() => startEdit()}>Edit</Button>}
             {editable && (t.status === "done"
               ? <Button variant="secondary" loading={toggle.isPending} onClick={() => toggle.mutate(t)}>Reopen</Button>
               : <Button icon={<Check size={16} />} loading={toggle.isPending} onClick={() => toggle.mutate(t, { onSuccess: onClose })}>Mark complete</Button>)}
-          </div>
+          </div>}
         </>
       )}>
       {isLoading ? <Loading /> : error || !data || !t ? (
         <Notice tone="error">{error instanceof ApiError ? error.message : "Couldn't load this task."}</Notice>
       ) : (
-        <div className="wf-drawer">
-          {editable ? (
-            <Input aria-label="Title" className="wf-title-input" defaultValue={t.title} key={`title-${t.id}-${t.title}`}
-              onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== t.title) patch({ title: v }); }} />
-          ) : null}
+        <div className={`wf-drawer ${editing ? "is-editing" : ""}`}>
+          {editing && (
+            <Input aria-label="Title" className="wf-title-input" autoFocus={!focusAssignee.current} value={draft.title} onChange={(e) => set("title", e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveEdit()} />
+          )}
           <dl className="wf-props">
             <div><dt>Status</dt><dd>
-              {editable ? (
-                <select className={`wf-status wf-status-${t.status}`} value={t.status} aria-label="Status"
-                  onChange={(e) => e.target.value === "done" ? toggle.mutate(t) : patch({ status: e.target.value })}>
+              {editing ? (
+                <select className={`wf-status wf-status-${draft.status}`} value={draft.status} aria-label="Status" onChange={(e) => set("status", e.target.value)}>
                   {Object.entries(STATUS_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
                 </select>
               ) : <span className={`wf-status wf-status-${t.status}`}>{STATUS_LABEL[t.status]}</span>}
             </dd></div>
             <div><dt>Assigned to</dt><dd>
-              {editable ? (
-                <span className="row" style={{ gap: 8 }}>
-                  {t.assignee && <Avatar name={t.assignee.name} size={26} />}
-                  <select ref={assigneeRef} className="wf-inline-select" aria-label="Assigned to" value={t.assignee?.id ?? ""} onChange={(e) => patch({ assigneeUserId: e.target.value || null }, "Task reassigned")}>
-                    <option value="">No one</option>
-                    {members?.map((m) => <option key={m.id} value={m.id}>{m.name}{m.id === user.id ? " (you)" : ""}</option>)}
-                  </select>
-                </span>
+              {editing ? (
+                <select ref={assigneeRef} className="wf-inline-select" aria-label="Assigned to" value={draft.assignee} onChange={(e) => set("assignee", e.target.value)}>
+                  <option value="">No one</option>
+                  {members?.map((m) => <option key={m.id} value={m.id}>{m.name}{m.id === user.id ? " (you)" : ""}</option>)}
+                </select>
               ) : t.assignee ? <span className="row" style={{ gap: 8 }}><Avatar name={t.assignee.name} size={26} />{t.assignee.name}</span> : "No one"}
             </dd></div>
             <div><dt>Due</dt><dd>
-              {editable ? (
-                <input type="datetime-local" className={`wf-inline-input ${dueText(t).overdue ? "od" : ""}`} aria-label="Due" value={dueLocal}
-                  onChange={(e) => patch({ dueAt: e.target.value ? new Date(e.target.value).toISOString() : null })} />
+              {editing ? (
+                <input type="datetime-local" className="wf-inline-input" aria-label="Due" value={draft.due} onChange={(e) => set("due", e.target.value)} />
               ) : <span className={dueText(t).overdue ? "wf-od" : undefined}>{t.dueAt ? `${dayLabel(t.dueAt)}, ${fmtTime(t.dueAt)}` : "No due date"}</span>}
             </dd></div>
             <div><dt>Priority</dt><dd>
               <span className="row" style={{ gap: 6 }}>
-                <PriorityFlag p={t.priority} />
-                {editable ? (
-                  <select className="wf-inline-select" aria-label="Priority" value={t.priority} onChange={(e) => patch({ priority: e.target.value })}>
+                <PriorityFlag p={(editing ? draft.priority : t.priority) as TaskView["priority"]} />
+                {editing ? (
+                  <select className="wf-inline-select" aria-label="Priority" value={draft.priority} onChange={(e) => set("priority", e.target.value)}>
                     <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
                   </select>
                 ) : PRIORITY_LABEL[t.priority]}
@@ -441,7 +477,9 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
                 <CircleToggle done={i.done} disabled={!editable} label={i.done ? "Mark not done" : "Mark done"}
                   onClick={() => run(() => api.patch(`/api/workflows/tasks/${t.id}/items/${i.id}`, { done: !i.done }))} />
                 <span>{i.label}</span>
-                {editable && <button className="icon-btn wf-item-x" aria-label={`Remove ${i.label}`} onClick={() => run(() => api.del(`/api/workflows/tasks/${t.id}/items/${i.id}`))}><X size={15} /></button>}
+                {editable && <button className="icon-btn wf-item-x" aria-label={`Remove ${i.label}`} onClick={async () => {
+                  if (await confirm({ title: "Remove this item?", message: `"${i.label}" will be taken off the checklist.`, confirmLabel: "Remove" })) run(() => api.del(`/api/workflows/tasks/${t.id}/items/${i.id}`));
+                }}><X size={15} /></button>}
               </div>
             ))}
             {!data.items.length && !editable && <p className="muted">No checklist.</p>}
@@ -464,7 +502,9 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
             {data.files.map((f) => (
               <span key={f.id} className="wf-file">
                 <a href={fileUrl(f.id)} target="_blank" rel="noreferrer" title={`${f.name} · ${formatBytes(f.size)}`}><FileText size={15} />{f.name}</a>
-                {editable && <button className="wf-file-x" aria-label={`Remove ${f.name}`} onClick={() => run(() => api.del(`/api/workflows/tasks/${t.id}/files/${f.id}`), "File removed")}><X size={13} /></button>}
+                {editable && <button className="wf-file-x" aria-label={`Remove ${f.name}`} onClick={async () => {
+                  if (await confirm({ title: "Remove this file?", message: `${f.name} will be taken off this task.`, confirmLabel: "Remove" })) run(() => api.del(`/api/workflows/tasks/${t.id}/files/${f.id}`), "File removed");
+                }}><X size={13} /></button>}
               </span>
             ))}
             {editable && (
@@ -525,6 +565,7 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
         onConfirm={() => { setConfirmDelete(false); run(() => api.del(`/api/workflows/tasks/${id}`), "Task deleted").then(onClose); }}>
         It will disappear from everyone's lists. Linked records and files are kept.
       </ConfirmDialog>
+      {dialog}
     </Drawer>
   );
 }

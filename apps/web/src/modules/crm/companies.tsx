@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Building2, ChevronLeft, Globe, MapPin, Pencil, Phone, Mail, Plus, Upload, X } from "lucide-react";
-import { Avatar, Button, Card, EmptyState, Input, Loading, Modal, Notice, PageHeader, Pill, SearchInput, cx, useToast } from "@windveal/ui";
+import { Avatar, Button, Card, EmptyState, Input, Loading, Modal, Notice, PageHeader, Pill, SearchInput, cx, useConfirm, useToast } from "@windveal/ui";
 import { formatBytes } from "@windveal/shared";
 import { api, ApiError, fileUrl } from "../../lib/api";
 import { useForm } from "../../lib/form";
@@ -104,6 +104,7 @@ export function CompanyPage() {
   const [log, setLog] = useState<FollowUp | null>(null);
   const [uploading, setUploading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { confirm, dialog } = useConfirm();
   const fileInput = useRef<HTMLInputElement>(null);
 
   const back = { label: "All companies", onClick: () => navigate("/crm/companies") };
@@ -234,7 +235,10 @@ export function CompanyPage() {
                 </a>
                 {canEdit && (
                   <button className="crm-icon-ghost" aria-label={`Remove ${f.name}`} title="Remove from this company"
-                    onClick={() => run(async () => { await api.del(`/api/crm/companies/${c.id}/files/${f.id}`); refresh(); }, "File removed")}><X size={15} /></button>
+                    onClick={async () => {
+                      if (!(await confirm({ title: `Remove ${f.name}?`, message: `It is unlinked from ${c.name}. The file stays in Documents.`, confirmLabel: "Remove" }))) return;
+                      run(async () => { await api.del(`/api/crm/companies/${c.id}/files/${f.id}`); refresh(); }, "File removed");
+                    }}><X size={15} /></button>
                 )}
               </div>
             ))}
@@ -257,6 +261,7 @@ export function CompanyPage() {
         </>}>
         <p>Its contacts and deals are removed from the CRM too. Files stay in Documents.</p>
       </Modal>
+      {dialog}
     </>
   );
 }
@@ -266,6 +271,7 @@ function ContactModal({ companyId, contact, onClose }: { companyId: string; cont
   const toast = useToast();
   const existing = contact && contact !== "new" ? contact : null;
   const f = useForm({ name: "", role: "", email: "", phone: "", isPrimary: false });
+  const { confirm, dialog } = useConfirm();
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const key = contact === "new" ? "new" : existing?.id ?? null;
   if (key !== loadedFor) {
@@ -280,7 +286,11 @@ function ContactModal({ companyId, contact, onClose }: { companyId: string; cont
     toast(existing ? "Contact updated" : `${v.name} added`);
     onClose();
   });
-  const remove = () => f.submit(async () => {
+  const remove = async () => {
+    if (!(await confirm({ title: `Remove ${existing!.name}?`, message: "They will be removed from this company's contacts.", confirmLabel: "Remove" }))) return;
+    await removeNow();
+  };
+  const removeNow = () => f.submit(async () => {
     await api.del(`/api/crm/contacts/${existing!.id}`);
     refresh();
     toast("Contact removed");
@@ -303,6 +313,7 @@ function ContactModal({ companyId, contact, onClose }: { companyId: string; cont
           <span>Main contact for this company</span>
         </label>
       </div>
+      {dialog}
     </Modal>
   );
 }

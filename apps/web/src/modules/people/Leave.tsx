@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarOff, ChevronLeft, ChevronRight, Pencil, Plus, Trash2 } from "lucide-react";
 import {
-  Avatar, Button, Card, Checkbox, ConfirmDialog, EmptyState, IconButton, Input, Loading, Modal, Notice, Pill, Segmented, Select, Textarea, useToast,
+  Avatar, Button, Card, Checkbox, ConfirmDialog, EmptyState, IconButton, Input, Loading, Modal, Notice, Pill, Segmented, Select, Textarea, useConfirm, useToast,
 } from "@windveal/ui";
 import { api, qs } from "../../lib/api";
 import { fmtDate } from "../../lib/format";
@@ -294,6 +294,7 @@ function ManageLeaveTypes({ onClose }: { onClose: () => void }) {
   const [edit, setEdit] = useState<LeaveType | "new" | null>(null);
   const [del, setDel] = useState<LeaveType | null>(null);
   const hol = useForm({ name: "", day: "", recurring: false });
+  const { confirm, dialog } = useConfirm();
   const refresh = () => { qc.invalidateQueries({ queryKey: peopleKeys.leaveTypes }); qc.invalidateQueries({ queryKey: ["people", "holidays"] }); };
   const remove = useMutation({
     mutationFn: (id: string) => api.del(`/api/people/leave-types/${id}`),
@@ -331,7 +332,9 @@ function ManageLeaveTypes({ onClose }: { onClose: () => void }) {
           <div className="grow"><b className="ink">{h.name}</b><small className="muted" style={{ display: "block" }}>
             {h.recurring ? `${fmtDate(h.day, { day: "numeric", month: "long" })} every year` : fmtDate(h.day)}
           </small></div>
-          <IconButton label={`Remove ${h.name}`} onClick={() => removeHol.mutate(h.id)}><Trash2 size={16} /></IconButton>
+          <IconButton label={`Remove ${h.name}`} onClick={async () => {
+            if (await confirm({ title: `Remove ${h.name}?`, message: "It will count as a normal working day again.", confirmLabel: "Remove" })) removeHol.mutate(h.id);
+          }}><Trash2 size={16} /></IconButton>
         </div>
       ))}
       <div className="ppl-hol-form">
@@ -345,6 +348,7 @@ function ManageLeaveTypes({ onClose }: { onClose: () => void }) {
         title={`Remove ${del?.name}?`} confirmLabel="Remove">
         <p>People won't be able to request this type any more. Past requests are kept.</p>
       </ConfirmDialog>
+      {dialog}
     </Modal>
   );
 }

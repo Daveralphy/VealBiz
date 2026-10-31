@@ -36,7 +36,7 @@ export default function Home() {
           </p>
           <div className="hero-actions">
 <Link to={DOWNLOAD_PATH} className="btn btn-light btn-lg">
-              Download WindVeal <ArrowRight size={16} aria-hidden />
+              Get started <ArrowRight size={16} aria-hidden />
             </Link>
             <Link to="/product" className="btn btn-text-light btn-lg">
               Explore the product <ArrowRight size={16} aria-hidden />
@@ -177,7 +177,7 @@ export default function Home() {
               <p>Set up your organisation in minutes and choose the plan that fits as you grow.</p>
               <div className="cta-actions">
                 <Link to={DOWNLOAD_PATH} className="btn btn-primary btn-lg">
-                  Download WindVeal <ArrowRight size={16} aria-hidden />
+                  Get started <ArrowRight size={16} aria-hidden />
                 </Link>
                 <Link to="/pricing" className="btn btn-secondary btn-lg">
                   See pricing

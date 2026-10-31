@@ -33,7 +33,8 @@ export default defineConfig({
       url: `${SHARED.E2E_API_URL}/api/health`,
       reuseExistingServer: false,
       timeout: 60_000,
-      env: { ...SHARED, WINDVEAL_DATABASE_URL: E2E_DB, STORAGE_DIR: "./storage-e2e" },
+      // Many sign-ins in a few minutes: lift the per-minute sign-in limit for the test server only.
+      env: { ...SHARED, WINDVEAL_DATABASE_URL: E2E_DB, STORAGE_DIR: "./storage-e2e", AUTH_RATE_LIMIT: "1000" },
       cwd: "..",
     },
     { command: "pnpm --filter @windveal/web dev", url: APP_URL, reuseExistingServer: false, timeout: 60_000, cwd: "..", env: SHARED },

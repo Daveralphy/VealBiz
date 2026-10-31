@@ -55,10 +55,10 @@ export function Footer() {
             </ul>
           </div>
           <div className="footer-col">
-            <h2>Get the app</h2>
+            <h2>Get started</h2>
             <ul>
               <li>
-                <Link to={DOWNLOAD_PATH}>Download</Link>
+                <Link to={DOWNLOAD_PATH}>WindVeal apps</Link>
               </li>
               <li>
                 <Link to="/pricing">Pricing</Link>
@@ -101,7 +101,7 @@ function CtaLink({ action, className, arrow }: { action: CtaAction; className: s
 export function CtaBand({
   title = "Ready to bring it all together?",
   text = "Set up your organisation in minutes and choose the plan that fits as you grow.",
-  primary = { label: "Download WindVeal", href: DOWNLOAD_PATH },
+  primary = { label: "Get started", href: DOWNLOAD_PATH },
   secondary = { label: "See pricing", href: "/pricing" },
 }: {
   title?: string;

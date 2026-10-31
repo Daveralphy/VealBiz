@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { useIsFetching, useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,6 +12,7 @@ import { useSession } from "../lib/session";
 import { timeAgo } from "../lib/format";
 import { useTheme } from "../lib/theme";
 import { useSignOut } from "../lib/signout";
+import { HeaderClock } from "../modules/people/clock";
 
 const NAV: { to: string; label: string; icon: ReactNode; ws?: Workspace; badgeKey?: string }[] = [
   { to: "/recruitment", label: "Recruitment", icon: <UserPlus size={18} />, ws: "recruitment" },
@@ -236,6 +237,14 @@ export function AppShell() {
   const historyMove = useNavigationType() === "POP";
   const held = useFirstVisitHold("app", location.pathname, historyMove);
   const content = usePageTransition<HTMLDivElement>(held ? "held" : location.pathname);
+  // While held, the page's own title, back link and tabs stay visible; the placeholder covers only the content below.
+  const [skelTop, setSkelTop] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!held || !content.current) { setSkelTop(null); return; }
+    const fixed = content.current.querySelectorAll<HTMLElement>(".page-head, .back-link, .tabs, .imp-pills");
+    const last = fixed[fixed.length - 1];
+    setSkelTop(last ? last.offsetTop + last.offsetHeight + 4 : null);
+  }, [held, location.pathname]);
   const busy = useIsFetching() + useIsMutating() > 0;
   return (
     <div className={`shell ${mini ? "mini" : ""}`}>
@@ -245,7 +254,7 @@ export function AppShell() {
         <header className="topbar">
           <GlobalSearch />
           <div className="right">
-            <span className="sync"><i />All changes saved</span>
+            <HeaderClock />
             <NewMenu />
             <Notifications />
             <AccountMenu />
@@ -255,12 +264,14 @@ export function AppShell() {
           <IconButton label="Open menu" onClick={() => setDrawer(true)}><MenuIcon size={22} /></IconButton>
           <span className="sb-logo" style={{ width: 32, height: 32 }}><OrgMark size={32} /></span>
           <b>{org.name}</b>
-          <div className="r"><Notifications /><AccountMenu /></div>
+          <div className="r"><HeaderClock /><Notifications /><AccountMenu /></div>
         </header>
         <main className="content">
-          {held && <PageSkeleton />}
           {/* Rendered while held, so the screen's data loads during the pause. */}
-          <div ref={content} className="page-enter" style={held ? { display: "none" } : undefined}><Outlet /></div>
+          <div ref={content} className={`page-enter page-stage${held ? " holding" : ""}`}>
+            <Outlet />
+            {held && <PageSkeleton title={skelTop === null} style={{ position: "absolute", left: 0, right: 0, top: skelTop ?? 0 }} />}
+          </div>
         </main>
         <button className="fab" aria-label="Create" onClick={() => navigate("/workflows?new=task")}><Plus size={24} strokeWidth={2.4} /></button>
       </div>

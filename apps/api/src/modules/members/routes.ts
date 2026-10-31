@@ -15,7 +15,7 @@ import { sendMail } from "../../lib/mailer";
 import { env } from "../../env";
 import { mePayload, startSession } from "../auth/routes";
 
-const CLAIM_LIMIT = { config: { rateLimit: { max: env.isTest ? 10_000 : 10, timeWindow: "1 minute" } } };
+const CLAIM_LIMIT = { config: { rateLimit: { max: env.authRateLimit, timeWindow: "1 minute" } } };
 
 /** The newest invitation still waiting for this email address. */
 async function waitingInvitation(email: string) {

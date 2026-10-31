@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calendar, Clock, FileText, Mail, Phone, Plus, StickyNote, Trash2, X } from "lucide-react";
+import { Calendar, Check, Clock, FileText, Mail, Phone, Plus, StickyNote, Trash2, X } from "lucide-react";
 import {
-  Avatar, Button, Checkbox, Drawer, Field, Input, Loading, Modal, Notice, Pill, Select, Textarea, cx, useToast,
+  Avatar, Button, Checkbox, Drawer, Field, Input, Loading, Modal, Notice, Pill, Select, Textarea, cx, useConfirm, useToast,
 } from "@windveal/ui";
 import { initials } from "@windveal/shared";
 import { api, ApiError } from "../../lib/api";
@@ -526,9 +526,16 @@ export function Timeline({ items, filter = "all" }: { items: Activity[]; filter?
   const { canManage } = useCrmAccess();
   const refresh = useRefreshCrm();
   const [run] = useAction();
+  const { confirm, dialog } = useConfirm();
   const list = filter === "all" ? items : items.filter((a) => a.type === filter);
   if (!list.length) return <p className="muted crm-small crm-pad">No activity yet. Log a call, meeting or note above.</p>;
+  const remove = async (a: Activity) => {
+    if (!(await confirm({ title: "Delete this activity?", message: "It will be removed from the timeline for everyone.", confirmLabel: "Delete" }))) return;
+    run(async () => { await api.del(`/api/crm/activities/${a.id}`); refresh(); }, "Activity deleted");
+  };
   return (
+    <>
+    {dialog}
     <ul className="crm-timeline">
       {list.map((a) => {
         const meta = [
@@ -545,7 +552,7 @@ export function Timeline({ items, filter = "all" }: { items: Activity[]; filter?
                 <b>{activityTitle(a)}</b>
                 {(a.authorUserId === user.id || canManage) && (
                   <button className="crm-icon-ghost" aria-label="Delete activity" title="Delete"
-                    onClick={() => run(async () => { await api.del(`/api/crm/activities/${a.id}`); refresh(); }, "Activity deleted")}><Trash2 size={14} /></button>
+                    onClick={() => remove(a)}><Trash2 size={14} /></button>
                 )}
               </div>
               <small>{meta}</small>
@@ -555,6 +562,7 @@ export function Timeline({ items, filter = "all" }: { items: Activity[]; filter?
         );
       })}
     </ul>
+    </>
   );
 }
 
@@ -673,7 +681,12 @@ export function DealDrawer({ id, onClose, stages }: { id: string | null; onClose
   const [lost, setLost] = useState(false);
   const [edit, setEdit] = useState(false);
   const [followUp, setFollowUp] = useState(false);
+  const { confirm, dialog } = useConfirm();
   const d = q.data?.deal;
+  const remove = async () => {
+    if (!d || !(await confirm({ title: "Delete this deal?", message: `${d.name} and its history will be removed.`, confirmLabel: "Delete" }))) return;
+    run(async () => { await api.del(`/api/crm/deals/${d.id}`); refresh(); onClose(); }, "Deal deleted");
+  };
   return (
     <Drawer open={!!id} onClose={onClose} title={d?.name ?? "Deal"}
       headerExtra={d && <CoMark name={d.companyName ?? d.name} size={34} />}
@@ -715,7 +728,7 @@ export function DealDrawer({ id, onClose, stages }: { id: string | null; onClose
             <div className="row" style={{ flexWrap: "wrap" }}>
               <Button variant="secondary" size="sm" onClick={() => setEdit(true)}>Edit details</Button>
               <Button variant="secondary" size="sm" icon={<Clock size={14} />} onClick={() => setFollowUp(true)}>Add follow-up</Button>
-              {canManage && <Button variant="ghost" size="sm" onClick={() => run(async () => { await api.del(`/api/crm/deals/${d.id}`); refresh(); onClose(); }, "Deal deleted")}>Delete</Button>}
+              {canManage && <Button variant="ghost" size="sm" onClick={remove}>Delete</Button>}
             </div>
           )}
           {!!q.data!.followUps.length && (
@@ -740,6 +753,7 @@ export function DealDrawer({ id, onClose, stages }: { id: string | null; onClose
           <FollowUpModal open={followUp} onClose={() => setFollowUp(false)} target={{ dealId: d.id, name: `${d.companyName} · ${d.name}` }} />
         </>
       )}
+      {dialog}
     </Drawer>
   );
 }
@@ -795,11 +809,31 @@ export function LeadDrawer({ id, onClose, stages, onConvert }: { id: string | nu
   const [run, busy] = useAction();
   const [notFit, setNotFit] = useState(false);
   const [edit, setEdit] = useState(false);
-  const [notes, setNotes] = useState<Record<string, string>>({});
+  // Qualification is read-only until "Edit" is clicked; checks and notes are then drafted locally and saved together.
+  const [qualDraft, setQualDraft] = useState<{ checks: Record<string, boolean>; notes: Record<string, string> } | null>(null);
+  const { confirm, dialog } = useConfirm();
   const l = q.data?.lead;
-  useEffect(() => { setNotes(l?.qualification.notes ?? {}); }, [l?.id, l?.qualification.notes]);
+  useEffect(() => { setQualDraft(null); }, [l?.id]);
   const closed = l?.stage === "Closed";
-  const setQual = (patch: Record<string, unknown>) => l && run(async () => { await api.put(`/api/crm/leads/${l.id}/qualification`, patch); refresh(); });
+  const startQual = () => l && setQualDraft({
+    checks: Object.fromEntries(QUAL.map((x) => [x.key, !!l.qualification[x.key]])),
+    notes: Object.fromEntries(QUAL.map((x) => [x.key, l.qualification.notes?.[x.key] ?? ""])),
+  });
+  const saveQual = () => l && qualDraft && run(async () => {
+    const patch: Record<string, unknown> = {};
+    const notes: Record<string, string> = {};
+    for (const x of QUAL) {
+      if (qualDraft.checks[x.key] !== !!l.qualification[x.key]) patch[x.key] = qualDraft.checks[x.key];
+      if ((qualDraft.notes[x.key] ?? "") !== (l.qualification.notes?.[x.key] ?? "")) notes[x.key] = qualDraft.notes[x.key] ?? "";
+    }
+    if (Object.keys(notes).length) patch.notes = notes;
+    if (Object.keys(patch).length) { await api.put(`/api/crm/leads/${l.id}/qualification`, patch); refresh(); }
+    setQualDraft(null);
+  }, "Qualification saved");
+  const remove = async () => {
+    if (!l || !(await confirm({ title: "Delete this lead?", message: `${l.companyName} and its activity will be removed.`, confirmLabel: "Delete" }))) return;
+    run(async () => { await api.del(`/api/crm/leads/${l.id}`); refresh(); onClose(); }, "Lead deleted");
+  };
   const contactLine = useMemo(() => l ? [l.contactName, l.contactRole].filter(Boolean).join(" · ") : "", [l]);
   return (
     <Drawer open={!!id} onClose={onClose} title={l?.companyName ?? "Lead"} headerExtra={l && <CoMark name={l.companyName} size={34} />}
@@ -840,18 +874,45 @@ export function LeadDrawer({ id, onClose, stages, onConvert }: { id: string | nu
           <ExtraDetailsList reference={l.reference} referenceLabel="Lead ID" extra={l.extraDetails} />
           {canEdit && <div><Button variant="secondary" size="sm" onClick={() => setEdit(true)}>Edit details</Button></div>}
           <div>
-            <div className="between"><div className="section-label crm-sec">Qualification</div><QualMeter score={l.qualificationScore} /></div>
-            <div className="stack" style={{ gap: 10 }}>
-              {QUAL.map((x) => (
-                <div key={x.key} className="crm-qual-item">
-                  <Checkbox label={x.label} checked={!!l.qualification[x.key]} disabled={!canEdit || closed || busy}
-                    onChange={(e) => setQual({ [x.key]: e.target.checked })} />
-                  <input className="input" placeholder={x.hint} aria-label={`${x.label} notes`} disabled={!canEdit || closed}
-                    value={notes[x.key] ?? ""} onChange={(e) => setNotes((n) => ({ ...n, [x.key]: e.target.value }))}
-                    onBlur={() => (notes[x.key] ?? "") !== (l.qualification.notes?.[x.key] ?? "") && setQual({ notes: { [x.key]: notes[x.key] ?? "" } })} />
-                </div>
-              ))}
+            <div className="between">
+              <div className="section-label crm-sec">Qualification</div>
+              <div className="row">
+                <QualMeter score={l.qualificationScore} />
+                {canEdit && !closed && !qualDraft && <Button variant="secondary" size="sm" onClick={startQual}>Edit</Button>}
+              </div>
             </div>
+            {qualDraft ? (
+              <div className="stack" style={{ gap: 10 }}>
+                {QUAL.map((x) => (
+                  <div key={x.key} className="crm-qual-item">
+                    <Checkbox label={x.label} checked={!!qualDraft.checks[x.key]} disabled={busy}
+                      onChange={(e) => setQualDraft((d) => d && { ...d, checks: { ...d.checks, [x.key]: e.target.checked } })} />
+                    <input className="input" placeholder={x.hint} aria-label={`${x.label} notes`} disabled={busy}
+                      value={qualDraft.notes[x.key] ?? ""} onChange={(e) => setQualDraft((d) => d && { ...d, notes: { ...d.notes, [x.key]: e.target.value } })} />
+                  </div>
+                ))}
+                <div className="row">
+                  <Button variant="secondary" size="sm" disabled={busy} onClick={() => setQualDraft(null)}>Cancel</Button>
+                  <Button size="sm" loading={busy} onClick={saveQual}>Save</Button>
+                </div>
+              </div>
+            ) : (
+              <ul className="crm-qual-list">
+                {QUAL.map((x) => {
+                  const on = !!l.qualification[x.key];
+                  const note = l.qualification.notes?.[x.key];
+                  return (
+                    <li key={x.key} className={cx(on && "on")} aria-label={`${x.label}: ${on ? "done" : "not yet"}`}>
+                      <span className="crm-qual-dot" aria-hidden>{on && <Check size={12} />}</span>
+                      <span>
+                        <b>{x.label}</b>
+                        <small>{note || (on ? "No notes" : "Not yet")}</small>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
           {!!q.data!.followUps.length && (
             <div>
@@ -864,7 +925,7 @@ export function LeadDrawer({ id, onClose, stages, onConvert }: { id: string | nu
             {canEdit && !closed && <ActivityComposer target={{ leadId: l.id, name: l.companyName }} />}
             <Timeline items={q.data!.activities} />
           </div>
-          {canManage && <div><Button variant="ghost" size="sm" icon={<Trash2 size={14} />} onClick={() => run(async () => { await api.del(`/api/crm/leads/${l.id}`); refresh(); onClose(); }, "Lead deleted")}>Delete lead</Button></div>}
+          {canManage && <div><Button variant="ghost" size="sm" icon={<Trash2 size={14} />} onClick={remove}>Delete lead</Button></div>}
         </div>
       )}
       {l && (
@@ -875,6 +936,7 @@ export function LeadDrawer({ id, onClose, stages, onConvert }: { id: string | nu
           <LeadModal open={edit} onClose={() => setEdit(false)} lead={l} />
         </>
       )}
+      {dialog}
     </Drawer>
   );
 }

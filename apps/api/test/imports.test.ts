@@ -240,6 +240,9 @@ describe("imports", () => {
     const ngozi = rows.find((e) => e.firstName === "Ngozi")!;
     expect(ngozi.reference).toBe("1001");
     expect(ngozi.extraDetails).toEqual({ Grade: "Level 8", "Blood group": "O+" });
+    // A copy of what was imported is kept in Documents › Imports.
+    const lib = await c.get("/api/documents/files?q=imported");
+    expect(JSON.stringify(lib.body)).toMatch(/staff \(imported/);
     const profile = await c.get(`/api/people/employees/${ngozi.id}`);
     expect(profile.body.reference).toBe("1001");
     expect(profile.body.extraDetails).toMatchObject({ Grade: "Level 8" });

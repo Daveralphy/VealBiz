@@ -201,7 +201,22 @@ describe("people: attendance", () => {
     const e = await createEmployee(admin.c, { firstName: "Amaka", lastName: "Okafor", email: admin.email });
     expect((await admin.c.post("/api/people/attendance/clock-in")).status).toBe(200);
     expect((await admin.c.post("/api/people/attendance/clock-in")).status).toBe(409);
-    expect((await admin.c.post("/api/people/attendance/clock-out")).status).toBe(200);
+    // Breaks: pause, then resume; pausing twice or resuming when not paused is refused.
+    expect((await admin.c.post("/api/people/attendance/resume")).status).toBe(409);
+    const paused = await admin.c.post("/api/people/attendance/pause");
+    expect(paused.body.record.onBreak).toBe(true);
+    expect((await admin.c.post("/api/people/attendance/pause")).status).toBe(409);
+    expect((await admin.c.get("/api/people/attendance")).body.rows.find((r: any) => r.employee.id === e.id).record.onBreak).toBe(true);
+    const resumed = await admin.c.post("/api/people/attendance/resume");
+    expect(resumed.body.record.onBreak).toBe(false);
+    expect(resumed.body.record.breaks).toHaveLength(1);
+    await admin.c.post("/api/people/attendance/pause");
+    // Clocking out during a break closes the break.
+    const out = await admin.c.post("/api/people/attendance/clock-out");
+    expect(out.status).toBe(200);
+    expect(out.body.record.breaks.every((b: any) => b.end)).toBe(true);
+    expect(typeof out.body.minutes).toBe("number");
+    expect((await admin.c.post("/api/people/attendance/pause")).status).toBe(409);
     const board = (await admin.c.get("/api/people/attendance")).body;
     const row = board.rows.find((r: any) => r.employee.id === e.id);
     expect(["present", "late"]).toContain(row.status);

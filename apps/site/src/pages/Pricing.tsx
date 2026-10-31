@@ -168,7 +168,7 @@ export default function Pricing() {
         title="Need something built around you?"
         text="Talk to us about storage, AI and support that fit your organisation."
         primary={{ label: "Contact us", href: "/contact?topic=sales" }}
-        secondary={{ label: "Download WindVeal", href: DOWNLOAD_PATH }}
+        secondary={{ label: "Get started", href: DOWNLOAD_PATH }}
       />
     </MarketingLayout>
   );

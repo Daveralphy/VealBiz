@@ -151,7 +151,8 @@ test("the app opens on Welcome, and the website offers Download instead of sign-
 
   await page.goto(SITE_URL);
   await expect(page.getByRole("link", { name: /Sign in/ })).toHaveCount(0);
-  await page.getByRole("link", { name: /^Download$/ }).first().click();
+  await expect(page.getByRole("link", { name: /^Download/ })).toHaveCount(0);
+  await page.getByRole("link", { name: /^Get started$/ }).first().click();
   await expect(page.getByRole("heading", { name: /WindVeal for every device/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "macOS" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Android" })).toBeVisible();
@@ -197,4 +198,35 @@ test("an invited employee joins from the sign-in screen without the email link",
   await page.getByLabel("Password", { exact: true }).fill("Testing#2026x");
   await page.getByRole("button", { name: /Join Example Trading/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText(/Good (morning|afternoon|evening), Chidi/);
+});
+
+test("your clock in the top bar: clock in, take a break, resume and clock out; others see no running count", async ({ page }) => {
+  // Amaka clocked in at 08:02 this morning (sample data).
+  await signIn(page);
+  const clock = page.locator(".topbar .hclock");
+  await expect(clock).toHaveClass(/hclock-in/);
+  await clock.click();
+  await page.locator(".menu-float").getByRole("button", { name: "Take a break" }).click();
+  await expect(clock).toHaveClass(/hclock-break/);
+  await page.goto("/people/attendance");
+  const me = page.getByRole("row", { name: /Amaka Okafor/ });
+  await expect(me.getByText("On a break")).toBeVisible();
+  await clock.click();
+  await page.locator(".menu-float").getByRole("button", { name: "Resume" }).click();
+  await expect(clock).toHaveClass(/hclock-in/);
+  await expect(me.getByText("Still working")).toBeVisible();
+  await clock.click();
+  await page.locator(".menu-float").getByRole("button", { name: "Clock out" }).click();
+  await page.getByRole("dialog", { name: "Clock out for today?" }).getByRole("button", { name: "Clock out" }).click();
+  await expect(page.locator(".toast", { hasText: "You worked" })).toBeVisible();
+  await expect(clock).toHaveClass(/hclock-done/);
+  await expect(me.locator(".ppl-daycell b")).toHaveText(/\dh \d\dm/);
+
+  // Someone who hasn't clocked in yet starts from the top bar.
+  await page.request.post("/api/auth/logout");
+  await page.context().clearCookies();
+  await signIn(page, "manager@example-trading.test");
+  await page.locator(".topbar .hclock").click();
+  await page.locator(".menu-float").getByRole("button", { name: "Clock in" }).click();
+  await expect(page.locator(".topbar .hclock")).toHaveClass(/hclock-in/);
 });

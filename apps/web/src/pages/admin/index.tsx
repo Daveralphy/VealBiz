@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Download, ExternalLink, Eye, FileText, Image as ImageIcon, RotateCcw, X } from "lucide-react";
+import { Check, Download, ExternalLink, Eye, FileText, Image as ImageIcon, MoreHorizontal, RotateCcw, X } from "lucide-react";
 import {
-  Avatar, Button, Card, EmptyState, Loading, Modal, PageHeader, Pill, SearchInput, Segmented, Select, Stat, Switch, Textarea, useToast,
+  Avatar, Button, Card, EmptyState, IconButton, Loading, Menu, Modal, PageHeader, Pill, SearchInput, Segmented, Select, Stat, Textarea, useConfirm, useToast,
 } from "@windveal/ui";
 import { PLANS, formatBytes } from "@windveal/shared";
 import { api, qs } from "../../lib/api";
@@ -291,6 +291,7 @@ function People() {
   const toast = useToast();
   const navigate = useNavigate();
   const [q, setQ] = useState("");
+  const { confirm, dialog } = useConfirm();
   const list = useQuery({ queryKey: ["admin", "users", q], queryFn: () => api.get<any[]>(`/api/admin/users${qs({ q })}`) });
   const setAdmin = useMutation({
     mutationFn: ({ id, value }: { id: string; value: boolean }) => api.post(`/api/admin/users/${id}/platform-admin`, { value }),
@@ -310,13 +311,28 @@ function People() {
                   <td className="hide-sm">{u.org ? <button className="link" onClick={() => navigate(`/admin/organisations/${u.org.id}`)}>{u.org.name}</button> : <span className="muted">None yet</span>}{u.org?.role && <small className="muted"> · {u.org.role}</small>}</td>
                   <td className="hide-sm">{fmtDate(u.createdAt)}</td>
                   <td className="hide-sm">{u.lastLoginAt ? timeAgo(u.lastLoginAt) : "Never"}</td>
-                  <td><Switch label={`WindVeal admin for ${u.name}`} checked={u.platformAdmin} disabled={u.id === user.id} onChange={(value) => setAdmin.mutate({ id: u.id, value })} /></td>
+                  <td><span className="row" style={{ gap: 6, justifyContent: "space-between" }}>
+                    {u.platformAdmin ? <Pill tone="violet">WindVeal admin</Pill> : <span className="muted">No</span>}
+                    {u.id !== user.id && (
+                      <Menu trigger={(t) => <IconButton label={`Actions for ${u.name}`} onClick={t}><MoreHorizontal size={18} /></IconButton>}>
+                        {(close) => <button className={u.platformAdmin ? "danger" : undefined} onClick={async () => {
+                          close();
+                          const value = !u.platformAdmin;
+                          const ok = await confirm(value
+                            ? { title: `Make ${u.name} a WindVeal admin?`, message: "They'll see every organisation and everything it sent in, and can approve, reject and change plans.", confirmLabel: "Give access", danger: false }
+                            : { title: `Remove ${u.name}'s WindVeal admin access?`, message: "They'll no longer see the WindVeal admin panel.", confirmLabel: "Remove access" });
+                          if (ok) setAdmin.mutate({ id: u.id, value });
+                        }}>{u.platformAdmin ? "Remove WindVeal admin access" : "Make WindVeal admin"}</button>}
+                      </Menu>
+                    )}
+                  </span></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+      {dialog}
     </>
   );
 }

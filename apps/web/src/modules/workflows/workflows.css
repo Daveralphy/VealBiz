@@ -66,6 +66,7 @@
 .wf-inline-select:hover, .wf-inline-input:hover { border-color: var(--line); }
 .wf-inline-select:focus, .wf-inline-input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus); }
 .wf-inline-input.od { color: var(--red); }
+.wf-drawer.is-editing .wf-inline-select, .wf-drawer.is-editing .wf-inline-input { border-color: var(--line); background: var(--surface); }
 .wf-chip { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--ink); max-width: 100%; }
 .wf-desc { margin-top: 16px; color: var(--text); font-size: 14px; white-space: pre-wrap; }
 .wf-sec { margin: 24px 0 12px; }

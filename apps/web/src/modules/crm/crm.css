@@ -96,6 +96,14 @@
 .crm-qual i.on { background: var(--ok-dot); }
 .crm-qual-item { display: grid; gap: 6px; }
 .crm-qual-item .input { font-size: 13px; padding-top: 7px; padding-bottom: 7px; }
+.crm-qual-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.crm-qual-list li { display: flex; gap: 10px; align-items: flex-start; }
+.crm-qual-list li > span:last-child { display: grid; gap: 2px; }
+.crm-qual-list b { font-size: 13.5px; font-weight: 500; color: var(--muted); }
+.crm-qual-list li.on b { color: var(--ink); }
+.crm-qual-list small { font-size: 12.5px; color: var(--muted); }
+.crm-qual-dot { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; }
+.crm-qual-list li.on .crm-qual-dot { background: var(--ok-bg); border-color: var(--ok-dot); color: var(--ok); }
 
 /* company page */
 .crm-co-head { display: flex; gap: 18px; align-items: center; margin-bottom: 20px; }

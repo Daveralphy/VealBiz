@@ -39,13 +39,12 @@ export function SkeletonText({ lines = 3 }: { lines?: number }) {
   );
 }
 
-/** A whole-page placeholder: a title, a row of tiles and a couple of cards. */
-export function PageSkeleton() {
+/** A whole-page placeholder: a row of tiles and a couple of cards (plus a title when there isn't a real one). */
+export function PageSkeleton({ title = true, style }: { title?: boolean; style?: CSSProperties }) {
   return (
-    <div className="skel-page" role="status" aria-label="Loading">
-      <Skeleton width={220} height={30} radius={8} />
-      <Skeleton width={320} height={14} style={{ marginTop: 10 }} />
-      <div className="skel-tiles">
+    <div className="skel-page" role="status" aria-label="Loading" style={style}>
+      {title && <><Skeleton width={220} height={30} radius={8} /><Skeleton width={320} height={14} style={{ marginTop: 10 }} /></>}
+      <div className="skel-tiles" style={title ? undefined : { marginTop: 0 }}>
         {Array.from({ length: 4 }, (_, i) => <div key={i} className="skel-card"><Skeleton width="40%" height={12} /><Skeleton width="60%" height={26} style={{ marginTop: 12 }} /></div>)}
       </div>
       <div className="skel-cols">

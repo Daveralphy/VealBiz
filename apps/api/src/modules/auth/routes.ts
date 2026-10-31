@@ -15,7 +15,7 @@ import { audit } from "../../lib/audit";
 
 const DAY = 86_400_000;
 // Generous limit under automated tests (many sign-ups from one address), strict otherwise.
-const AUTH_LIMIT = { config: { rateLimit: { max: env.isTest ? 10_000 : 10, timeWindow: "1 minute" } } };
+const AUTH_LIMIT = { config: { rateLimit: { max: env.authRateLimit, timeWindow: "1 minute" } } };
 
 function deviceLabelFrom(ua: string | undefined): string {
   const s = ua ?? "";

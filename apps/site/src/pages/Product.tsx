@@ -16,7 +16,7 @@ export function PageHero({ title, accent, children, accentBreak }: { title: stri
         <p className="lede">{children}</p>
         <div className="hero-buttons">
           <Link to={DOWNLOAD_PATH} className="btn btn-primary btn-lg">
-            Download WindVeal <ArrowRight size={16} aria-hidden />
+            Get started <ArrowRight size={16} aria-hidden />
           </Link>
           <Link to="/pricing" className="btn btn-secondary btn-lg">
             See pricing

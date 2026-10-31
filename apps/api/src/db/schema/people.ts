@@ -96,6 +96,8 @@ export const attendance = pgTable("attendance", {
   workDate: date("work_date").notNull(),
   clockIn: timestamp("clock_in", { withTimezone: true }),
   clockOut: timestamp("clock_out", { withTimezone: true }),
+  /** Breaks taken while clocked in (ISO times; the last one has no end while on a break). Not counted as work. */
+  breaks: jsonb("breaks").$type<{ start: string; end: string | null }[]>().notNull().default([]),
   source: text("source").notNull().default("app"),
   correctedBy: uuid("corrected_by").references(() => users.id),
   note: text("note"),

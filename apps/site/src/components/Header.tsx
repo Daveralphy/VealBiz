@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { ArrowRight, ChevronDown, Menu, X, Download } from "lucide-react";
+import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
 import { BrandLogo } from "@windveal/ui";
 import { DOWNLOAD_PATH } from "../lib/site";
 import { WORKSPACE_LIST } from "../lib/workspaces";
@@ -12,6 +12,15 @@ export function Logo({ light }: { light?: boolean }) {
 export function Header({ overlay }: { overlay?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // The header stays at the top while scrolling, on a blurred see-through background.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  const clear = overlay && !scrolled;
   const location = useLocation();
   const dropRef = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<number>();
@@ -61,10 +70,10 @@ export function Header({ overlay }: { overlay?: boolean }) {
   };
 
   return (
-    <header className={`site-header${overlay ? " hdr-overlay" : ""}`}>
+    <header className={`site-header${overlay ? " hdr-fixed" : ""}${clear ? " hdr-overlay" : ""}${scrolled ? " scrolled" : ""}`}>
       <div className="container header-inner">
         <Link to="/" className="header-logo" aria-label="WindVeal home">
-          <Logo light={overlay} />
+          <Logo light={clear} />
         </Link>
         <nav className="header-nav" aria-label="Main">
           <div className="nav-drop" ref={dropRef} onMouseEnter={openSoon} onMouseLeave={closeSoon}>
@@ -109,8 +118,8 @@ export function Header({ overlay }: { overlay?: boolean }) {
           </NavLink>
         </nav>
         <div className="header-actions">
-          <Link to={DOWNLOAD_PATH} className={`btn ${overlay ? "btn-light" : "btn-primary"} header-cta`}>
-            <Download size={16} aria-hidden /> Download
+          <Link to={DOWNLOAD_PATH} className={`btn ${clear ? "btn-light" : "btn-primary"} header-cta`}>
+            Get started
           </Link>
           <button type="button" className="menu-btn" aria-label="Open menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}>
             <Menu size={22} aria-hidden />
@@ -155,7 +164,7 @@ export function Header({ overlay }: { overlay?: boolean }) {
           </nav>
           <div className="mobile-nav-foot">
             <Link to={DOWNLOAD_PATH} className="btn btn-primary btn-lg btn-block">
-              <Download size={16} aria-hidden /> Download WindVeal
+              Get started <ArrowRight size={16} aria-hidden />
             </Link>
           </div>
         </div>

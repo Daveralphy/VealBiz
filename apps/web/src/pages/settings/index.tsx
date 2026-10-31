@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, KeyRound, Lock, MoreHorizontal, Pause, Plus, Shield, Trash2, X } from "lucide-react";
+import { Download, KeyRound, Lock, MoreHorizontal, Pause, Pencil, Plus, Shield, Trash2, UserCog, X } from "lucide-react";
 import {
   Avatar, Button, Card, ConfirmDialog, EmptyState, IconButton, Input, Loading, Menu, Modal, Notice, PageHeader, Pill, Progress,
   SearchInput, Segmented, Select, Switch, useToast,
@@ -42,6 +42,7 @@ function Members() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: "remove" | "suspend"; m: any } | null>(null);
   const [accessFor, setAccessFor] = useState<any | null>(null);
+  const [roleFor, setRoleFor] = useState<any | null>(null);
   const membersQ = useQuery({ queryKey: ["members"], queryFn: () => api.get<any[]>("/api/members") });
   const invitesQ = useQuery({ queryKey: ["invitations"], queryFn: () => api.get<any[]>("/api/invitations") });
   const refresh = () => { qc.invalidateQueries({ queryKey: ["members"] }); qc.invalidateQueries({ queryKey: ["invitations"] }); qc.invalidateQueries({ queryKey: ["audit"] }); };
@@ -71,12 +72,7 @@ function Members() {
                 {members.map((m) => (
                   <tr key={m.id}>
                     <td><div className="cell-main"><Avatar name={m.name} /><div style={{ minWidth: 0 }}><b>{m.name} {m.isYou && <Pill>You</Pill>}</b><small>{m.email}</small></div></div></td>
-                    <td>{isAdmin && !m.isPrimaryAdmin ? (
-                      <select className="select chip-select" value={m.role} aria-label={`Role for ${m.name}`}
-                        onChange={(e) => act(() => api.patch(`/api/members/${m.id}`, { role: e.target.value }), `${m.name} is now ${e.target.value === "admin" ? "an admin" : `a ${e.target.value}`}`)}>
-                        <option value="admin">Admin</option><option value="manager">Manager</option><option value="member">Member</option>
-                      </select>
-                    ) : <span className="row muted" style={{ gap: 6 }}>{m.isPrimaryAdmin && <Lock size={13} />}{m.role[0].toUpperCase() + m.role.slice(1)}</span>}</td>
+                    <td><span className="row muted" style={{ gap: 6 }}>{m.isPrimaryAdmin && <Lock size={13} />}{m.role[0].toUpperCase() + m.role.slice(1)}</span></td>
                     <td className="hide-sm"><div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
                       {m.role === "admin" ? <Pill tone="grey">All workspaces</Pill> : WORKSPACES.filter((w) => m.access[w] !== "none").map((w) => <Pill key={w} tone="grey">{WORKSPACE_LABELS[w]}</Pill>)}
                     </div></td>
@@ -85,6 +81,7 @@ function Members() {
                     <td style={{ width: 40 }}>{isAdmin && !m.isYou && (
                       <Menu trigger={(t) => <IconButton label={`Actions for ${m.name}`} onClick={t}><MoreHorizontal size={18} /></IconButton>}>
                         {(close) => <>
+                          {!m.isPrimaryAdmin && <button onClick={() => { close(); setRoleFor(m); }}><UserCog size={16} />Change role</button>}
                           <button onClick={() => { close(); setAccessFor(m); }}><Shield size={16} />Edit workspace access</button>
                           <button onClick={() => { close(); act(() => api.post(`/api/members/${m.id}/password-reset`), `Reset link sent to ${m.email}`); }}><KeyRound size={16} />Send password reset</button>
                           <hr />
@@ -120,6 +117,7 @@ function Members() {
       {isAdmin && <p className="muted row" style={{ marginTop: 14, fontSize: 13 }}><Lock size={15} />The primary admin can't be demoted or removed. Transfer primary admin in Organisation first.</p>}
       <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} onDone={refresh} />
       {accessFor && <AccessModal member={accessFor} onClose={() => setAccessFor(null)} onSaved={refresh} />}
+      {roleFor && <RoleModal member={roleFor} onClose={() => setRoleFor(null)} onSave={(role) => act(async () => { await api.patch(`/api/members/${roleFor.id}`, { role }); setRoleFor(null); }, `${roleFor.name} is now ${role === "admin" ? "an admin" : `a ${role}`}`)} />}
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)} danger
         title={confirm?.kind === "remove" ? `Remove ${confirm?.m.name}?` : `Suspend ${confirm?.m.name}?`}
         confirmLabel={confirm?.kind === "remove" ? "Remove" : "Suspend access"}
@@ -168,6 +166,17 @@ function InviteModal({ open, onClose, onDone }: { open: boolean; onClose: () => 
   );
 }
 
+function RoleModal({ member, onClose, onSave }: { member: any; onClose: () => void; onSave: (role: string) => void }) {
+  const [role, setRole] = useState<string>(member.role);
+  return (
+    <Modal open onClose={onClose} title={`Change ${member.name}'s role`} subtitle="Their workspace access follows the new role's defaults."
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={role === member.role} onClick={() => onSave(role)}>Save role</Button></>}>
+      <Select label="Role" value={role} onChange={(e) => setRole(e.target.value)}
+        options={[{ value: "admin", label: "Admin" }, { value: "manager", label: "Manager" }, { value: "member", label: "Member" }]} />
+    </Modal>
+  );
+}
+
 function AccessModal({ member, onClose, onSaved }: { member: any; onClose: () => void; onSaved: () => void }) {
   const toast = useToast();
   const [access, setAccess] = useState<Record<string, string>>({ ...member.access });
@@ -183,7 +192,20 @@ function AccessModal({ member, onClose, onSaved }: { member: any; onClose: () =>
 }
 
 const LEVEL_LABEL: Record<string, string> = { none: "None", view: "View", edit: "Edit", manage: "Manage" };
-function AccessMatrix({ value, onChange, disabled }: { value: Record<string, string>; onChange: (v: Record<string, string>) => void; disabled?: boolean }) {
+function AccessMatrix({ value, onChange, disabled, readOnly }: { value: Record<string, string>; onChange: (v: Record<string, string>) => void; disabled?: boolean; readOnly?: boolean }) {
+  if (readOnly) {
+    return (
+      <div className="table-wrap">
+        <table className="table">
+          <thead><tr><th>Workspace</th><th>Access</th></tr></thead>
+          <tbody>{WORKSPACES.map((w) => (
+            <tr key={w}><td className="ink" style={{ fontWeight: 500 }}>{WORKSPACE_LABELS[w]}</td>
+              <td><Pill tone={value[w] === "none" ? "grey" : value[w] === "manage" ? "violet" : "blue"}>{LEVEL_LABEL[value[w] ?? "none"]}</Pill></td></tr>
+          ))}</tbody>
+        </table>
+      </div>
+    );
+  }
   return (
     <div className="table-wrap">
       <table className="table">
@@ -213,8 +235,11 @@ function Roles() {
   const [sel, setSel] = useState("manager");
   const [access, setAccess] = useState<Record<string, string>>({});
   const [special, setSpecial] = useState<string[]>([]);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const role = q.data?.roles.find((r: any) => r.key === sel);
-  useEffect(() => { if (role) { setAccess({ ...role.access }); setSpecial([...role.special]); } }, [role?.key, q.data]);
+  const reset = () => { if (role) { setAccess({ ...role.access }); setSpecial([...role.special]); } };
+  useEffect(() => { reset(); setEditing(false); }, [role?.key, q.data]);
   if (!q.data) return <Loading />;
   const label = (k: string) => k[0]!.toUpperCase() + k.slice(1);
   const desc: Record<string, string> = { admin: "Full access to everything", manager: "Runs a team's work", member: "Works in assigned workspaces" };
@@ -233,20 +258,26 @@ function Roles() {
         </div>
       </Card>
       <div>
-        <Card title={label(sel)} subtitle={sel === "admin" ? "Admins can see and do everything. This role can't be changed." : `What ${sel}s can see and do in each workspace. ${role?.count ?? 0} people have this role.`}>
-          <AccessMatrix value={access} onChange={setAccess} disabled={!role?.editable} />
+        <Card title={label(sel)} subtitle={sel === "admin" ? "Admins can see and do everything. This role can't be changed." : `What ${sel}s can see and do in each workspace. ${role?.count ?? 0} people have this role.`}
+          actions={role?.editable && !editing && <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={() => setEditing(true)}>Edit</Button>}>
+          <AccessMatrix value={access} onChange={setAccess} readOnly={!editing} />
         </Card>
         <Card title="Special permissions" subtitle="Extra abilities on top of workspace access.">
           {SPECIAL_PERMISSIONS.map((p) => (
             <div key={p} className="list-row" style={{ justifyContent: "space-between" }}>
               <div><b className="ink" style={{ display: "block" }}>{SPECIAL_LABELS[p]![0]}</b><small className="muted">{SPECIAL_LABELS[p]![1]}</small></div>
-              <Switch label={SPECIAL_LABELS[p]![0]} disabled={!role?.editable} checked={special.includes(p)} onChange={(v) => setSpecial(v ? [...special, p] : special.filter((x) => x !== p))} />
+              {editing
+                ? <Switch label={SPECIAL_LABELS[p]![0]} checked={special.includes(p)} onChange={(v) => setSpecial(v ? [...special, p] : special.filter((x) => x !== p))} />
+                : <Pill tone={special.includes(p) ? "ok" : "grey"}>{special.includes(p) ? "Allowed" : "Not allowed"}</Pill>}
             </div>
           ))}
-          {role?.editable && <div className="row" style={{ justifyContent: "flex-end", borderTop: "1px solid var(--line)", paddingTop: 16, marginTop: 8 }}>
-            <Button onClick={async () => {
-              try { await api.put(`/api/roles/${sel}`, { access, special }); await qc.invalidateQueries(); toast("Role saved"); }
+          {editing && <div className="row" style={{ justifyContent: "flex-end", borderTop: "1px solid var(--line)", paddingTop: 16, marginTop: 8 }}>
+            <Button variant="secondary" onClick={() => { reset(); setEditing(false); }}>Cancel</Button>
+            <Button loading={saving} onClick={async () => {
+              setSaving(true);
+              try { await api.put(`/api/roles/${sel}`, { access, special }); await qc.invalidateQueries(); toast("Role saved"); setEditing(false); }
               catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save", "error"); }
+              finally { setSaving(false); }
             }}>Save changes</Button>
           </div>}
         </Card>

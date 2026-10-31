@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, Download, LogIn, LogOut, Pencil } from "lucide-react";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Clock, Download, LogIn, LogOut, Pencil, Coffee, Play } from "lucide-react";
 import { Avatar, Button, EmptyState, IconButton, Input, Loading, Modal, Notice, Pill, SearchInput, Stat, Textarea, useToast, type Tone } from "@windveal/ui";
 import { api, qs } from "../../lib/api";
 import { fmtTime } from "../../lib/format";
@@ -8,15 +8,15 @@ import { useForm } from "../../lib/form";
 import { useSession } from "../../lib/session";
 import { useDebounced } from "./Directory";
 import { fmtMinutes, localYmd } from "./lib";
+import { fmtDuration, useMyClock } from "./clock";
 
 type Status = "present" | "late" | "not_in" | "on_leave" | "sick";
 type Row = {
   employee: { id: string; name: string; jobTitle: string | null; location: string | null };
-  record: { id: string; clockIn: string | null; clockOut: string | null; source: string; note: string | null; corrected: boolean } | null;
+  record: { id: string; clockIn: string | null; clockOut: string | null; source: string; note: string | null; corrected: boolean; onBreak: boolean } | null;
   status: Status; statusLabel: string; minutes: number | null; leaveType: string | null;
 };
 type Board = { date: string; workdayStart: string; rows: Row[]; stats: { total: number; present: number; late: number; away: number; notIn: number } };
-type Me = { employee: { id: string; firstName: string } | null; record: { clockIn: string | null; clockOut: string | null } | null; date: string };
 
 const TONE: Record<Status, Tone> = { present: "ok", late: "warn", not_in: "grey", on_leave: "blue", sick: "red" };
 
@@ -25,46 +25,50 @@ function greeting(d: Date) {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-function useNow(ms = 1000) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => { const t = setInterval(() => setNow(new Date()), ms); return () => clearInterval(t); }, [ms]);
-  return now;
-}
-
-function ClockBar() {
+/** Your own day: clock-in and clock-out times, and the time worked (counting live only while you're clocked in). */
+function MyDay() {
   const { user } = useSession();
-  const toast = useToast();
-  const qc = useQueryClient();
-  const now = useNow();
-  const me = useQuery({ queryKey: ["people", "attendance", "me"], queryFn: () => api.get<Me>("/api/people/attendance/me") });
-  const clock = useMutation({
-    mutationFn: (dir: "in" | "out") => api.post(`/api/people/attendance/clock-${dir}`),
-    onSuccess: (_d, dir) => { toast(dir === "in" ? "You're clocked in" : "You're clocked out. See you tomorrow."); qc.invalidateQueries({ queryKey: ["people", "attendance"] }); },
-    onError: (e: Error) => toast(e.message, "error"),
-  });
-  const r = me.data?.record;
-  const first = me.data?.employee?.firstName ?? user.name.split(" ")[0];
+  const c = useMyClock();
+  const today = new Date();
+  const first = user.name.split(" ")[0];
   return (
     <div className="ppl-clockbar">
       <div>
-        <small>{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</small>
-        <h2>{greeting(now)}, {first}</h2>
+        <small>{today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</small>
+        <h2>{greeting(today)}, {first}</h2>
       </div>
-      <b className="time" aria-live="off">{now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</b>
-      <div className="act">
-        {me.isLoading ? null : !me.data?.employee ? (
-          <small>Ask HR to add you to People & HR to clock in.</small>
-        ) : r?.clockOut ? (
-          <small>Clocked in {fmtTime(r.clockIn)} · out {fmtTime(r.clockOut)}</small>
-        ) : r?.clockIn ? (
-          <>
-            <small className="hide-sm">In since {fmtTime(r.clockIn)}</small>
-            <button className="btn ppl-clockbtn" disabled={clock.isPending} onClick={() => clock.mutate("out")}><LogOut size={16} />Clock out</button>
-          </>
-        ) : (
-          <button className="btn ppl-clockbtn" disabled={clock.isPending} onClick={() => clock.mutate("in")}><LogIn size={16} />Clock in</button>
-        )}
-      </div>
+      {c.state === "none" ? (
+        <small className="act">Ask HR to add you to People & HR to clock in.</small>
+      ) : (
+        <div className="ppl-myday">
+          <div className="ppl-myday-times">
+            <span>In <b>{c.record?.clockIn ? fmtTime(c.record.clockIn) : "—"}</b></span>
+            <span>Out <b>{c.record?.clockOut ? fmtTime(c.record.clockOut) : "—"}</b></span>
+          </div>
+          <div className="ppl-myday-total">
+            <b>{c.state === "out" ? "Not clocked in" : fmtDuration(c.workedMs, c.state === "in")}</b>
+            {c.state === "break" && <small>On a break</small>}
+          </div>
+          <div className="ppl-myday-actions">
+            {c.state === "out" && <button className="btn ppl-clockbtn" disabled={c.busy} onClick={c.clockIn}><LogIn size={16} />Clock in</button>}
+            {c.state === "in" && <button className="btn ppl-clockbtn ghost" disabled={c.busy} onClick={c.pause}><Coffee size={16} />Take a break</button>}
+            {c.state === "break" && <button className="btn ppl-clockbtn" disabled={c.busy} onClick={c.resume}><Play size={16} />Resume</button>}
+            {(c.state === "in" || c.state === "break") && <button className="btn ppl-clockbtn" disabled={c.busy} onClick={c.clockOut}><LogOut size={16} />Clock out</button>}
+          </div>
+        </div>
+      )}
+      {c.dialog}
+    </div>
+  );
+}
+
+/** Someone's day in the team list: times small, the total underneath (no running count for other people). */
+function DayCell({ r }: { r: Row }) {
+  if (!r.record?.clockIn) return <span className="muted">—</span>;
+  return (
+    <div className="ppl-daycell">
+      <small>{fmtTime(r.record.clockIn)} – {r.record.clockOut ? fmtTime(r.record.clockOut) : "now"}</small>
+      {r.minutes != null ? <b>{fmtMinutes(r.minutes)}</b> : r.record.onBreak ? <span className="ppl-working break"><i />On a break</span> : <span className="ppl-working"><i />Still working</span>}
     </div>
   );
 }
@@ -86,7 +90,7 @@ export function AttendancePage() {
   const canFix = can("people", "edit");
   return (
     <>
-      <ClockBar />
+      <MyDay />
       <div className="stats">
         <Stat label="Present" value={b?.stats.present ?? "—"} note={b ? `of ${b.stats.total}` : undefined} />
         <Stat label="Late" value={b?.stats.late ?? "—"} note={b ? `after ${b.workdayStart}` : undefined} />
@@ -112,7 +116,7 @@ export function AttendancePage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Name</th><th className="hide-sm">Location</th><th>Clock in</th><th className="hide-sm">Clock out</th><th className="hide-sm">Hours</th><th>Status</th>
+                  <th>Name</th><th className="hide-sm">Location</th><th>{date === localYmd() ? "Worked today" : "Worked"}</th><th>Status</th>
                   {canFix && <th aria-label="Correct" />}
                 </tr>
               </thead>
@@ -121,9 +125,7 @@ export function AttendancePage() {
                   <tr key={r.employee.id}>
                     <td><div className="cell-main"><Avatar name={r.employee.name} size={36} /><div><b>{r.employee.name}</b><small>{r.employee.jobTitle ?? "—"}</small></div></div></td>
                     <td className="hide-sm">{r.employee.location ?? "—"}</td>
-                    <td>{fmtTime(r.record?.clockIn)}</td>
-                    <td className="hide-sm">{fmtTime(r.record?.clockOut)}</td>
-                    <td className="hide-sm">{fmtMinutes(r.minutes)}</td>
+                    <td><DayCell r={r} /></td>
                     <td><Pill tone={TONE[r.status]}>{r.statusLabel}</Pill>{r.record?.corrected && <small className="muted ppl-corrected" title={r.record.note ?? undefined}> corrected</small>}</td>
                     {canFix && <td className="num"><IconButton label={`Correct ${r.employee.name}'s times`} onClick={() => setFixing(r)}><Pencil size={15} /></IconButton></td>}
                   </tr>

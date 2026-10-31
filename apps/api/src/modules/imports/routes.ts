@@ -5,7 +5,7 @@ import { z } from "zod";
 import { DEFAULT_LEAD_STAGES, DEFAULT_RECRUITMENT_STAGES, IMPORT_KEEP, slugify, type Workspace } from "@windveal/shared";
 import { db, type Tx } from "../../db/client";
 import {
-  companies, contacts, departments, employees, employmentHistory, importJobs, importRows, jobs, leads, users, type ImportSheet,
+  companies, contacts, departments, employees, employmentHistory, files, importJobs, importRows, jobs, leads, users, type ImportSheet,
 } from "../../db/schema";
 import { requireOrg, type OrgContext } from "../../lib/context";
 import { AppError, badRequest, conflict, forbidden, notFound, parse, today } from "../../lib/http";
@@ -15,6 +15,7 @@ import {
   DESTINATIONS, DEST_BY_KEY, guessDateFormat, isDestination, mappingConfidence, suggestDestination, suggestMapping,
   parseWorkbook, type DestinationKey,
 } from "./fields";
+import { saveImportCopy } from "./copy";
 import {
   EDIT_PREFIX, SYSTEM_SHEET_PREFIX, extraDetails, lc, loadExisting, managerBlank, matchPerson, revalidateRows, willImport, type RowState,
 } from "./validate";
@@ -614,12 +615,14 @@ export default async function importsRoutes(app: FastifyInstance) {
     const counts: Record<string, number> = { added: 0, updated: 0, failed: 0, contacts: 0, departments: createdDepts.length, employees: 0, companies: 0, leads: 0, jobs: 0 };
     const nounKey: Record<DestinationKey, string> = { "people.employees": "employees", "crm.companies": "companies", "crm.leads": "leads", "recruitment.jobs": "jobs" };
     const managerRows: { entityId: string; manager: string }[] = [];
+    const imported = new Map<DestinationKey, RowState[]>();
     for (const dest of ["people.employees", "recruitment.jobs", "crm.companies", "crm.leads"] as const) {
       for (const r of toWrite.get(dest) ?? []) {
         try {
           const res = await db.transaction((tx) => writeRow(tx, ctx, job, dest, r, deptId));
           await db.update(importRows).set({ status: "imported", resultEntityType: res.entityType, resultEntityId: res.entityId, error: null, version: dsql`${importRows.version} + 1` })
             .where(eq(importRows.id, r.id));
+          imported.set(dest, [...(imported.get(dest) ?? []), r]);
           if (res.entityType.endsWith(".updated")) counts.updated!++;
           else { counts.added!++; counts[nounKey[dest]]!++; }
           counts.contacts! += res.contacts ?? 0;
@@ -652,7 +655,10 @@ export default async function importsRoutes(app: FastifyInstance) {
     const total = [...toWrite.values()].reduce((a, l) => a + l.length, 0);
     counts.total = total;
     const undoUntil = new Date(Date.now() + UNDO_HOURS * 3600_000);
-    const [done] = await db.update(importJobs).set({ summary: counts, undoUntil, version: dsql`${importJobs.version} + 1` })
+    // Keep a copy of what was added in Documents › Imports. The import still counts if saving the copy fails.
+    let copyId: string | null = null;
+    try { copyId = await saveImportCopy(ctx, job, imported); } catch (err) { req.log.error({ err }, "import copy failed"); }
+    const [done] = await db.update(importJobs).set({ summary: counts, undoUntil, fileId: copyId, version: dsql`${importJobs.version} + 1` })
       .where(eq(importJobs.id, job.id)).returning();
     await audit(ctx, {
       action: "import.committed", category: "data", entityType: "import", entityId: job.id,
@@ -686,6 +692,8 @@ export default async function importsRoutes(app: FastifyInstance) {
         if (type !== "department") removed += ids.length;
       }
       await tx.update(importJobs).set({ status: "undone", version: dsql`${importJobs.version} + 1` }).where(eq(importJobs.id, job.id));
+      // The saved copy in Documents no longer matches anything: archive it (it can still be restored).
+      if (job.fileId) await tx.update(files).set({ archivedAt: new Date() }).where(and(eq(files.id, job.fileId), eq(files.orgId, ctx.org.id)));
       await audit(ctx, {
         action: "import.undone", category: "data", entityType: "import", entityId: job.id,
         summary: `${ctx.user.name} undid the import of ${job.fileName}: ${removed} removed`,

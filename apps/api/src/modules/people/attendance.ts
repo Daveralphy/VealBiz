@@ -11,6 +11,17 @@ import { dateStr, fullName, getEmployee, myEmployee, notDeleted, optDate } from 
 import { eachDay, localDate, minutesOfDay, parseHm } from "./util";
 
 type Status = "present" | "late" | "not_in" | "on_leave" | "sick";
+type Row = typeof attendance.$inferSelect;
+
+/** Minutes worked between clock in and `until` (clock out, or now), not counting breaks. */
+export function workedMinutes(r: Pick<Row, "clockIn" | "clockOut" | "breaks">, until: Date | null = r.clockOut) {
+  if (!r.clockIn || !until) return null;
+  const end = until.getTime();
+  const breakMs = (r.breaks ?? []).reduce((a, b) => a + Math.max(0, Math.min(end, b.end ? Date.parse(b.end) : end) - Date.parse(b.start)), 0);
+  return Math.max(0, Math.round((end - r.clockIn.getTime() - breakMs) / 60_000));
+}
+const onBreak = (r: Pick<Row, "breaks" | "clockOut"> | null | undefined) => !!r && !r.clockOut && !!r.breaks?.length && !r.breaks[r.breaks.length - 1]!.end;
+const clockView = (r: Row) => ({ id: r.id, clockIn: r.clockIn, clockOut: r.clockOut, breaks: r.breaks, onBreak: onBreak(r) });
 
 const STATUS_LABEL: Record<Status, string> = { present: "Present", late: "Late", not_in: "Not in yet", on_leave: "On leave", sick: "Sick" };
 
@@ -33,7 +44,6 @@ async function board(ctx: OrgContext, date: string, opts: { search?: string; loc
     .innerJoin(leaveTypes, eq(leaveTypes.id, leaveRequests.leaveTypeId))
     .where(and(eq(leaveRequests.orgId, ctx.org.id), eq(leaveRequests.status, "approved"), isNull(leaveRequests.deletedAt),
       lte(leaveRequests.startDate, date), gte(leaveRequests.endDate, date), inArray(leaveRequests.employeeId, ids))) : [];
-  const isToday = date === localDate();
   const rows = people.map((e) => {
     const r = records.find((x) => x.employeeId === e.id) ?? null;
     const leave = leaves.find((l) => l.employeeId === e.id);
@@ -41,11 +51,11 @@ async function board(ctx: OrgContext, date: string, opts: { search?: string; loc
     if (r?.clockIn) status = minutesOfDay(r.clockIn) > startMin ? "late" : "present";
     else if (leave) status = /sick/i.test(leave.type) ? "sick" : "on_leave";
     else status = "not_in";
-    const end = r?.clockOut ?? (isToday && r?.clockIn ? new Date() : null);
-    const minutes = r?.clockIn && end ? Math.max(0, Math.round((end.getTime() - r.clockIn.getTime()) / 60_000)) : null;
+    // Time worked is known once someone clocks out; until then they're "still working" (no running count here).
+    const minutes = r ? workedMinutes(r) : null;
     return {
       employee: { id: e.id, name: fullName(e), jobTitle: e.jobTitle, location: e.location, userId: e.userId },
-      record: r ? { id: r.id, clockIn: r.clockIn, clockOut: r.clockOut, source: r.source, note: r.note, corrected: !!r.correctedBy } : null,
+      record: r ? { id: r.id, clockIn: r.clockIn, clockOut: r.clockOut, source: r.source, note: r.note, corrected: !!r.correctedBy, onBreak: onBreak(r) } : null,
       status, statusLabel: STATUS_LABEL[status], minutes, leaveType: leave?.type ?? null,
     };
   });
@@ -61,6 +71,17 @@ async function board(ctx: OrgContext, date: string, opts: { search?: string; loc
   };
 }
 
+/** Today's record for the signed-in person, which must be clocked in and not yet out. */
+async function myOpenRecord(ctx: OrgContext) {
+  const me = await myEmployee(ctx);
+  if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+  const [r] = await db.select().from(attendance)
+    .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);
+  if (!r?.clockIn) throw conflict("You haven't clocked in today.");
+  if (r.clockOut) throw conflict("You've already clocked out today.");
+  return r;
+}
+
 export default async function attendanceRoutes(app: FastifyInstance) {
   /** The signed-in person's own clock for today. */
   app.get("/api/people/attendance/me", async (req) => {
@@ -71,7 +92,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
       .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);
     return {
       employee: { id: me.id, name: fullName(me), firstName: me.firstName },
-      record: r ? { id: r.id, clockIn: r.clockIn, clockOut: r.clockOut } : null, date: localDate(),
+      record: r ? clockView(r) : null, date: localDate(),
     };
   });
 
@@ -99,8 +120,29 @@ export default async function attendanceRoutes(app: FastifyInstance) {
     if (!r?.clockIn) throw conflict("You haven't clocked in today.");
     if (r.clockOut) throw conflict("You've already clocked out.");
     const now = new Date();
-    await db.update(attendance).set({ clockOut: now, version: dsql`${attendance.version} + 1` }).where(eq(attendance.id, r.id));
-    return { ok: true, clockOut: now };
+    // Clocking out during a break ends the break at the same moment.
+    const breaks = r.breaks.map((b) => (b.end ? b : { ...b, end: now.toISOString() }));
+    const [u] = await db.update(attendance).set({ clockOut: now, breaks, version: dsql`${attendance.version} + 1` }).where(eq(attendance.id, r.id)).returning();
+    return { ok: true, record: clockView(u!), minutes: workedMinutes(u!) };
+  });
+
+  /** Take a break: the time stops counting until Resume. */
+  app.post("/api/people/attendance/pause", async (req) => {
+    const ctx = await requireOrg(req);
+    const r = await myOpenRecord(ctx);
+    if (onBreak(r)) throw conflict("You're already on a break.");
+    const [u] = await db.update(attendance).set({ breaks: [...r.breaks, { start: new Date().toISOString(), end: null }], version: dsql`${attendance.version} + 1` })
+      .where(eq(attendance.id, r.id)).returning();
+    return { ok: true, record: clockView(u!) };
+  });
+
+  app.post("/api/people/attendance/resume", async (req) => {
+    const ctx = await requireOrg(req);
+    const r = await myOpenRecord(ctx);
+    if (!onBreak(r)) throw conflict("You're not on a break.");
+    const breaks = r.breaks.map((b, i) => (i === r.breaks.length - 1 ? { ...b, end: new Date().toISOString() } : b));
+    const [u] = await db.update(attendance).set({ breaks, version: dsql`${attendance.version} + 1` }).where(eq(attendance.id, r.id)).returning();
+    return { ok: true, record: clockView(u!) };
   });
 
   app.get<{ Querystring: { date?: string; search?: string; location?: string } }>("/api/people/attendance", async (req) => {

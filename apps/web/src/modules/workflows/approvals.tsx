@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { Check, ChevronLeft, FileText, Plus, Settings2, Trash2, X } from "lucide-react";
 import {
-  Avatar, Button, Card, EmptyState, Input, Loading, Modal, Notice, Pill, Select, Textarea, useToast, type Tone,
+  Avatar, Button, Card, EmptyState, Input, Loading, Modal, Notice, Pill, Select, Textarea, useConfirm, useToast, type Tone,
 } from "@windveal/ui";
 import { ApiError, api, fileUrl, qs } from "../../lib/api";
 import { useSession } from "../../lib/session";
@@ -269,11 +269,15 @@ function RulesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     qc.invalidateQueries({ queryKey: ["wf-rules"] });
     toast("Rule added");
   });
+  const { confirm, dialog } = useConfirm();
   async function remove(r: Rule) {
+    if (!(await confirm({ title: "Remove this rule?", message: "New requests won't need this approval any more. Requests already waiting aren't affected.", confirmLabel: "Remove rule" }))) return;
     try { await api.del(`/api/workflows/approval-rules/${r.id}`); qc.invalidateQueries({ queryKey: ["wf-rules"] }); toast("Rule removed"); }
     catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't remove the rule.", "error"); }
   }
   return (
+    <>
+    {dialog}
     <Modal open={open} onClose={onClose} size="lg" title="Approval rules" subtitle="After the requester's manager, these people also approve. New rules apply to new requests.">
       {isLoading ? <Loading /> : error ? <Notice tone="error">{error instanceof ApiError ? error.message : "Couldn't load the rules."}</Notice> : (
         <div className="wf-rules">
@@ -301,5 +305,6 @@ function RulesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="span-2"><Button type="submit" loading={form.busy} icon={<Plus size={16} />}>Add rule</Button></div>
       </form>
     </Modal>
+    </>
   );
 }
