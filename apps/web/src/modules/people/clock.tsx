@@ -101,10 +101,7 @@ export function HeaderClock() {
             {s === "in" && <button onClick={() => { close(); c.pause(); }} disabled={c.busy}><Coffee size={16} />Take a break</button>}
             {s === "break" && <button onClick={() => { close(); c.resume(); }} disabled={c.busy}><Play size={16} />Resume</button>}
             {(s === "in" || s === "break") && <button className="danger" onClick={() => { close(); c.clockOut(); }} disabled={c.busy}><LogOut size={16} />Clock out</button>}
-            {s === "done" && <>
-              <p className="hclock-done">You worked {fmtDuration(c.workedMs)} today. Clocked out by mistake, or back for more?</p>
-              <button onClick={() => { close(); c.resume(); }} disabled={c.busy}><Play size={16} />Resume</button>
-            </>}
+            {s === "done" && <button onClick={() => { close(); c.resume(); }} disabled={c.busy}><Play size={16} />Resume</button>}
           </div>
         )}
       </Menu>

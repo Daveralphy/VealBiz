@@ -338,7 +338,6 @@
 .hclock-head { padding: 8px 10px 10px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
 .hclock-head b { display: block; color: var(--ink); font-size: 14px; }
 .hclock-head small { color: var(--muted); font-size: 12.5px; }
-p.hclock-done { margin: 0; padding: 8px 10px; font-size: 13px; }
 @media (max-width: 900px) {
   .hclock { height: 34px; padding: 0 8px 0 10px; font-size: 12.5px; }
   .hclock-caret { display: none; }
