@@ -17,6 +17,7 @@ export type Balance = {
 };
 
 export type Profile = Employee & {
+  reference: string | null; extraDetails: Record<string, string>;
   personal: { dateOfBirth: string | null; homeAddress: string | null; emergencyContact: string | null; nationalId: string | null } | null;
   manager: { id: string; name: string; jobTitle: string | null } | null;
   reports: { id: string; name: string; jobTitle: string | null }[];

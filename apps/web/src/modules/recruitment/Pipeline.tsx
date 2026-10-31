@@ -9,6 +9,7 @@ import { useSession } from "../../lib/session";
 import { keys, useRefresh, type Card, type Pipeline } from "./data";
 import { copyText, statusPill } from "./JobsPage";
 import { AddCandidateModal, Stars } from "./widgets";
+import { ExtraDetailsCard } from "../../components/ExtraDetails";
 
 function BoardCard({ card, stages, canEdit, onMove, onOpen }: {
   card: Card; stages: string[]; canEdit: boolean; onMove: (c: Card, s: string) => void; onOpen: () => void;
@@ -170,6 +171,7 @@ export function PipelinePage() {
           )}
         </div>
       )}
+      <div className="rc-mt"><ExtraDetailsCard reference={job.reference} referenceLabel="Job ID" extra={job.extraDetails} /></div>
       <AddCandidateModal jobId={job.id} open={adding} onClose={() => setAdding(false)} />
     </>
   );

@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import Papa from "papaparse";
-import type { Workspace } from "@windveal/shared";
+import { IMPORT_KEEP, type Workspace } from "@windveal/shared";
 import type { ImportSheet } from "../../db/schema";
 
 /** Field definitions for each place a spreadsheet can be imported into. Deterministic, no AI. */
@@ -36,6 +36,7 @@ export const DESTINATIONS: DestinationDef[] = [
     sheetWords: ["staff", "employee", "employees", "team", "people", "hr", "personnel", "workers"],
     hint: "Looks like a staff list.",
     fields: [
+      { key: "reference", label: "Employee ID", strong: ["id", "employee id", "staff id", "emp id", "employee no", "employee number", "staff no", "staff number", "personnel number", "emp no", "id number", "reference", "ref", "employee code", "staff code"], weak: ["no", "number", "s n", "sn"] },
       { key: "fullName", label: "Employee name", strong: ["full name", "employee name", "name", "staff name", "employee"], weak: ["person", "staff"] },
       { key: "firstName", label: "First name", strong: ["first name", "firstname", "given name", "forename"] },
       { key: "lastName", label: "Last name", strong: ["last name", "lastname", "surname", "family name"] },
@@ -54,6 +55,7 @@ export const DESTINATIONS: DestinationDef[] = [
     sheetWords: ["client", "clients", "customer", "customers", "companies", "company", "accounts", "contacts"],
     hint: "Each row becomes a company and its contact.",
     fields: [
+      { key: "reference", label: "Company ID", strong: ["id", "company id", "client id", "customer id", "account id", "account number", "customer number", "client number", "reference", "ref", "client code", "customer code"], weak: ["no", "number", "s n", "sn"] },
       { key: "name", label: "Company name", required: true, strong: ["company", "company name", "client", "client name", "customer", "customer name", "organisation", "organization", "business", "account"] },
       { key: "industry", label: "Industry", strong: ["industry", "sector"] },
       { key: "location", label: "Location", strong: ["location", "city", "address", "town", "region"] },
@@ -69,6 +71,7 @@ export const DESTINATIONS: DestinationDef[] = [
     sheetWords: ["lead", "leads", "prospect", "prospects", "pipeline", "enquiries", "opportunities"],
     hint: "Each row becomes a lead at the first stage.",
     fields: [
+      { key: "reference", label: "Lead ID", strong: ["id", "lead id", "prospect id", "reference", "ref", "lead number", "lead no"], weak: ["no", "number", "s n", "sn"] },
       { key: "companyName", label: "Company name", required: true, strong: ["company", "company name", "lead", "lead name", "prospect", "business", "organisation", "organization"], weak: ["client"] },
       { key: "contactName", label: "Contact name", strong: ["contact", "contact name", "contact person"], weak: ["name", "person"] },
       { key: "email", label: "Email", type: "email", strong: ["email", "email address", "e mail"] },
@@ -83,6 +86,7 @@ export const DESTINATIONS: DestinationDef[] = [
     sheetWords: ["job", "jobs", "vacancy", "vacancies", "roles", "openings", "positions", "hiring", "recruitment"],
     hint: "Each row becomes a draft job opening.",
     fields: [
+      { key: "reference", label: "Job ID", strong: ["id", "job id", "job code", "vacancy id", "requisition id", "requisition number", "req id", "reference", "ref", "job number"], weak: ["no", "number", "s n", "sn"] },
       { key: "title", label: "Job title", required: true, strong: ["job title", "title", "job", "vacancy", "role", "position", "opening"] },
       { key: "department", label: "Department", strong: ["department", "dept", "team", "division"] },
       { key: "location", label: "Location", strong: ["location", "office", "city", "site", "branch"] },
@@ -119,11 +123,12 @@ export function suggestMapping(columns: string[], dest: DestinationDef) {
     if (s >= 0.5) cands.push({ col, field: f.key, score: s });
   }
   cands.sort((a, b) => b.score - a.score);
-  const mapping: Record<string, string | null> = Object.fromEntries(columns.map((c) => [c, null]));
+  // Columns with no matching field are kept as extra details; only the person importing can choose to skip one.
+  const mapping: Record<string, string | null> = Object.fromEntries(columns.map((c) => [c, IMPORT_KEEP]));
   const confidence: Record<string, number> = Object.fromEntries(columns.map((c) => [c, 0]));
   const used = new Set<string>();
   for (const c of cands) {
-    if (mapping[c.col] || used.has(c.field)) continue;
+    if (mapping[c.col] !== IMPORT_KEEP || used.has(c.field)) continue;
     // A full name and split first/last names shouldn't both be used.
     if (c.field === "fullName" && (used.has("firstName") || used.has("lastName"))) continue;
     if ((c.field === "firstName" || c.field === "lastName") && used.has("fullName")) continue;
@@ -147,7 +152,7 @@ export function mappingConfidence(sheet: ImportSheet): Record<string, number> {
 }
 
 function hasRequired(dest: DestinationDef, mapping: Record<string, string | null>) {
-  const used = new Set(Object.values(mapping).filter(Boolean));
+  const used = new Set(Object.values(mapping).filter((v) => v && v !== IMPORT_KEEP));
   if (dest.key === "people.employees") return used.has("fullName") || used.has("firstName");
   return dest.fields.filter((f) => f.required).every((f) => used.has(f.key));
 }

@@ -12,6 +12,10 @@ export const companies = pgTable("companies", {
   status: text("status").$type<"prospect" | "client" | "former">().notNull().default("prospect"),
   ownerUserId: uuid("owner_user_id").references(() => users.id),
   notes: text("notes"),
+  /** ID or reference number from the business's own records (e.g. a staff number from an imported sheet). */
+  reference: text("reference"),
+  /** Other columns kept from an imported spreadsheet: column name → value. */
+  extraDetails: jsonb("extra_details").$type<Record<string, string>>().notNull().default({}),
   ...tracked(),
 }, (t) => [index("companies_org_idx").on(t.orgId)]);
 
@@ -50,6 +54,10 @@ export const leads = pgTable("leads", {
   closedAt: timestamp("closed_at", { withTimezone: true }),
   convertedCompanyId: uuid("converted_company_id").references(() => companies.id),
   convertedDealId: uuid("converted_deal_id"),
+  /** ID or reference number from the business's own records (e.g. a staff number from an imported sheet). */
+  reference: text("reference"),
+  /** Other columns kept from an imported spreadsheet: column name → value. */
+  extraDetails: jsonb("extra_details").$type<Record<string, string>>().notNull().default({}),
   ...tracked(),
 }, (t) => [index("leads_org_idx").on(t.orgId)]);
 

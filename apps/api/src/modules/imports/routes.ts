@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNull, ne, sql as dsql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql as dsql, type AnyColumn } from "drizzle-orm";
 import { z } from "zod";
-import { DEFAULT_LEAD_STAGES, DEFAULT_RECRUITMENT_STAGES, slugify, type Workspace } from "@windveal/shared";
+import { DEFAULT_LEAD_STAGES, DEFAULT_RECRUITMENT_STAGES, IMPORT_KEEP, slugify, type Workspace } from "@windveal/shared";
 import { db, type Tx } from "../../db/client";
 import {
   companies, contacts, departments, employees, employmentHistory, importJobs, importRows, jobs, leads, users, type ImportSheet,
@@ -16,7 +16,7 @@ import {
   parseWorkbook, type DestinationKey,
 } from "./fields";
 import {
-  EDIT_PREFIX, SYSTEM_SHEET_PREFIX, lc, loadExisting, managerBlank, matchPerson, revalidateRows, willImport, type RowState,
+  EDIT_PREFIX, SYSTEM_SHEET_PREFIX, extraDetails, lc, loadExisting, managerBlank, matchPerson, revalidateRows, willImport, type RowState,
 } from "./validate";
 
 const MAX_IMPORT_BYTES = 20 * 1024 * 1024;
@@ -194,6 +194,9 @@ async function buildSummary(ctx: OrgContext, job: Job, rows: RowState[]) {
 
 // ---------------- commit ----------------
 
+/** Adds imported extra details to a record's existing ones (new values win). */
+const mergeExtra = (col: AnyColumn, extra: Record<string, string>) => dsql`coalesce(${col}, '{}'::jsonb) || ${JSON.stringify(extra)}::jsonb`;
+
 type WriteResult = { entityType: string; entityId: string; contacts?: number };
 
 async function writeRow(tx: Tx, ctx: OrgContext, job: Job, dest: DestinationKey, r: RowState, deptId: (name: string | undefined) => string | null): Promise<WriteResult> {
@@ -206,9 +209,11 @@ async function writeRow(tx: Tx, ctx: OrgContext, job: Job, dest: DestinationKey,
       const fields = {
         email: v.email || undefined, phone: v.phone || undefined, jobTitle: v.jobTitle || undefined, departmentId: deptId(v.department) ?? undefined,
         location: v.location || undefined, employmentType: v.employmentType || undefined, startDate: v.startDate || undefined,
+        reference: v.reference || undefined,
       };
+      const extra = extraDetails(v);
       if (update) {
-        const [u] = await tx.update(employees).set({ ...fields, firstName: v.firstName!, lastName: v.lastName ?? "", version: dsql`${employees.version} + 1` })
+        const [u] = await tx.update(employees).set({ ...fields, firstName: v.firstName!, lastName: v.lastName ?? "", extraDetails: mergeExtra(employees.extraDetails, extra), version: dsql`${employees.version} + 1` })
           .where(and(eq(employees.id, r.duplicateOfId!), eq(employees.orgId, orgId), isNull(employees.deletedAt))).returning({ id: employees.id });
         if (!u) throw new AppError(409, "gone", "The existing record was removed while you were importing.");
         return { entityType: "employee.updated", entityId: u.id };
@@ -221,7 +226,7 @@ async function writeRow(tx: Tx, ctx: OrgContext, job: Job, dest: DestinationKey,
         if (hit) throw new AppError(409, "dup", "This person was added by someone else while you were importing.");
       }
       const status = v.startDate && v.startDate > today() ? "onboarding" : "active";
-      const [e] = await tx.insert(employees).values({ orgId, firstName: v.firstName!, lastName: v.lastName ?? "", ...fields, status }).returning({ id: employees.id });
+      const [e] = await tx.insert(employees).values({ orgId, firstName: v.firstName!, lastName: v.lastName ?? "", ...fields, extraDetails: extra, status }).returning({ id: employees.id });
       await tx.insert(employmentHistory).values({
         orgId, employeeId: e!.id, occurredOn: v.startDate || today(), event: v.jobTitle ? `Joined as ${v.jobTitle}` : "Joined",
         details: `Added from the import of ${job.fileName}`, actorUserId: ctx.user.id,
@@ -229,9 +234,10 @@ async function writeRow(tx: Tx, ctx: OrgContext, job: Job, dest: DestinationKey,
       return { entityType: "employee", entityId: e!.id };
     }
     case "crm.companies": {
-      const fields = { industry: v.industry || undefined, location: v.location || undefined, website: v.website || undefined };
+      const fields = { industry: v.industry || undefined, location: v.location || undefined, website: v.website || undefined, reference: v.reference || undefined };
+      const extra = extraDetails(v);
       if (update) {
-        const [u] = await tx.update(companies).set({ ...fields, name: v.name!, version: dsql`${companies.version} + 1` })
+        const [u] = await tx.update(companies).set({ ...fields, name: v.name!, extraDetails: mergeExtra(companies.extraDetails, extra), version: dsql`${companies.version} + 1` })
           .where(and(eq(companies.id, r.duplicateOfId!), eq(companies.orgId, orgId), isNull(companies.deletedAt))).returning({ id: companies.id });
         if (!u) throw new AppError(409, "gone", "The existing record was removed while you were importing.");
         if (v.contactName) {
@@ -247,7 +253,7 @@ async function writeRow(tx: Tx, ctx: OrgContext, job: Job, dest: DestinationKey,
           .where(and(eq(companies.orgId, orgId), isNull(companies.deletedAt), dsql`lower(${companies.name}) = ${lc(v.name)}`)).limit(1);
         if (hit) throw new AppError(409, "dup", "This company was added by someone else while you were importing.");
       }
-      const [c] = await tx.insert(companies).values({ orgId, name: v.name!, ...fields, ownerUserId: ctx.user.id }).returning({ id: companies.id });
+      const [c] = await tx.insert(companies).values({ orgId, name: v.name!, ...fields, extraDetails: extra, ownerUserId: ctx.user.id }).returning({ id: companies.id });
       if (v.contactName) {
         await tx.insert(contacts).values({ orgId, companyId: c!.id, name: v.contactName, role: v.contactRole || null, email: v.contactEmail || null, phone: v.contactPhone || null, isPrimary: true });
       }
@@ -256,10 +262,11 @@ async function writeRow(tx: Tx, ctx: OrgContext, job: Job, dest: DestinationKey,
     case "crm.leads": {
       const fields = {
         contactName: v.contactName || undefined, email: v.email || undefined, phone: v.phone || undefined, source: v.source || undefined,
-        estimatedValue: v.estimatedValue || undefined, nextStep: v.nextStep || undefined,
+        estimatedValue: v.estimatedValue || undefined, nextStep: v.nextStep || undefined, reference: v.reference || undefined,
       };
+      const extra = extraDetails(v);
       if (update) {
-        const [u] = await tx.update(leads).set({ ...fields, companyName: v.companyName!, version: dsql`${leads.version} + 1` })
+        const [u] = await tx.update(leads).set({ ...fields, companyName: v.companyName!, extraDetails: mergeExtra(leads.extraDetails, extra), version: dsql`${leads.version} + 1` })
           .where(and(eq(leads.id, r.duplicateOfId!), eq(leads.orgId, orgId), isNull(leads.deletedAt))).returning({ id: leads.id });
         if (!u) throw new AppError(409, "gone", "The existing record was removed while you were importing.");
         return { entityType: "lead.updated", entityId: u.id };
@@ -270,13 +277,17 @@ async function writeRow(tx: Tx, ctx: OrgContext, job: Job, dest: DestinationKey,
         if (hit) throw new AppError(409, "dup", "This lead was added by someone else while you were importing.");
       }
       const stage = ctx.org.settings.leadStages?.[0] ?? DEFAULT_LEAD_STAGES[0]!;
-      const [l] = await tx.insert(leads).values({ orgId, companyName: v.companyName!, ...fields, stage, ownerUserId: ctx.user.id }).returning({ id: leads.id });
+      const [l] = await tx.insert(leads).values({ orgId, companyName: v.companyName!, ...fields, extraDetails: extra, stage, ownerUserId: ctx.user.id }).returning({ id: leads.id });
       return { entityType: "lead", entityId: l!.id };
     }
     case "recruitment.jobs": {
-      const fields = { departmentId: deptId(v.department) ?? undefined, location: v.location || undefined, employmentType: v.employmentType || undefined, description: v.description || undefined };
+      const fields = {
+        departmentId: deptId(v.department) ?? undefined, location: v.location || undefined, employmentType: v.employmentType || undefined,
+        description: v.description || undefined, reference: v.reference || undefined,
+      };
+      const extra = extraDetails(v);
       if (update) {
-        const [u] = await tx.update(jobs).set({ ...fields, title: v.title!, version: dsql`${jobs.version} + 1` })
+        const [u] = await tx.update(jobs).set({ ...fields, title: v.title!, extraDetails: mergeExtra(jobs.extraDetails, extra), version: dsql`${jobs.version} + 1` })
           .where(and(eq(jobs.id, r.duplicateOfId!), eq(jobs.orgId, orgId), isNull(jobs.deletedAt))).returning({ id: jobs.id });
         if (!u) throw new AppError(409, "gone", "The existing record was removed while you were importing.");
         return { entityType: "job.updated", entityId: u.id };
@@ -288,7 +299,7 @@ async function writeRow(tx: Tx, ctx: OrgContext, job: Job, dest: DestinationKey,
       }
       const slug = `${slugify(v.title!) || "job"}-${randomUUID().slice(0, 6)}`;
       const [j] = await tx.insert(jobs).values({
-        orgId, title: v.title!, slug, ...fields, status: "draft", stages: [...DEFAULT_RECRUITMENT_STAGES], createdBy: ctx.user.id,
+        orgId, title: v.title!, slug, ...fields, extraDetails: extra, status: "draft", stages: [...DEFAULT_RECRUITMENT_STAGES], createdBy: ctx.user.id,
       }).returning({ id: jobs.id });
       return { entityType: "job", entityId: j!.id };
     }
@@ -433,9 +444,9 @@ export default async function importsRoutes(app: FastifyInstance) {
         const d = DEST_BY_KEY[s.destination as DestinationKey];
         for (const [col, field] of Object.entries(p.mapping)) {
           if (!s.columns.includes(col)) throw badRequest(`“${col}” isn't a column in “${s.name}”.`);
-          if (field !== null && !d.fields.some((f) => f.key === field)) throw badRequest(`“${field}” isn't a field in ${d.label}.`);
+          if (field !== null && field !== IMPORT_KEEP && !d.fields.some((f) => f.key === field)) throw badRequest(`“${field}” isn't a field in ${d.label}.`);
           // A field can only come from one column.
-          if (field) for (const c of Object.keys(s.mapping)) if (c !== col && s.mapping[c] === field) s.mapping[c] = null;
+          if (field && field !== IMPORT_KEEP) for (const c of Object.keys(s.mapping)) if (c !== col && s.mapping[c] === field) s.mapping[c] = IMPORT_KEEP;
           s.mapping[col] = field;
         }
       }

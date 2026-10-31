@@ -1,6 +1,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../../db/client";
 import { companies, departments, employees, jobs, leads, type ImportSheet } from "../../db/schema";
+import { IMPORT_KEEP } from "@windveal/shared";
 import { DEST_BY_KEY, EMAIL_RE, isDestination, parseDate, parseNumber, type DestinationDef, type DestinationKey } from "./fields";
 
 export type RowState = {
@@ -18,14 +19,21 @@ export type RowState = {
 /** Edits made on the review screen are kept in the raw row under this prefix, so they survive re-mapping. */
 export const EDIT_PREFIX = "__field:";
 export const SYSTEM_SHEET_PREFIX = "__";
+/** Values of columns kept as extra details are stored under this prefix + the column name. */
+export const EXTRA_PREFIX = "extra:";
+
+/** The extra details (column name → value) carried by a row's values. */
+export function extraDetails(values: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(values).filter(([k]) => k.startsWith(EXTRA_PREFIX)).map(([k, v]) => [k.slice(EXTRA_PREFIX.length), v]));
+}
 
 export const lc = (s: string | null | undefined) => (s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
 export type Existing = {
-  employees: { id: string; firstName: string; lastName: string; email: string | null; phone: string | null; jobTitle: string | null; departmentId: string | null; location: string | null }[];
-  companies: { id: string; name: string; industry: string | null; location: string | null; website: string | null }[];
-  leads: { id: string; companyName: string; contactName: string | null; email: string | null; phone: string | null; source: string | null; stage: string }[];
-  jobs: { id: string; title: string; status: string; location: string | null; employmentType: string | null; departmentId: string | null }[];
+  employees: { id: string; reference: string | null; firstName: string; lastName: string; email: string | null; phone: string | null; jobTitle: string | null; departmentId: string | null; location: string | null }[];
+  companies: { id: string; reference: string | null; name: string; industry: string | null; location: string | null; website: string | null }[];
+  leads: { id: string; reference: string | null; companyName: string; contactName: string | null; email: string | null; phone: string | null; source: string | null; stage: string }[];
+  jobs: { id: string; reference: string | null; title: string; status: string; location: string | null; employmentType: string | null; departmentId: string | null }[];
   departments: { id: string; name: string }[];
 };
 
@@ -35,22 +43,22 @@ export async function loadExisting(orgId: string, dests: Set<string>): Promise<E
     .where(and(eq(departments.orgId, orgId), isNull(departments.deletedAt)));
   if (dests.has("people.employees")) {
     out.employees = await db.select({
-      id: employees.id, firstName: employees.firstName, lastName: employees.lastName, email: employees.email, phone: employees.phone,
+      id: employees.id, reference: employees.reference, firstName: employees.firstName, lastName: employees.lastName, email: employees.email, phone: employees.phone,
       jobTitle: employees.jobTitle, departmentId: employees.departmentId, location: employees.location,
     }).from(employees).where(and(eq(employees.orgId, orgId), isNull(employees.deletedAt)));
   }
   if (dests.has("crm.companies")) {
-    out.companies = await db.select({ id: companies.id, name: companies.name, industry: companies.industry, location: companies.location, website: companies.website })
+    out.companies = await db.select({ id: companies.id, reference: companies.reference, name: companies.name, industry: companies.industry, location: companies.location, website: companies.website })
       .from(companies).where(and(eq(companies.orgId, orgId), isNull(companies.deletedAt)));
   }
   if (dests.has("crm.leads")) {
     out.leads = await db.select({
-      id: leads.id, companyName: leads.companyName, contactName: leads.contactName, email: leads.email, phone: leads.phone, source: leads.source, stage: leads.stage,
+      id: leads.id, reference: leads.reference, companyName: leads.companyName, contactName: leads.contactName, email: leads.email, phone: leads.phone, source: leads.source, stage: leads.stage,
     }).from(leads).where(and(eq(leads.orgId, orgId), isNull(leads.deletedAt)));
   }
   if (dests.has("recruitment.jobs")) {
     out.jobs = await db.select({
-      id: jobs.id, title: jobs.title, status: jobs.status, location: jobs.location, employmentType: jobs.employmentType, departmentId: jobs.departmentId,
+      id: jobs.id, reference: jobs.reference, title: jobs.title, status: jobs.status, location: jobs.location, employmentType: jobs.employmentType, departmentId: jobs.departmentId,
     }).from(jobs).where(and(eq(jobs.orgId, orgId), isNull(jobs.deletedAt)));
   }
   return out;
@@ -62,7 +70,8 @@ export function computeValues(sheet: ImportSheet, dest: DestinationDef, data: Re
   for (const col of sheet.columns) {
     const field = sheet.mapping[col];
     const v = (data[col] ?? "").trim();
-    if (field && v && !values[field]) values[field] = v;
+    if (field === IMPORT_KEEP) { if (v) values[EXTRA_PREFIX + col] = v; }
+    else if (field && v && !values[field]) values[field] = v;
   }
   for (const [k, v] of Object.entries(data)) {
     if (k.startsWith(EDIT_PREFIX)) {
@@ -107,6 +116,12 @@ export function computeValues(sheet: ImportSheet, dest: DestinationDef, data: Re
 
 /** Keys used to spot the same record twice. */
 export function dupKeys(dest: DestinationKey, values: Record<string, string>): string[] {
+  // The same ID always means the same record.
+  const ref = values.reference ? [`r:${lc(values.reference)}`] : [];
+  return [...ref, ...nameKeys(dest, values)];
+}
+
+function nameKeys(dest: DestinationKey, values: Record<string, string>): string[] {
   switch (dest) {
     case "people.employees": {
       const keys: string[] = [];
@@ -124,6 +139,8 @@ export function dupKeys(dest: DestinationKey, values: Record<string, string>): s
 export function existingIndex(dest: DestinationKey, ex: Existing): Map<string, string> {
   const m = new Map<string, string>();
   const add = (k: string, id: string) => { if (!m.has(k)) m.set(k, id); };
+  const refs = { "people.employees": ex.employees, "crm.companies": ex.companies, "crm.leads": ex.leads, "recruitment.jobs": ex.jobs }[dest];
+  for (const r of refs) if (r.reference) add(`r:${lc(r.reference)}`, r.id);
   if (dest === "people.employees") for (const e of ex.employees) {
     if (e.email) add(`e:${lc(e.email)}`, e.id);
     add(`n:${lc(`${e.firstName} ${e.lastName}`)}`, e.id);

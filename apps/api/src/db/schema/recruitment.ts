@@ -34,6 +34,10 @@ export const jobs = pgTable("jobs", {
   questions: jsonb("questions").$type<JobQuestion[]>().notNull().default([]),
   openedAt: timestamp("opened_at", { withTimezone: true }),
   createdBy: uuid("created_by").references(() => users.id),
+  /** ID or reference number from the business's own records (e.g. a staff number from an imported sheet). */
+  reference: text("reference"),
+  /** Other columns kept from an imported spreadsheet: column name → value. */
+  extraDetails: jsonb("extra_details").$type<Record<string, string>>().notNull().default({}),
   ...tracked(),
 }, (t) => [index("jobs_org_idx").on(t.orgId)]);
 

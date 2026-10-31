@@ -13,6 +13,7 @@ import { useSession } from "../../lib/session";
 import { EmployeeDrawer } from "./EmployeeForm";
 import { LeaveRequestRow, RequestLeaveModal, balanceText } from "./Leave";
 import { STATUS, fileKind, localYmd, peopleKeys, statusLabel, tenure, type LeaveRequest, type Profile } from "./lib";
+import { ExtraDetailsCard } from "../../components/ExtraDetails";
 
 const TABS = [
   { key: "overview", label: "Overview" }, { key: "job", label: "Job and pay" }, { key: "leave", label: "Leave" },
@@ -103,6 +104,7 @@ export function ProfilePage() {
             <EmploymentCard e={e} />
             <PayCard e={e} />
             <PersonalCard e={e} />
+            <ExtraDetailsCard reference={e.reference} referenceLabel="Employee ID" extra={e.extraDetails} />
           </div>
           <div>
             <ReportingCard e={e} />

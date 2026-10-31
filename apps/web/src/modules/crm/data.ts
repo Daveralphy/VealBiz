@@ -31,12 +31,13 @@ export type Lead = {
   closedOutcome: "converted" | "not_interested" | null; closedReason: string | null; closedAt: string | null;
   convertedCompanyId: string | null; convertedDealId: string | null; createdAt: string; updatedAt: string;
   lastActivity: { type: ActivityType; occurredAt: string } | null;
+  reference: string | null; extraDetails: Record<string, string>;
 };
 
 export type Company = {
   id: string; name: string; industry: string | null; location: string | null; website: string | null;
   status: "prospect" | "client" | "former"; notes: string | null; ownerUserId: string | null; ownerName: string | null;
-  createdAt: string; updatedAt: string;
+  createdAt: string; updatedAt: string; reference: string | null; extraDetails: Record<string, string>;
 };
 export type CompanyRow = Company & { openValue: number; openDeals: number; contactCount: number; primaryContact: string | null; lastActivityAt: string | null };
 

@@ -36,3 +36,6 @@ export const DEFAULT_RECRUITMENT_STAGES = ["Applied", "Screening", "Interview", 
 export const DEFAULT_LEAD_STAGES = ["To contact", "Contacted", "Interested", "Qualified"];
 export const DEFAULT_DEAL_STAGES = ["Qualified", "Proposal", "Negotiation"];
 
+
+/** Import mapping value: keep a column that has no matching field as an extra detail on the record. */
+export const IMPORT_KEEP = "__keep";

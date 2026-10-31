@@ -13,6 +13,7 @@ import {
   followUpKind, useCompanies, useDeal, useDeals, useLead, useLeads, useMembers, useRefreshCrm, useSummary,
   type Activity, type ActivityType, type Contact, type Deal, type FollowUp, type Lead, type Company,
 } from "./data";
+import { ExtraDetailsList } from "../../components/ExtraDetails";
 
 // ------------------------------------------------------------ small bits
 
@@ -836,6 +837,7 @@ export function LeadDrawer({ id, onClose, stages, onConvert }: { id: string | nu
             <div><dt>Next step</dt><dd>{l.nextStep ?? "—"}{l.nextStepDue ? ` · ${dayLabel(l.nextStepDue)}` : ""}</dd></div>
             <div><dt>Added</dt><dd>{fmtDate(l.createdAt)}</dd></div>
           </dl>
+          <ExtraDetailsList reference={l.reference} referenceLabel="Lead ID" extra={l.extraDetails} />
           {canEdit && <div><Button variant="secondary" size="sm" onClick={() => setEdit(true)}>Edit details</Button></div>}
           <div>
             <div className="between"><div className="section-label crm-sec">Qualification</div><QualMeter score={l.qualificationScore} /></div>

@@ -172,7 +172,7 @@ function jobView(org: Org, j: Job, extra: Record<string, unknown> = {}) {
     salaryPeriod: j.salaryPeriod, showSalary: j.showSalary, description: j.description, status: j.status, published: j.published,
     applyBy: j.applyBy, hiringManagerUserId: j.hiringManagerUserId, hiringTeamUserIds: j.hiringTeamUserIds, stages: j.stages,
     questions: j.questions, openedAt: iso(j.openedAt), createdAt: iso(j.createdAt), updatedAt: iso(j.updatedAt), version: j.version,
-    publicUrl: jobPublicUrl(org, j), isLive: isLive(org, j), ...extra,
+    publicUrl: jobPublicUrl(org, j), isLive: isLive(org, j), reference: j.reference, extraDetails: j.extraDetails, ...extra,
   };
 }
 

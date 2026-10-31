@@ -211,4 +211,53 @@ describe("imports", () => {
     const commit = await c.post(`/api/imports/jobs/${up.body.job.id}/commit`, { confirm: true });
     expect(commit.body.job.summary).toMatchObject({ added: 2, employees: 1, companies: 1, contacts: 1 });
   });
+
+  it("imports ID columns and keeps every other column unless the person skips it", async () => {
+    const app = await getApp();
+    const { c } = await signUpWithOrg(app);
+    const orgId = await orgIdOf(c);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Staff");
+    ws.addRow(["Staff ID", "Full Name", "Email", "Grade", "Blood group", "Notes to skip"]);
+    ws.addRow([1001, "Ngozi Eze", "ngozi@example.test", "Level 8", "O+", "old"]);
+    ws.addRow([1002, "Kofi Mensah", "kofi@example.test", "Level 6", "A-", "old"]);
+    const buf = Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
+
+    const up = await upload(app, c, "staff.xlsx", buf);
+    const job = up.body.job;
+    const sheet = job.sheets[0];
+    expect(sheet.mapping["Staff ID"]).toBe("reference");
+    // No matching field: kept, not dropped.
+    expect(sheet.mapping["Grade"]).toBe("__keep");
+    expect(sheet.mapping["Blood group"]).toBe("__keep");
+    // Only the person importing can skip a column.
+    await c.patch(`/api/imports/jobs/${job.id}/sheets`, { sheets: [{ name: "Staff", include: true, destination: "people.employees" }] });
+    expect((await c.patch(`/api/imports/jobs/${job.id}/sheets`, { sheets: [{ name: "Staff", mapping: { "Notes to skip": null } }] })).status).toBe(200);
+    const commit = await c.post(`/api/imports/jobs/${job.id}/commit`, { confirm: true });
+    expect(commit.status).toBe(200);
+
+    const rows = await db.select().from(employees).where(and(eq(employees.orgId, orgId), isNull(employees.deletedAt)));
+    const ngozi = rows.find((e) => e.firstName === "Ngozi")!;
+    expect(ngozi.reference).toBe("1001");
+    expect(ngozi.extraDetails).toEqual({ Grade: "Level 8", "Blood group": "O+" });
+    const profile = await c.get(`/api/people/employees/${ngozi.id}`);
+    expect(profile.body.reference).toBe("1001");
+    expect(profile.body.extraDetails).toMatchObject({ Grade: "Level 8" });
+
+    // The same ID in a later file is the same person, even if the name changed.
+    const wb2 = new ExcelJS.Workbook();
+    const ws2 = wb2.addWorksheet("Staff");
+    ws2.addRow(["Staff ID", "Full Name", "Grade"]);
+    ws2.addRow([1001, "Ngozi Eze-Bello", "Level 9"]);
+    const up2 = await upload(app, c, "staff2.xlsx", Buffer.from(await wb2.xlsx.writeBuffer() as ArrayBuffer));
+    await c.patch(`/api/imports/jobs/${up2.body.job.id}/sheets`, { sheets: [{ name: "Staff", include: true, destination: "people.employees" }] });
+    const r2 = (await c.get(`/api/imports/jobs/${up2.body.job.id}/rows?sheet=Staff`)).body.rows[0];
+    expect(r2.status).toBe("duplicate");
+    expect((await c.patch(`/api/imports/rows/${r2.id}`, { decision: "update" })).status).toBe(200);
+    await c.post(`/api/imports/jobs/${up2.body.job.id}/commit`, { confirm: true });
+    const [after] = await db.select().from(employees).where(eq(employees.id, ngozi.id));
+    expect(after!.firstName).toBe("Ngozi");
+    expect(after!.lastName).toBe("Eze-Bello");
+    expect(after!.extraDetails).toEqual({ Grade: "Level 9", "Blood group": "O+" });
+  });
 });

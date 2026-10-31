@@ -13,6 +13,7 @@ import {
   Timeline, dueText, useAction, useCrmAccess,
 } from "./parts";
 import { followUpKind } from "./data";
+import { ExtraDetailsCard } from "../../components/ExtraDetails";
 
 const STATUS: Record<Company["status"], { label: string; tone: "blue" | "ok" | "grey" }> = {
   prospect: { label: "Prospect", tone: "blue" }, client: { label: "Client", tone: "ok" }, former: { label: "Former client", tone: "grey" },
@@ -217,6 +218,8 @@ export function CompanyPage() {
               </>
             )}
           </Card>
+
+          <ExtraDetailsCard reference={c.reference} referenceLabel="Company ID" extra={c.extraDetails} />
 
           <Card title="Files" actions={canEdit && (
             <button className="crm-link" disabled={uploading} onClick={() => fileInput.current?.click()}><Upload size={14} /> {uploading ? "Uploading…" : "Upload"}</button>

@@ -103,7 +103,7 @@ function leadView(l: LeadRow, names: Map<string, string>, last?: { type: string;
     estimatedValue: numOrNull(l.estimatedValue), qualification: l.qualification, qualificationScore: qualScore(l.qualification),
     nextStep: l.nextStep, nextStepDue: l.nextStepDue, closedOutcome: l.closedOutcome, closedReason: l.closedReason, closedAt: l.closedAt,
     convertedCompanyId: l.convertedCompanyId, convertedDealId: l.convertedDealId, createdAt: l.createdAt, updatedAt: l.updatedAt,
-    version: l.version, lastActivity: last ?? null,
+    version: l.version, lastActivity: last ?? null, reference: l.reference, extraDetails: l.extraDetails,
   };
 }
 
@@ -122,6 +122,7 @@ function dealView(d: DealRow, names: Map<string, string>, extra: { companyName?:
 function companyView(c: typeof companies.$inferSelect, names: Map<string, string>) {
   return {
     id: c.id, name: c.name, industry: c.industry, location: c.location, website: c.website, status: c.status, notes: c.notes,
+    reference: c.reference, extraDetails: c.extraDetails,
     ownerUserId: c.ownerUserId, ownerName: c.ownerUserId ? names.get(c.ownerUserId) ?? null : null,
     createdAt: c.createdAt, updatedAt: c.updatedAt, version: c.version,
   };

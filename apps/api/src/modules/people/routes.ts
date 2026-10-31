@@ -233,6 +233,9 @@ export default async function peopleRoutes(app: FastifyInstance) {
     const mask = (s: string | null) => (s && !canEdit ? `${s.slice(0, 3)}${"•".repeat(Math.max(0, s.length - 4))}${s.slice(-1)}` : s);
     return {
       ...employeeSummary(e, { departmentName: department?.name ?? null, managerName: manager ? fullName(manager) : null }),
+      reference: e.reference,
+      // Columns kept from an imported spreadsheet can hold anything, so they're private like personal details.
+      extraDetails: showPersonal ? e.extraDetails : {},
       personal: showPersonal ? {
         dateOfBirth: e.dateOfBirth, homeAddress: e.homeAddress, emergencyContact: e.emergencyContact, nationalId: mask(e.nationalId),
       } : null,

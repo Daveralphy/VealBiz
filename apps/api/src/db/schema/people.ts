@@ -1,4 +1,4 @@
-import { boolean, date, index, integer, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, numeric, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { pk, timestamps, tracked } from "./_common";
 import { organisations, users } from "./core";
 
@@ -32,6 +32,10 @@ export const employees = pgTable("employees", {
   emergencyContact: text("emergency_contact"),
   nationalId: text("national_id"),
   sourceApplicationId: uuid("source_application_id"),
+  /** ID or reference number from the business's own records (e.g. a staff number from an imported sheet). */
+  reference: text("reference"),
+  /** Other columns kept from an imported spreadsheet: column name → value. */
+  extraDetails: jsonb("extra_details").$type<Record<string, string>>().notNull().default({}),
   ...tracked(),
 }, (t) => [index("employees_org_idx").on(t.orgId), index("employees_manager_idx").on(t.managerId)]);
 

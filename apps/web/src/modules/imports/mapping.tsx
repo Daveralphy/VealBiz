@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
 import { Avatar, Button, EmptyState, Notice, PageHeader, Pill } from "@windveal/ui";
+import { IMPORT_KEEP } from "@windveal/shared";
 import { fmtDate } from "../../lib/format";
 import { usePatchSheets } from "./sheets";
 import { DATE_FORMATS, ErrorNotice, JobGate, Stepper, activeSheets, destOf, plural, useSummary, type Job, type Sheet } from "./shared";
@@ -20,6 +21,10 @@ function previewValues(job: Job, sheet: Sheet) {
     const col = Object.keys(sheet.mapping).find((c) => sheet.mapping[c] === f.key);
     if (!col || !row[col]) continue;
     out.push({ key: f.key, label: f.label, value: row[col]!, unsure: (sheet.fieldConfidence[col] ?? 0) < 0.9 });
+  }
+  // Columns kept as extra details appear on the record under their own name.
+  for (const col of sheet.columns) {
+    if (sheet.mapping[col] === IMPORT_KEEP && row[col]) out.push({ key: `extra:${col}`, label: col, value: row[col]!, unsure: false });
   }
   return out;
 }
@@ -53,7 +58,8 @@ function Mapping({ job }: { job: Job }) {
     return (d?.fields ?? []).some((f) => f.required && !(f.key === "fullName" ? u.has("fullName") || u.has("firstName") : u.has(f.key)));
   };
   const blocked = sheets.some(sheetMissing);
-  const unsure = sheet.columns.filter((c) => sheet.mapping[c] && (sheet.fieldConfidence[c] ?? 0) < 0.9 && !confirmed[`${sheet.name}:${c}`]);
+  const isField = (v: string | null | undefined) => !!v && v !== IMPORT_KEEP;
+  const unsure = sheet.columns.filter((c) => isField(sheet.mapping[c]) && (sheet.fieldConfidence[c] ?? 0) < 0.9 && !confirmed[`${sheet.name}:${c}`]);
   const preview = previewValues(job, sheet);
   const name = preview.find((p) => p.key === "fullName" || p.key === "name" || p.key === "companyName" || p.key === "title")?.value
     ?? [preview.find((p) => p.key === "firstName")?.value, preview.find((p) => p.key === "lastName")?.value].filter(Boolean).join(" ");
@@ -66,7 +72,7 @@ function Mapping({ job }: { job: Job }) {
 
   return (
     <div className="imp">
-      <PageHeader title="Match your columns" subtitle="We matched most columns for you. Check the ones we flagged." />
+      <PageHeader title="Match your columns" subtitle="We matched most columns for you. Columns without a matching field are kept as extra details; nothing is left out unless you choose Skip." />
       <Stepper current={2} />
       {sheets.length > 1 && (
         <div className="imp-pills" role="tablist">
@@ -99,7 +105,7 @@ function Mapping({ job }: { job: Job }) {
             {sheet.columns.map((c) => {
               const field = sheet.mapping[c] ?? "";
               const f = dest.fields.find((x) => x.key === field);
-              const isUnsure = !!field && (sheet.fieldConfidence[c] ?? 0) < 0.9 && !confirmed[`${sheet.name}:${c}`];
+              const isUnsure = isField(field) && (sheet.fieldConfidence[c] ?? 0) < 0.9 && !confirmed[`${sheet.name}:${c}`];
               return (
                 <div className="imp-map-row" key={c}>
                   <code className="col">{c}</code>
@@ -108,8 +114,9 @@ function Mapping({ job }: { job: Job }) {
                   <div className="pick">
                     <select className={`select ${isUnsure ? "warn" : ""}`} aria-label={`WindVeal field for ${c}`} value={field} disabled={patch.isPending}
                       onChange={(e) => setField(c, e.target.value)}>
-                      <option value="">Don't import</option>
                       {dest.fields.map((x) => <option key={x.key} value={x.key}>{x.label}{isUnsure && x.key === field ? "?" : ""}</option>)}
+                      <option value={IMPORT_KEEP}>Keep as extra detail (“{c}”)</option>
+                      <option value="">Skip this column</option>
                     </select>
                     {f?.type === "date" && (
                       <select className="imp-datefmt" aria-label="Date format" value={sheet.dateFormat ?? "dmy"} disabled={patch.isPending}
@@ -118,7 +125,7 @@ function Mapping({ job }: { job: Job }) {
                       </select>
                     )}
                   </div>
-                  <span className="st">{!field ? <Pill tone="grey">Skipped</Pill> : isUnsure ? <Pill tone="warn">Check this</Pill> : <Pill tone="ok">Matched</Pill>}</span>
+                  <span className="st">{!field ? <Pill tone="grey">Skipped</Pill> : field === IMPORT_KEEP ? <Pill tone="blue">Kept</Pill> : isUnsure ? <Pill tone="warn">Check this</Pill> : <Pill tone="ok">Matched</Pill>}</span>
                 </div>
               );
             })}

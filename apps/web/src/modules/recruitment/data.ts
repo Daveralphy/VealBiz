@@ -10,6 +10,7 @@ export type Job = {
   description: string | null; status: "draft" | "open" | "closed"; published: boolean; applyBy: string | null;
   hiringManagerUserId: string | null; hiringTeamUserIds: string[]; stages: string[]; questions: Question[];
   openedAt: string | null; createdAt: string; publicUrl: string; isLive: boolean;
+  reference?: string | null; extraDetails?: Record<string, string>;
   funnel?: { stage: string; count: number }[]; totalApplications?: number;
   hiringManagerName?: string | null; hiringTeam?: { userId: string; name: string }[];
 };
