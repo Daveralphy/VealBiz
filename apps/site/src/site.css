@@ -371,7 +371,8 @@ img {
 /* ---------- home hero ---------- */
 .hero {
   position: relative;
-  min-height: 860px;
+  /* Tall enough for the photo to carry the page, without a big empty band under the menu. */
+  min-height: clamp(620px, 80vh, 720px);
   display: flex;
   align-items: center;
   background: var(--dark-band);
