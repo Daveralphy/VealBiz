@@ -21,7 +21,7 @@
 :root[data-theme="dark"] .sb-toggle .tip { background: #fff; color: #0f1a3a; }
 .sb-toggle:hover .tip { display: flex; }
 .sb-toggle .tip kbd { font-family: var(--font); font-size: 11px; background: rgba(255,255,255,.18); border-radius: 5px; padding: 0 5px; }
-.sb-org-name { min-width: 0; flex: 1; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+.sb-org-name { min-width: 0; flex: 1; text-align: left; background: none; border: 0; padding: 0; cursor: default; display: flex; align-items: center; gap: 6px; }
 .sb-org-name b { display: block; font-family: var(--display); color: var(--ink); font-size: 15px; letter-spacing: -0.02em; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-org-name small { font-size: 12px; display: flex; align-items: center; gap: 5px; }
 .sb-org-name small i { width: 6px; height: 6px; border-radius: 50%; }
@@ -270,6 +270,9 @@
 /* ---------- WindVeal admin ---------- */
 .ad-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
 .ad-filters { margin-bottom: 14px; flex-wrap: wrap; }
+.ad-filters .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.ad-filters .seg::-webkit-scrollbar { display: none; }
+.ad-filters .seg button { flex: none; }
 .ad-mark { border-radius: 10px; background: var(--soft); border: 1px solid var(--line); display: inline-flex; align-items: center; justify-content: center; overflow: hidden; flex: none; font-weight: 800; color: var(--ink); }
 .ad-mark img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
 .ad-cover:not(:disabled), .pf-company-bar button.pf-logo:not(:disabled) { cursor: zoom-in; }
@@ -360,3 +363,10 @@
 .ppl-working i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok-dot); }
 .ppl-working.break { color: var(--warn); }
 .ppl-working.break i { background: #e0a43c; }
+/* Admin overview: tiles and rows that open things */
+.ad-stat-link { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; border-radius: var(--radius-lg); }
+.ad-stat-link > * { height: 100%; transition: border-color .15s; }
+.ad-stat-link:hover > * { border-color: var(--blue); }
+.ad-row { width: 100%; background: none; border: 0; border-top: 1px solid var(--line); font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 0; }
+.ad-row:first-child { border-top: 0; }
+.ad-row:hover b { color: var(--blue); }

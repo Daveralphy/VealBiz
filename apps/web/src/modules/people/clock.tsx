@@ -42,7 +42,13 @@ export function useMyClock() {
   const qc = useQueryClient();
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
-  const me = useQuery({ queryKey: ["people", "attendance", "me"], queryFn: () => api.get<MyClock>("/api/people/attendance/me"), staleTime: 60_000 });
+  // While the clock is running, check in with the server each minute (and on return to the window), so a new
+  // day shows up as "not clocked in" once yesterday's clock has been closed at midnight.
+  const me = useQuery({
+    queryKey: ["people", "attendance", "me"], queryFn: () => api.get<MyClock>("/api/people/attendance/me"), staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (q) => (q.state.data?.record?.clockIn && !q.state.data.record.clockOut ? 60_000 : false),
+  });
   const r = me.data?.record ?? null;
   const state: ClockState = !me.data?.employee ? "none" : r?.clockOut ? "done" : r?.onBreak ? "break" : r?.clockIn ? "in" : "out";
   const now = useNow(1000, state === "in");

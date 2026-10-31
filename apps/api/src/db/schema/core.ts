@@ -12,6 +12,9 @@ export const users = pgTable("users", {
   avatarFileId: uuid("avatar_file_id"),
   /** WindVeal staff: can open the WindVeal admin panel and review every organisation. */
   platformAdmin: boolean("platform_admin").notNull().default(false),
+  /** Set by WindVeal when an account is deactivated: the person can't sign in until reactivated. */
+  deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
+  deactivatedReason: text("deactivated_reason"),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   ...timestamps(),
@@ -83,6 +86,10 @@ export const organisations = pgTable("organisations", {
   verificationDocumentIds: jsonb("verification_document_ids").$type<string[]>().notNull().default([]),
   verificationReviewedAt: timestamp("verification_reviewed_at", { withTimezone: true }),
   verificationReviewedBy: uuid("verification_reviewed_by"),
+  /** WindVeal can suspend or close an organisation's account; its data is kept and it can be brought back. */
+  accountStatus: text("account_status").$type<"active" | "suspended" | "closed">().notNull().default("active"),
+  accountStatusReason: text("account_status_reason"),
+  accountStatusAt: timestamp("account_status_at", { withTimezone: true }),
   ownerName: text("owner_name"),
   ownerEmail: text("owner_email"),
   createdBy: uuid("created_by").notNull().references(() => users.id),

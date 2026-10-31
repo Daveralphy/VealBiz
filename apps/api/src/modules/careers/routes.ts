@@ -41,7 +41,7 @@ function orgPublic(o: Org) {
 
 async function liveOrg(slug: string): Promise<Org> {
   const [o] = await db.select().from(organisations).where(and(eq(organisations.slug, slug), isNull(organisations.deletedAt))).limit(1);
-  if (!o || o.verificationStatus !== "verified") throw notLive();
+  if (!o || o.verificationStatus !== "verified" || o.accountStatus !== "active") throw notLive();
   return o;
 }
 

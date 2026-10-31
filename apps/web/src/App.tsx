@@ -1,12 +1,12 @@
 import { Navigate, Outlet, RouterProvider, ScrollRestoration, createBrowserRouter, useLocation, useNavigationType } from "react-router-dom";
 import { useFirstVisitHold } from "@windveal/ui";
 import { Splash } from "./components/Splash";
-import { Welcome } from "./pages/welcome";
+import { AccountPaused, Welcome } from "./pages/welcome";
 import { useMe } from "./lib/session";
 import { AppShell } from "./layouts/AppShell";
 import { SignIn, CreateAccount, VerifyEmail, ForgotPassword, ResetPassword, AcceptInvite, Invited } from "./pages/auth";
 import { SetupRoutes } from "./pages/setup";
-import { SettingsRoutes } from "./pages/settings";
+import { BillingPage, SettingsRoutes } from "./pages/settings";
 import { ProfileRoutes } from "./pages/profile";
 import { AdminRoutes } from "./pages/admin";
 import { Overview } from "./pages/overview/Overview";
@@ -28,6 +28,10 @@ function Gate({ need }: { need: "app" | "setup" }) {
   if (!me.user) return <Navigate to={loc.pathname === "/" ? "/welcome" : `/sign-in?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   if (!me.user.emailVerified) return <Navigate to="/verify-email" replace />;
   if (!me.org) return need === "setup" ? <Outlet /> : <Navigate to="/setup" replace />;
+  // WindVeal has suspended or closed this organisation (WindVeal's own admins still get in to sort it out).
+  if (me.org.accountStatus !== "active" && !me.user.platformAdmin) {
+    return <AccountPaused orgName={me.org.name} status={me.org.accountStatus} reason={me.org.accountStatusReason} />;
+  }
   const setupDone = me.org.setupStep === "done" || me.membership?.role !== "admin";
   if (need === "app" && !setupDone) return <Navigate to={`/setup/${me.org.setupStep}`} replace />;
   if (need === "setup" && setupDone && !loc.pathname.startsWith("/setup/done")) return <Navigate to="/" replace />;
@@ -88,6 +92,7 @@ const router = createBrowserRouter([{ element: <Root />, children: [
       { path: "/insights/*", element: <InsightsModule /> },
       { path: "/import/*", element: <ImportModule /> },
       { path: "/settings/*", element: <SettingsRoutes /> },
+      { path: "/billing", element: <BillingPage /> },
       { path: "/profile/*", element: <ProfileRoutes /> },
       { path: "/admin/*", element: <AdminRoutes /> },
       { path: "/help", element: <Help /> },

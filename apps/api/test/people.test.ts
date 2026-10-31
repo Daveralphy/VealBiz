@@ -1,5 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { and, eq } from "drizzle-orm";
 import { addMember, getApp, signUpWithOrg, type Client } from "./helpers";
+import { db } from "../src/db/client";
+import { attendance } from "../src/db/schema";
 
 // Sign-ups are rate limited (10 a minute), so the tests share one organisation.
 type Person = { c: Client; email: string };
@@ -277,5 +280,25 @@ describe("people: supporting endpoints", () => {
     expect((await c.patch(`/api/people/leave-types/${lt.body.id}`, { daysPerYear: "" })).body.daysPerYear).toBeNull();
     const chart = (await c.get("/api/people/org-chart")).body;
     expect(chart.top.some((t: any) => t.reports.length > 0)).toBe(true);
+  });
+});
+
+describe("people: a clock left running overnight", () => {
+  it("is clocked out at the end of that day, and the new day starts with a fresh clock in", async () => {
+    const app = await getApp();
+    const p = await signUpWithOrg(app);
+    const e = await createEmployee(p.c, { firstName: "Night", lastName: "Owl", email: p.email });
+    const y = new Date(); y.setDate(y.getDate() - 1);
+    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, "0")}-${String(y.getDate()).padStart(2, "0")}`;
+    const start = new Date(y); start.setHours(9, 0, 0, 0);
+    const org = (await p.c.get("/api/org")).body.org;
+    await db.insert(attendance).values({ orgId: org.id, employeeId: e.id, workDate: day, clockIn: start, breaks: [{ start: new Date(start.getTime() + 3600_000).toISOString(), end: null }] });
+    const me = (await p.c.get("/api/people/attendance/me")).body;
+    expect(me.record).toBeNull();
+    const [r] = await db.select().from(attendance).where(and(eq(attendance.employeeId, e.id), eq(attendance.workDate, day)));
+    expect(r!.clockOut).not.toBeNull();
+    expect(r!.clockOut!.getHours()).toBe(23);
+    expect(r!.breaks.every((b) => b.end)).toBe(true);
+    expect((await p.c.post("/api/people/attendance/clock-in")).status).toBe(200);
   });
 });

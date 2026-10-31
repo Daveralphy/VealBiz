@@ -16,7 +16,7 @@ import { createTask, startChecklist } from "../../src/lib/tasks";
 const PASSWORD = "Testing#2026x";
 const DAY = 86_400_000;
 const d = (offset: number) => new Date(Date.now() + offset * DAY);
-const ymd = (offset: number) => d(offset).toISOString().slice(0, 10);
+const ymd = (offset: number) => { const x = d(offset); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
 
 async function user(email: string, name: string, hash: string) {
   const [existing] = await db.select().from(s.users).where(eq(s.users.email, email)).limit(1);

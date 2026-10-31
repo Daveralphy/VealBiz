@@ -91,6 +91,7 @@ export async function mePayload(userId: string) {
       id: row.o.id, name: row.o.tradingName || row.o.legalName, legalName: row.o.legalName, slug: row.o.slug,
       country: row.o.country, currency: row.o.currency, plan: row.o.plan, verificationStatus: row.o.verificationStatus,
       brandColor: row.o.brandColor, logoFileId: row.o.logoFileId, setupStep: row.o.setupStep,
+      accountStatus: row.o.accountStatus, accountStatusReason: row.o.accountStatusReason,
     } : null,
     membership: row ? {
       id: row.m.id, role: row.m.role, status: row.m.status, isPrimaryAdmin: row.m.isPrimaryAdmin, jobTitle: row.m.jobTitle,
@@ -153,6 +154,7 @@ export default async function authRoutes(app: FastifyInstance) {
     if (!user || !(await verifyPassword(user.passwordHash, input.password))) {
       throw new AppError(401, "invalid_credentials", "Email or password is incorrect.");
     }
+    if (user.deactivatedAt) throw new AppError(403, "deactivated", "This account has been deactivated. Contact WindVeal support if you think this is a mistake.");
     const { isNewDevice, device } = await startSession(req, reply, user.id, !!input.remember);
     const me = await mePayload(user.id);
     if (isNewDevice && me?.org) {

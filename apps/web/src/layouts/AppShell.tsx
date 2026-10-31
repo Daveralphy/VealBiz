@@ -63,12 +63,12 @@ function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () 
           {onToggle && mini && <ToggleButton mini onToggle={onToggle} />}
         </span>
         {!mini && (
-          <Link to="/profile/company" className="sb-org-name" onClick={onNavigate}>
+          <div className="sb-org-name">
             <span style={{ minWidth: 0, flex: 1 }}>
               <b>{org.name}</b>
               <small style={{ color: org.verificationStatus === "verified" ? "var(--ok)" : "var(--warn)" }}><i style={{ background: statusColor }} />{statusText}</small>
             </span>
-          </Link>
+          </div>
         )}
         {onToggle && !mini && <ToggleButton mini={false} onToggle={onToggle} />}
       </div>
@@ -87,7 +87,7 @@ function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () 
         <div className="sb-store">
           <div className="between"><span>Storage</span><b className="ink">{formatBytes(storage.used)} of {formatBytes(storage.limit)}</b></div>
           <Progress value={(storage.used / storage.limit) * 100} />
-          <Link to="/settings/billing" onClick={onNavigate}>Upgrade for more space →</Link>
+          <Link to="/billing" onClick={onNavigate}>Upgrade for more space →</Link>
         </div>
       )}
       <div className="sb-foot"><BrandLogo height={18} /><span>v1.0</span></div>
@@ -205,7 +205,7 @@ function AccountMenu() {
             <Moon size={16} />Dark mode<span style={{ marginLeft: "auto" }}><Switch label="Dark mode" checked={theme === "dark"} onChange={(v) => setTheme(v ? "dark" : "light")} /></span>
           </button>
           <hr />
-          <button onClick={() => { close(); navigate("/settings/billing"); }}><CreditCard size={16} />Plan and billing</button>
+          <button onClick={() => { close(); navigate("/billing"); }}><CreditCard size={16} />Plan and billing</button>
           <button onClick={() => { close(); navigate("/help"); }}><CircleHelp size={16} />Help and support</button>
           <hr />
           <button onClick={() => { close(); signOut.ask(); }}><LogOut size={16} />Sign out</button>

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, gte, inArray, isNull, lte, ne, sql as dsql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, sql as dsql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../db/client";
 import { attendance, employees, leaveRequests, leaveTypes } from "../../db/schema";
@@ -21,12 +21,31 @@ export function workedMinutes(r: Pick<Row, "clockIn" | "clockOut" | "breaks">, u
   return Math.max(0, Math.round((end - r.clockIn.getTime() - breakMs) / 60_000));
 }
 const onBreak = (r: Pick<Row, "breaks" | "clockOut"> | null | undefined) => !!r && !r.clockOut && !!r.breaks?.length && !r.breaks[r.breaks.length - 1]!.end;
+/**
+ * A day's clock can't run into the next day: anything still open from an earlier day is clocked out
+ * at the end of that day (a break still running ends then too). The next day starts with a new clock in.
+ */
+export async function closeEndedDays(scope: SQL) {
+  const open = await db.select().from(attendance)
+    .where(and(scope, isNull(attendance.deletedAt), isNotNull(attendance.clockIn), isNull(attendance.clockOut), lt(attendance.workDate, localDate())));
+  for (const r of open) {
+    let end = new Date(`${r.workDate}T23:59:59.999`);
+    if (end < r.clockIn!) end = r.clockIn!;
+    const iso = end.toISOString();
+    await db.update(attendance).set({
+      clockOut: end, breaks: r.breaks.map((b) => (b.end ? b : { ...b, end: iso })),
+      note: r.note ?? "Clocked out automatically at the end of the day", version: dsql`${attendance.version} + 1`,
+    }).where(eq(attendance.id, r.id));
+  }
+}
+
 const clockView = (r: Row) => ({ id: r.id, clockIn: r.clockIn, clockOut: r.clockOut, breaks: r.breaks, onBreak: onBreak(r) });
 
 const STATUS_LABEL: Record<Status, string> = { present: "Present", late: "Late", not_in: "Not in yet", on_leave: "On leave", sick: "Sick" };
 
 /** Builds the attendance board for one day: everyone current, with their record and status. */
 async function board(ctx: OrgContext, date: string, opts: { search?: string; location?: string } = {}) {
+  await closeEndedDays(eq(attendance.orgId, ctx.org.id));
   const workdayStart = ctx.org.settings.workdayStart ?? "09:00";
   const startMin = parseHm(workdayStart);
   const people = (await db.select().from(employees)
@@ -75,6 +94,7 @@ async function board(ctx: OrgContext, date: string, opts: { search?: string; loc
 async function myOpenRecord(ctx: OrgContext) {
   const me = await myEmployee(ctx);
   if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+  await closeEndedDays(eq(attendance.employeeId, me.id));
   const [r] = await db.select().from(attendance)
     .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);
   if (!r?.clockIn) throw conflict("You haven't clocked in today.");
@@ -88,6 +108,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
     const ctx = await requireOrg(req);
     const me = await myEmployee(ctx);
     if (!me) return { employee: null, record: null, date: localDate() };
+    await closeEndedDays(eq(attendance.employeeId, me.id));
     const [r] = await db.select().from(attendance)
       .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);
     return {
@@ -100,6 +121,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
     const ctx = await requireOrg(req);
     const me = await myEmployee(ctx);
     if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+    await closeEndedDays(eq(attendance.employeeId, me.id));
     const today = localDate();
     const [r] = await db.select().from(attendance)
       .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, today), isNull(attendance.deletedAt))).limit(1);
@@ -115,6 +137,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
     const ctx = await requireOrg(req);
     const me = await myEmployee(ctx);
     if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+    await closeEndedDays(eq(attendance.employeeId, me.id));
     const [r] = await db.select().from(attendance)
       .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);
     if (!r?.clockIn) throw conflict("You haven't clocked in today.");
@@ -141,6 +164,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
     const ctx = await requireOrg(req);
     const me = await myEmployee(ctx);
     if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+    await closeEndedDays(eq(attendance.employeeId, me.id));
     const [done] = await db.select().from(attendance)
       .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);
     if (done?.clockIn && done.clockOut) {

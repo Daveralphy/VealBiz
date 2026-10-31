@@ -174,3 +174,44 @@ describe("joining from an invitation without the link", () => {
     expect((await new Client(app).post("/api/invited/complete", { email, code, name: "Someone Else", password: PASSWORD })).status).toBe(400);
   });
 });
+
+describe("WindVeal admin: accounts", () => {
+  it("suspends and reactivates an organisation; its people are locked out meanwhile", async () => {
+    const app = await getApp();
+    const { c, org } = await signUpWithOrg(app);
+    const { c: platform, email: staff, org: staffOrg } = await signUpWithOrg(app, "WindVeal Accounts Org");
+    await makePlatformAdmin(staff);
+    expect((await platform.post(`/api/admin/organisations/${org.id}/account`, { status: "suspended" })).status).toBe(400);
+    expect((await platform.post(`/api/admin/organisations/${staffOrg.id}/account`, { status: "suspended", reason: "x" })).status).toBe(400);
+    const r = await platform.post(`/api/admin/organisations/${org.id}/account`, { status: "suspended", reason: "Payment overdue" });
+    expect(r.body.org.accountStatus).toBe("suspended");
+    expect((await c.get("/api/org")).status).toBe(403);
+    expect((await c.get("/api/auth/me")).body.org.accountStatus).toBe("suspended");
+    expect((await platform.get("/api/admin/organisations?status=suspended")).body.some((o: any) => o.id === org.id)).toBe(true);
+    await platform.post(`/api/admin/organisations/${org.id}/account`, { status: "active" });
+    expect((await c.get("/api/org")).status).toBe(200);
+  });
+
+  it("deactivates a person (signed out, can't sign in), shows their details, and reactivates them", async () => {
+    const app = await getApp();
+    const { c, email } = await signUpWithOrg(app);
+    const { c: platform, email: staff } = await signUpWithOrg(app, "WindVeal People Org");
+    await makePlatformAdmin(staff);
+    const me = (await c.get("/api/auth/me")).body.user;
+    const detail = await platform.get(`/api/admin/users/${me.id}`);
+    expect(detail.body.user.email).toBe(email);
+    expect(detail.body.membership.role).toBe("admin");
+    expect(detail.body.activeSessions).toBeGreaterThan(0);
+    expect((await platform.post(`/api/admin/users/${me.id}/account`, { active: false, reason: "Reported misuse" })).status).toBe(200);
+    expect((await c.get("/api/auth/me")).body.user).toBeNull();
+    const login = await new Client(app).post("/api/auth/login", { email, password: PASSWORD });
+    expect(login.status).toBe(403);
+    await platform.post(`/api/admin/users/${me.id}/account`, { active: true });
+    expect((await new Client(app).post("/api/auth/login", { email, password: PASSWORD })).status).toBe(200);
+    expect((await platform.post(`/api/admin/users/${me.id}/password-reset`)).status).toBe(200);
+    expect(recentMail(email)[0]!.link).toMatch(/reset-password/);
+    const platformMe = (await platform.get("/api/auth/me")).body.user;
+    expect((await platform.post(`/api/admin/users/${platformMe.id}/account`, { active: false, reason: "x" })).status).toBe(400);
+    expect((await platform.get("/api/admin/overview")).status).toBe(200);
+  });
+});

@@ -45,7 +45,7 @@ export async function loadSession(req: FastifyRequest): Promise<void> {
     .where(and(eq(sessions.tokenHash, sha256(token)), isNull(sessions.revokedAt), gt(sessions.expiresAt, new Date())))
     .limit(1);
   if (!row) return;
-  if (row.d?.blockedAt) return;
+  if (row.d?.blockedAt || row.u.deactivatedAt) return;
   req.auth = { user: row.u, sessionId: row.s.id, deviceId: row.d?.id ?? null, deviceLabel: row.d?.label ?? null };
   // Touch last-seen at most once a minute.
   if (Date.now() - row.s.lastSeenAt.getTime() > 60_000) {
@@ -86,6 +86,11 @@ export async function requireOrg(req: FastifyRequest): Promise<OrgContext> {
     .limit(1);
   if (!row) throw forbidden("You're not part of an organisation yet.");
   if (row.m.status !== "active") throw forbidden("Your access to this organisation has been suspended.");
+  if (row.o.accountStatus !== "active") {
+    throw forbidden(row.o.accountStatus === "closed"
+      ? "This organisation's WindVeal account is closed. Contact WindVeal support if you need it back."
+      : "This organisation's WindVeal account is paused. Contact WindVeal support.");
+  }
   req.orgCtx = {
     user: auth.user,
     org: row.o,

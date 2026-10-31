@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Download, ExternalLink, Eye, FileText, Image as ImageIcon, MoreHorizontal, RotateCcw, X } from "lucide-react";
+import { Ban, Check, Download, ExternalLink, Eye, FileText, Image as ImageIcon, KeyRound, LogOut, MailCheck, Pause, RotateCcw, ShieldCheck, X } from "lucide-react";
 import {
-  Avatar, Button, Card, EmptyState, IconButton, Loading, Menu, Modal, PageHeader, Pill, SearchInput, Segmented, Select, Stat, Textarea, useConfirm, useToast,
+  Avatar, Button, Card, EmptyState, Loading, Modal, PageHeader, Pill, SearchInput, Segmented, Select, Stat, Textarea, useConfirm, useToast,
 } from "@windveal/ui";
 import { PLANS, formatBytes } from "@windveal/shared";
 import { api, qs } from "../../lib/api";
@@ -20,6 +20,7 @@ const STATUS: Record<Status, { label: string; tone: "warn" | "ok" | "red" }> = {
   verified: { label: "Verified", tone: "ok" },
   rejected: { label: "Not verified", tone: "red" },
 };
+const ACCOUNT = { active: "Active", suspended: "Suspended", closed: "Closed" } as const;
 const country = (code: string) => new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
 
 function OrgMark({ name, logoFileId, size = 36 }: { name: string; logoFileId: string | null; size?: number }) {
@@ -33,8 +34,9 @@ function OrgMark({ name, logoFileId, size = 36 }: { name: string; logoFileId: st
 function AdminTabs() {
   return (
     <div className="tabs">
-      <NavLink to="/admin" end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>Organisations</NavLink>
-      <NavLink to="/admin/people" className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>People</NavLink>
+      <NavLink to="/admin" end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>Overview</NavLink>
+      <NavLink to="/admin/organisations" end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>Organisations</NavLink>
+      <NavLink to="/admin/people" end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>People</NavLink>
     </div>
   );
 }
@@ -42,7 +44,7 @@ function AdminTabs() {
 // ---------------- Organisations ----------------
 function Organisations() {
   const navigate = useNavigate();
-  const [status, setStatus] = useState<Status | "all">("pending");
+  const [status, setStatus] = useState<Status | "suspended" | "closed" | "all">(() => (new URLSearchParams(location.search).get("status") as any) || "pending");
   const [q, setQ] = useState("");
   const summary = useQuery({ queryKey: ["admin", "summary"], queryFn: () => api.get("/api/admin/summary") });
   const list = useQuery({
@@ -63,7 +65,8 @@ function Organisations() {
       )}
       <div className="between ad-filters">
         <Segmented value={status} onChange={setStatus} options={[
-          { value: "pending", label: "Waiting" }, { value: "verified", label: "Verified" }, { value: "rejected", label: "Not verified" }, { value: "all", label: "All" },
+          { value: "pending", label: "Waiting" }, { value: "verified", label: "Verified" }, { value: "rejected", label: "Not verified" },
+          { value: "suspended", label: "Suspended" }, { value: "closed", label: "Closed" }, { value: "all", label: "All" },
         ]} />
         <SearchInput value={q} onChange={setQ} placeholder="Name, registration number or email" />
       </div>
@@ -84,7 +87,8 @@ function Organisations() {
                   <td className="hide-sm" style={{ textTransform: "capitalize" }}>{o.plan}</td>
                   <td className="hide-sm">{o.documents || <span className="muted">None</span>}</td>
                   <td>{timeAgo(o.createdAt)}</td>
-                  <td><Pill tone={STATUS[o.verificationStatus as Status].tone}>{STATUS[o.verificationStatus as Status].label}</Pill></td>
+                  <td>{o.accountStatus !== "active" ? <Pill tone={o.accountStatus === "closed" ? "grey" : "red"}>{ACCOUNT[o.accountStatus as "suspended" | "closed"]}</Pill>
+                    : <Pill tone={STATUS[o.verificationStatus as Status].tone}>{STATUS[o.verificationStatus as Status].label}</Pill>}</td>
                 </tr>
               ))}
             </tbody>
@@ -180,7 +184,7 @@ function OrganisationDetail() {
   const [viewing, setViewing] = useState<ViewableFile | null>(null);
   const q = useQuery({ queryKey: ["admin", "org", id], queryFn: () => api.get(`/api/admin/organisations/${id}`) });
   if (q.isLoading) return <Loading />;
-  if (!q.data) return <EmptyState title="Organisation not found" action={<Button onClick={() => navigate("/admin")}>All organisations</Button>} />;
+  if (!q.data) return <EmptyState title="Organisation not found" action={<Button onClick={() => navigate("/admin/organisations")}>All organisations</Button>} />;
   const d = q.data;
   const o = d.org;
   const perks: string[] = o.settings?.perks ?? [];
@@ -188,7 +192,7 @@ function OrganisationDetail() {
   const c = d.counts;
   return (
     <>
-      <PageHeader title={o.name} subtitle={`${o.legalName} · ${country(o.country)} · registered ${fmtDate(o.createdAt)}`} back={{ label: "All organisations", onClick: () => navigate("/admin") }} />
+      <PageHeader title={o.name} subtitle={`${o.legalName} · ${country(o.country)} · registered ${fmtDate(o.createdAt)}`} back={{ label: "All organisations", onClick: () => navigate("/admin/organisations") }} />
       <div className="pf-company">
         <button className="pf-cover ad-cover" disabled={!o.coverFileId} onClick={() => o.coverFileId && image(o.coverFileId, "Cover image")}
           style={o.coverFileId ? { backgroundImage: `url(${adminFileUrl(o.coverFileId)})` } : { background: `linear-gradient(120deg, ${o.brandColor ?? "#263f91"}, var(--night))` }}
@@ -248,6 +252,7 @@ function OrganisationDetail() {
         </div>
         <div>
           <Review data={d} />
+          <AccountCard org={o} />
           {d.creator && (
             <Card title="Registered by">
               <div className="list-row"><Avatar name={d.creator.name} /><div style={{ minWidth: 0, flex: 1 }}><b className="ink" style={{ display: "block" }}>{d.creator.name}</b><small className="muted">{d.creator.email}</small></div>{d.creator.emailVerified ? <Pill tone="ok">Email verified</Pill> : <Pill tone="warn">Email not verified</Pill>}</div>
@@ -286,45 +291,26 @@ function OrganisationDetail() {
 
 // ---------------- People ----------------
 function People() {
-  const { user } = useSession();
-  const qc = useQueryClient();
-  const toast = useToast();
   const navigate = useNavigate();
   const [q, setQ] = useState("");
-  const { confirm, dialog } = useConfirm();
   const list = useQuery({ queryKey: ["admin", "users", q], queryFn: () => api.get<any[]>(`/api/admin/users${qs({ q })}`) });
-  const setAdmin = useMutation({
-    mutationFn: ({ id, value }: { id: string; value: boolean }) => api.post(`/api/admin/users/${id}/platform-admin`, { value }),
-    onSuccess: (_r, v) => { toast(v.value ? "WindVeal admin access given" : "WindVeal admin access removed"); qc.invalidateQueries({ queryKey: ["admin", "users"] }); },
-  });
   return (
     <>
-      <div className="between ad-filters"><span className="muted">Everyone with a WindVeal account.</span><SearchInput value={q} onChange={setQ} placeholder="Name or email" /></div>
+      <div className="between ad-filters"><span className="muted">Everyone with a WindVeal account. Open someone to see their details and manage their account.</span><SearchInput value={q} onChange={setQ} placeholder="Name or email" /></div>
       {list.isLoading ? <Loading /> : (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Person</th><th className="hide-sm">Organisation</th><th className="hide-sm">Joined</th><th className="hide-sm">Last signed in</th><th>WindVeal admin</th></tr></thead>
+            <thead><tr><th>Person</th><th className="hide-sm">Organisation</th><th className="hide-sm">Joined</th><th className="hide-sm">Last signed in</th><th>Account</th></tr></thead>
             <tbody>
               {(list.data ?? []).map((u) => (
-                <tr key={u.id}>
+                <tr key={u.id} className="clickable" onClick={() => navigate(`/admin/people/${u.id}`)}>
                   <td><span className="row" style={{ gap: 10 }}><Avatar name={u.name} src={u.avatarFileId ? adminFileUrl(u.avatarFileId) : null} /><span style={{ minWidth: 0 }}><b className="ink" style={{ display: "block" }}>{u.name}</b><small className="muted">{u.email}{!u.emailVerified && " · not verified"}</small></span></span></td>
-                  <td className="hide-sm">{u.org ? <button className="link" onClick={() => navigate(`/admin/organisations/${u.org.id}`)}>{u.org.name}</button> : <span className="muted">None yet</span>}{u.org?.role && <small className="muted"> · {u.org.role}</small>}</td>
+                  <td className="hide-sm">{u.org ? <>{u.org.name}{u.org.role && <small className="muted"> · {u.org.role}</small>}</> : <span className="muted">None yet</span>}</td>
                   <td className="hide-sm">{fmtDate(u.createdAt)}</td>
                   <td className="hide-sm">{u.lastLoginAt ? timeAgo(u.lastLoginAt) : "Never"}</td>
-                  <td><span className="row" style={{ gap: 6, justifyContent: "space-between" }}>
-                    {u.platformAdmin ? <Pill tone="violet">WindVeal admin</Pill> : <span className="muted">No</span>}
-                    {u.id !== user.id && (
-                      <Menu trigger={(t) => <IconButton label={`Actions for ${u.name}`} onClick={t}><MoreHorizontal size={18} /></IconButton>}>
-                        {(close) => <button className={u.platformAdmin ? "danger" : undefined} onClick={async () => {
-                          close();
-                          const value = !u.platformAdmin;
-                          const ok = await confirm(value
-                            ? { title: `Make ${u.name} a WindVeal admin?`, message: "They'll see every organisation and everything it sent in, and can approve, reject and change plans.", confirmLabel: "Give access", danger: false }
-                            : { title: `Remove ${u.name}'s WindVeal admin access?`, message: "They'll no longer see the WindVeal admin panel.", confirmLabel: "Remove access" });
-                          if (ok) setAdmin.mutate({ id: u.id, value });
-                        }}>{u.platformAdmin ? "Remove WindVeal admin access" : "Make WindVeal admin"}</button>}
-                      </Menu>
-                    )}
+                  <td><span className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                    {u.deactivated ? <Pill tone="red">Deactivated</Pill> : <Pill tone="ok">Active</Pill>}
+                    {u.platformAdmin && <Pill tone="violet">WindVeal admin</Pill>}
                   </span></td>
                 </tr>
               ))}
@@ -332,6 +318,221 @@ function People() {
           </table>
         </div>
       )}
+    </>
+  );
+}
+
+// ---------------- Overview ----------------
+function Overview() {
+  const navigate = useNavigate();
+  const summary = useQuery({ queryKey: ["admin", "summary"], queryFn: () => api.get("/api/admin/summary") });
+  const o = useQuery({ queryKey: ["admin", "overview"], queryFn: () => api.get("/api/admin/overview") });
+  const s = summary.data;
+  return (
+    <>
+      {s && (
+        <div className="ad-stats">
+          <button className="ad-stat-link" onClick={() => navigate("/admin/organisations?status=pending")}><Stat label="Waiting for approval" value={s.pending} note={s.pending ? "Review now" : "All caught up"} /></button>
+          <button className="ad-stat-link" onClick={() => navigate("/admin/organisations?status=verified")}><Stat label="Verified organisations" value={s.verified} /></button>
+          <button className="ad-stat-link" onClick={() => navigate("/admin/organisations?status=suspended")}><Stat label="Suspended or closed" value={s.suspended + s.closed} /></button>
+          <button className="ad-stat-link" onClick={() => navigate("/admin/people")}><Stat label="People on WindVeal" value={s.users} note={s.deactivatedUsers ? `${s.deactivatedUsers} deactivated` : undefined} /></button>
+          <Stat label="New this week" value={s.newThisWeek} note="organisations" />
+        </div>
+      )}
+      {o.isLoading ? <Loading /> : o.data && (
+        <div className="grid-side side-360">
+          <Card title="Waiting for approval" subtitle="Oldest first. Open one to check what they sent in."
+            actions={<Button variant="ghost" size="sm" onClick={() => navigate("/admin/organisations?status=pending")}>See all</Button>}>
+            {!o.data.waiting.length ? <EmptyState title="Nothing waiting">New organisations appear here as soon as they register.</EmptyState> : o.data.waiting.map((w: any) => (
+              <button key={w.id} className="list-row ad-row" onClick={() => navigate(`/admin/organisations/${w.id}`)}>
+                <OrgMark name={w.name} logoFileId={w.logoFileId} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <b className="ink" style={{ display: "block" }}>{w.name}</b>
+                  <small className="muted">{w.creator.name} · {country(w.country)} · {w.documents ? `${w.documents} document${w.documents === 1 ? "" : "s"}` : "no documents yet"}</small>
+                </span>
+                <small className="muted">waiting {timeAgo(w.createdAt).replace(" ago", "")}</small>
+              </button>
+            ))}
+          </Card>
+          <div>
+            <Card title="New people">
+              {o.data.newUsers.map((u: any) => (
+                <button key={u.id} className="list-row ad-row" onClick={() => navigate(`/admin/people/${u.id}`)}>
+                  <Avatar name={u.name} size={32} />
+                  <span style={{ flex: 1, minWidth: 0 }}><b className="ink" style={{ display: "block" }}>{u.name}</b><small className="muted">{u.org?.name ?? "No organisation yet"}{!u.emailVerified && " · email not verified"}</small></span>
+                  <small className="muted">{timeAgo(u.createdAt)}</small>
+                </button>
+              ))}
+            </Card>
+            {!!o.data.paused.length && (
+              <Card title="Suspended or closed">
+                {o.data.paused.map((x: any) => (
+                  <button key={x.id} className="list-row ad-row" onClick={() => navigate(`/admin/organisations/${x.id}`)}>
+                    <span style={{ flex: 1, minWidth: 0 }}><b className="ink" style={{ display: "block" }}>{x.name}</b><small className="muted">{x.reason ?? ""}</small></span>
+                    <Pill tone={x.accountStatus === "closed" ? "grey" : "red"}>{ACCOUNT[x.accountStatus as "suspended" | "closed"]}</Pill>
+                  </button>
+                ))}
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** A reason box for actions that need one (suspend, close, deactivate). */
+function ReasonModal({ open, title, subtitle, label, confirmLabel, danger, needReason, busy, onClose, onConfirm }: {
+  open: boolean; title: string; subtitle: string; label: string; confirmLabel: string; danger?: boolean; needReason: boolean; busy: boolean;
+  onClose: () => void; onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState("");
+  useEffect(() => { if (open) setReason(""); }, [open]);
+  return (
+    <Modal open={open} onClose={onClose} title={title} subtitle={subtitle}
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button variant={danger ? "danger" : "primary"} loading={busy} disabled={needReason && !reason.trim()} onClick={() => onConfirm(reason.trim())}>{confirmLabel}</Button></>}>
+      {needReason && <Textarea label={label} value={reason} onChange={(e) => setReason(e.target.value)} />}
+    </Modal>
+  );
+}
+
+/** Suspend, close or reactivate an organisation's account. */
+function AccountCard({ org: o }: { org: any }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { org: mine } = useSession();
+  const [action, setAction] = useState<"suspended" | "closed" | "active" | null>(null);
+  const save = useMutation({
+    mutationFn: (reason: string) => api.post(`/api/admin/organisations/${o.id}/account`, { status: action, reason }),
+    onSuccess: () => {
+      toast(action === "active" ? `${o.name} is active again` : `${o.name} was ${action}`);
+      setAction(null);
+      qc.invalidateQueries({ queryKey: ["admin"] });
+    },
+  });
+  const st = o.accountStatus as "active" | "suspended" | "closed";
+  const own = o.id === mine.id;
+  const copy = {
+    suspended: { title: `Suspend ${o.name}?`, sub: "Their team can't use WindVeal and their careers page goes offline until you reactivate them. Nothing is deleted.", label: "Reason (sent to their admins)", btn: "Suspend account" },
+    closed: { title: `Close ${o.name}'s account?`, sub: "Their team loses access and their careers page goes offline. Their data is kept, so the account can be reopened.", label: "Reason (sent to their admins)", btn: "Close account" },
+    active: { title: `Reactivate ${o.name}?`, sub: "Their team can sign in and use WindVeal again, and their careers page comes back if they're verified.", label: "", btn: "Reactivate" },
+  };
+  return (
+    <Card title="Account" actions={<Pill tone={st === "active" ? "ok" : st === "closed" ? "grey" : "red"}>{ACCOUNT[st]}</Pill>}>
+      {st !== "active" && <p className={`pf-note bad`}><b>{ACCOUNT[st]}{o.accountStatusAt ? ` ${fmtDate(o.accountStatusAt)}` : ""}:</b> {o.accountStatusReason ?? "No reason given"}</p>}
+      {own ? <p className="muted" style={{ fontSize: 13.5, margin: 0 }}>This is your own organisation, so it can't be suspended or closed here.</p> : (
+        <div className="stack" style={{ gap: 8 }}>
+          {st === "active" && <>
+            <Button block variant="secondary" icon={<Pause size={16} />} onClick={() => setAction("suspended")}>Suspend account</Button>
+            <Button block variant="ghost" icon={<Ban size={16} />} onClick={() => setAction("closed")}>Close account</Button>
+          </>}
+          {st !== "active" && <Button block icon={<RotateCcw size={16} />} onClick={() => setAction("active")}>{st === "closed" ? "Reopen account" : "Reactivate account"}</Button>}
+        </div>
+      )}
+      {action && <ReasonModal open title={copy[action].title} subtitle={copy[action].sub} label={copy[action].label} confirmLabel={copy[action].btn}
+        danger={action !== "active"} needReason={action !== "active"} busy={save.isPending} onClose={() => setAction(null)} onConfirm={(r) => save.mutate(r)} />}
+    </Card>
+  );
+}
+
+// ---------------- One person ----------------
+function PersonDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { user: me } = useSession();
+  const { confirm, dialog } = useConfirm();
+  const [deactivating, setDeactivating] = useState(false);
+  const q = useQuery({ queryKey: ["admin", "user", id], queryFn: () => api.get(`/api/admin/users/${id}`) });
+  const refresh = () => qc.invalidateQueries({ queryKey: ["admin"] });
+  const act = useMutation({
+    mutationFn: ({ path, body }: { path: string; body?: unknown; ok: string }) => api.post(`/api/admin/users/${id}/${path}`, body ?? {}),
+    onSuccess: (_r, v) => { toast(v.ok); setDeactivating(false); refresh(); },
+  });
+  if (q.isLoading) return <Loading />;
+  if (!q.data) return <EmptyState title="Person not found" action={<Button onClick={() => navigate("/admin/people")}>All people</Button>} />;
+  const { user: u, membership: m, devices, activeSessions, activity } = q.data;
+  const self = u.id === me.id;
+  const ask = async (opts: { title: string; message: string; confirmLabel: string; danger?: boolean }, path: string, ok: string, body?: unknown) => {
+    if (await confirm(opts)) act.mutate({ path, body, ok });
+  };
+  return (
+    <>
+      <PageHeader title={u.name} subtitle={`${u.email} · on WindVeal since ${fmtDate(u.createdAt)}`} back={{ label: "All people", onClick: () => navigate("/admin/people") }} />
+      <div className="grid-side side-360">
+        <div>
+          <Card>
+            <div className="pf-head">
+              <Avatar name={u.name} size={72} src={u.avatarFileId ? adminFileUrl(u.avatarFileId) : null} />
+              <div className="pf-head-text">
+                <h2>{u.name}</h2>
+                <p className="muted">{m ? `${m.jobTitle ? `${m.jobTitle} · ` : ""}${m.orgName}` : "Not in an organisation yet"}</p>
+                <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+                  {u.deactivatedAt ? <Pill tone="red">Deactivated</Pill> : <Pill tone="ok">Active</Pill>}
+                  {u.emailVerified ? <Pill tone="ok">Email verified</Pill> : <Pill tone="warn">Email not verified</Pill>}
+                  {u.platformAdmin && <Pill tone="violet">WindVeal admin</Pill>}
+                </div>
+              </div>
+            </div>
+            {u.deactivatedAt && <p className="pf-note bad" style={{ marginTop: 16 }}><b>Deactivated {fmtDate(u.deactivatedAt)}:</b> {u.deactivatedReason ?? "No reason given"}</p>}
+          </Card>
+          <Card title="Account details">
+            <dl className="kv pf-kv">
+              <div><dt>Email</dt><dd>{u.email}</dd></div>
+              <div><dt>Phone</dt><dd>{u.phone || <span className="muted">Not added</span>}</dd></div>
+              <div><dt>Joined WindVeal</dt><dd>{fmtDate(u.createdAt)}</dd></div>
+              <div><dt>Last signed in</dt><dd>{u.lastLoginAt ? `${fmtDate(u.lastLoginAt)} · ${timeAgo(u.lastLoginAt)}` : "Never"}</dd></div>
+              <div><dt>Signed in right now on</dt><dd>{activeSessions} {activeSessions === 1 ? "device" : "devices"}</dd></div>
+            </dl>
+          </Card>
+          <Card title="Organisation">
+            {!m ? <p className="muted">Not part of an organisation yet. They may still be setting up.</p> : (
+              <dl className="kv pf-kv">
+                <div><dt>Organisation</dt><dd><button className="link" onClick={() => navigate(`/admin/organisations/${m.orgId}`)}>{m.orgName}</button>{m.orgAccountStatus !== "active" && <> <Pill tone="red">{ACCOUNT[m.orgAccountStatus as "suspended" | "closed"]}</Pill></>}</dd></div>
+                <div><dt>Role</dt><dd style={{ textTransform: "capitalize" }}>{m.role}{m.isPrimaryAdmin ? " · primary admin" : ""}{m.isOwner ? " · owner" : ""}</dd></div>
+                <div><dt>Job title</dt><dd>{m.jobTitle || <span className="muted">Not added</span>}</dd></div>
+                <div><dt>Access in their organisation</dt><dd>{m.status === "active" ? "Active" : "Suspended by their admin"}</dd></div>
+                <div><dt>Joined the organisation</dt><dd>{fmtDate(m.joinedAt)}</dd></div>
+              </dl>
+            )}
+          </Card>
+          <Card title="Recent activity">
+            {!activity.length ? <p className="muted">Nothing yet.</p> : activity.map((e: any) => (
+              <div key={e.id} className="list-row"><div style={{ flex: 1, minWidth: 0 }}><span className="ink">{e.summary}</span><small className="muted" style={{ display: "block" }}>{[e.device, `${fmtDate(e.createdAt)} · ${timeAgo(e.createdAt)}`].filter(Boolean).join(" · ")}</small></div></div>
+            ))}
+          </Card>
+        </div>
+        <div>
+          <Card title="Manage account">
+            {self ? <p className="muted" style={{ fontSize: 13.5, margin: 0 }}>This is your own account. Manage it from Profile.</p> : (
+              <div className="stack" style={{ gap: 8 }}>
+                {u.deactivatedAt
+                  ? <Button block icon={<RotateCcw size={16} />} loading={act.isPending} onClick={() => ask({ title: `Reactivate ${u.name}?`, message: "They can sign in again with their email and password.", confirmLabel: "Reactivate", danger: false }, "account", `${u.name} is active again`, { active: true })}>Reactivate account</Button>
+                  : <Button block variant="danger" icon={<Ban size={16} />} onClick={() => setDeactivating(true)}>Deactivate account</Button>}
+                <Button block variant="secondary" icon={<LogOut size={16} />} onClick={() => ask({ title: `Sign ${u.name} out everywhere?`, message: "They'll need to sign in again on every device.", confirmLabel: "Sign out everywhere", danger: false }, "sign-out", `${u.name} was signed out everywhere`)}>Sign out everywhere</Button>
+                <Button block variant="secondary" icon={<KeyRound size={16} />} onClick={() => ask({ title: `Send ${u.name} a password reset link?`, message: `A link to set a new password goes to ${u.email}. It works once, for 1 hour.`, confirmLabel: "Send link", danger: false }, "password-reset", `Reset link sent to ${u.email}`)}>Send password reset</Button>
+                {!u.emailVerified && <Button block variant="secondary" icon={<MailCheck size={16} />} onClick={() => ask({ title: `Mark ${u.email} as verified?`, message: "Only do this if you're sure the address belongs to them.", confirmLabel: "Mark verified", danger: false }, "verify-email", "Email marked as verified")}>Mark email verified</Button>}
+                <Button block variant="ghost" icon={<ShieldCheck size={16} />} onClick={() => ask(u.platformAdmin
+                  ? { title: `Remove ${u.name}'s WindVeal admin access?`, message: "They'll no longer see the WindVeal admin panel.", confirmLabel: "Remove access" }
+                  : { title: `Make ${u.name} a WindVeal admin?`, message: "They'll see every organisation and everything it sent in, and can approve, suspend and manage accounts.", confirmLabel: "Give access", danger: false },
+                  "platform-admin", u.platformAdmin ? "WindVeal admin access removed" : "WindVeal admin access given", { value: !u.platformAdmin })}>
+                  {u.platformAdmin ? "Remove WindVeal admin access" : "Make WindVeal admin"}
+                </Button>
+              </div>
+            )}
+          </Card>
+          <Card title={`Devices (${devices.length})`}>
+            {!devices.length ? <p className="muted">No devices yet.</p> : devices.map((d: any) => (
+              <div key={d.id} className="list-row"><div style={{ flex: 1, minWidth: 0 }}><b className="ink" style={{ display: "block" }}>{d.label}</b><small className="muted">Last active {timeAgo(d.lastSeenAt)}{d.ip ? ` · ${d.ip}` : ""}</small></div>{d.blocked && <Pill tone="red">Blocked</Pill>}</div>
+            ))}
+          </Card>
+        </div>
+      </div>
+      <ReasonModal open={deactivating} title={`Deactivate ${u.name}?`} subtitle="They're signed out everywhere and can't sign in until you reactivate them. Nothing is deleted."
+        label="Reason (emailed to them)" confirmLabel="Deactivate account" danger needReason busy={act.isPending}
+        onClose={() => setDeactivating(false)} onConfirm={(reason) => act.mutate({ path: "account", body: { active: false, reason }, ok: `${u.name} was deactivated` })} />
       {dialog}
     </>
   );
@@ -344,11 +545,13 @@ export function AdminRoutes() {
   return (
     <Routes>
       <Route path="organisations/:id" element={<OrganisationDetail />} />
+      <Route path="people/:id" element={<PersonDetail />} />
       <Route path="*" element={<>
-        <PageHeader title="WindVeal admin" subtitle="Review the organisations that sign up and everything they send in." />
+        <PageHeader title="WindVeal admin" subtitle="Approve new organisations, look after accounts and help people on WindVeal." />
         <AdminTabs />
         <Routes>
-          <Route index element={<Organisations />} />
+          <Route index element={<Overview />} />
+          <Route path="organisations" element={<Organisations />} />
           <Route path="people" element={<People />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>

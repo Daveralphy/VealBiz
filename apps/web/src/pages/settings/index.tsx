@@ -19,7 +19,7 @@ function SettingsTabs() {
   const { isAdmin } = useSession();
   const tabs = [
     ["/settings", "Members", true], ["/settings/roles", "Roles and permissions", isAdmin],
-    ["/settings/billing", "Plan and billing", true], ["/settings/audit", "Audit history", isAdmin],
+    ["/settings/audit", "Audit history", isAdmin],
   ] as const;
   return (
     <div className="tabs">
@@ -286,7 +286,17 @@ function Roles() {
   );
 }
 
-// ---------------- Billing ----------------
+// ---------------- Billing (its own page: account menu → Plan and billing) ----------------
+export function BillingPage() {
+  useEffect(() => { document.title = "Plan and billing · WindVeal"; }, []);
+  return (
+    <>
+      <PageHeader title="Plan and billing" subtitle="Your plan, storage and payment details." />
+      <Billing />
+    </>
+  );
+}
+
 function Billing() {
   const { org, hasSpecial } = useSession();
   const storage = useQuery({ queryKey: ["storage"], queryFn: () => api.get("/api/storage") });
@@ -398,13 +408,13 @@ export function SettingsRoutes() {
   useEffect(() => { document.title = "Settings · WindVeal"; }, []);
   return (
     <>
-      <PageHeader title="Settings" subtitle={`Manage ${org.name}'s team, permissions and plan. Your details and the company's are in Profile.`} />
+      <PageHeader title="Settings" subtitle={`Manage ${org.name}'s team and permissions. Your details and the company's are in Profile.`} />
       <SettingsTabs />
       <Routes>
         <Route index element={<Members />} />
         <Route path="members" element={<Navigate to="/settings" replace />} />
         <Route path="roles" element={isAdmin ? <Roles /> : <Navigate to="/settings" replace />} />
-        <Route path="billing" element={<Billing />} />
+        <Route path="billing" element={<Navigate to="/billing" replace />} />
         <Route path="audit" element={isAdmin ? <Audit /> : <Navigate to="/settings" replace />} />
         <Route path="profile" element={<Navigate to="/profile" replace />} />
         <Route path="*" element={<Navigate to="/settings" replace />} />

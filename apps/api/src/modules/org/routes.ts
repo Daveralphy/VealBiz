@@ -20,6 +20,7 @@ export function orgView(o: typeof organisations.$inferSelect) {
     industry: o.industry, teamSize: o.teamSize, country: o.country, currency: o.currency, city: o.city, address: o.address,
     registrationNumber: o.registrationNumber, website: o.website, verificationStatus: o.verificationStatus, verificationNote: o.verificationNote,
     verificationDocumentIds: o.verificationDocumentIds, verificationReviewedAt: o.verificationReviewedAt,
+    accountStatus: o.accountStatus, accountStatusReason: o.accountStatusReason, accountStatusAt: o.accountStatusAt,
     ownerName: o.ownerName, ownerEmail: o.ownerEmail, brandColor: o.brandColor, tagline: o.tagline, about: o.about,
     logoFileId: o.logoFileId, coverFileId: o.coverFileId, plan: o.plan, billing: o.billing, settings: o.settings,
     setupStep: o.setupStep, createdAt: o.createdAt,

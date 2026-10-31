@@ -16,8 +16,8 @@ const SCREENS = [
   "/workflows", "/workflows/approvals", "/workflows/all", "/workflows/templates",
   "/documents", "/documents/recent", "/documents/shared", "/documents/archive",
   "/insights", "/insights/sales", "/insights/people", "/insights/hiring", "/insights/work",
-  "/import", "/settings", "/settings/roles", "/settings/billing", "/settings/audit", "/help",
-  "/profile", "/profile/edit", "/profile/company", "/profile/company/edit", "/admin", "/admin/people",
+  "/import", "/settings", "/settings/roles", "/billing", "/settings/audit", "/help",
+  "/profile", "/profile/edit", "/profile/company", "/profile/company/edit", "/admin", "/admin/organisations", "/admin/people",
 ];
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
@@ -117,7 +117,7 @@ test("errors are shown as toasts", async ({ page }) => {
 test("WindVeal admins review an organisation and open what it sent", async ({ page }) => {
   const errors = watchErrors(page);
   await signIn(page);
-  await page.goto("/admin");
+  await page.goto("/admin/organisations");
   await page.getByRole("radio", { name: "All" }).click();
   await page.getByRole("row", { name: /Example Trading/ }).click();
   await expect(page.getByRole("heading", { name: "Registration details" })).toBeVisible();
@@ -234,4 +234,17 @@ test("your clock in the top bar: clock in, take a break, resume and clock out; o
   await page.locator(".topbar .hclock").click();
   await page.locator(".menu-float").getByRole("button", { name: "Clock in" }).click();
   await expect(page.locator(".topbar .hclock")).toHaveClass(/hclock-in/);
+});
+
+test("WindVeal admins see what needs approval and open a person's details", async ({ page }) => {
+  const errors = watchErrors(page);
+  await signIn(page);
+  await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "Waiting for approval" })).toBeVisible();
+  await page.goto("/admin/people");
+  await page.getByRole("row", { name: /Efua Nyarko/ }).click();
+  await expect(page.getByRole("heading", { name: "Manage account" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Deactivate account" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Devices/ })).toBeVisible();
+  expect(errors).toEqual([]);
 });

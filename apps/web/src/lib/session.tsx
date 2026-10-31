@@ -11,6 +11,7 @@ export type Me = {
   org: {
     id: string; name: string; legalName: string; slug: string; country: string; currency: string; plan: string;
     verificationStatus: "pending" | "verified" | "rejected"; brandColor: string | null; logoFileId: string | null; setupStep: string;
+    accountStatus: "active" | "suspended" | "closed"; accountStatusReason: string | null;
   } | null;
   membership: {
     id: string; role: "admin" | "manager" | "member"; status: string; isPrimaryAdmin: boolean; jobTitle: string | null;
