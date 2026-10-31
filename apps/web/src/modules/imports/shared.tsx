@@ -63,7 +63,7 @@ export const activeSheets = (job: Job) => job.sheets.filter((s) => s.include && 
 
 /** Where people go to see what was imported. */
 export const WORKSPACE_LINKS: Record<string, { to: string; label: string }> = {
-  "people.employees": { to: "/people", label: "View employees" },
+  "people.employees": { to: "/people/directory", label: "View employees" },
   "crm.companies": { to: "/crm/companies", label: "View companies" },
   "crm.leads": { to: "/crm/leads", label: "View leads" },
   "recruitment.jobs": { to: "/recruitment", label: "View job openings" },

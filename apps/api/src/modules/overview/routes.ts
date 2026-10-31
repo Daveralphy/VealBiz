@@ -104,7 +104,7 @@ export default async function overviewRoutes(app: FastifyInstance) {
       { key: "logo", label: "Add your logo", done: !!ctx.org.logoFileId, href: "/profile/company/edit" },
       { key: "team", label: "Invite your team", done: (members?.n ?? 0) > 1 || (invites?.n ?? 0) > 0, href: "/settings" },
       { key: "import", label: "Import your data", done: (imports?.n ?? 0) > 0, href: "/import" },
-      { key: "people", label: "Add your first employee", done: (emps?.n ?? 0) > 0, href: "/people?new=employee" },
+      { key: "people", label: "Add your first employee", done: (emps?.n ?? 0) > 0, href: "/people/directory?new=employee" },
       { key: "clients", label: "Add a client or lead", done: (companyCount?.n ?? 0) > 0, href: "/crm/leads?new=lead" },
       { key: "job", label: "Post your first job", done: (jobCount?.n ?? 0) > 0, href: "/recruitment/jobs/new" },
     ];

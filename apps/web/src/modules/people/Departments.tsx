@@ -56,8 +56,8 @@ export function Departments() {
         ) : (
           <div className="ppl-depts">
             {list.map((d) => (
-              <div key={d.id} className="ppl-dept" role="link" tabIndex={0} onClick={() => navigate(`/people?departmentId=${d.id}`)}
-                onKeyDown={(e) => e.key === "Enter" && navigate(`/people?departmentId=${d.id}`)}>
+              <div key={d.id} className="ppl-dept" role="link" tabIndex={0} onClick={() => navigate(`/people/directory?departmentId=${d.id}`)}
+                onKeyDown={(e) => e.key === "Enter" && navigate(`/people/directory?departmentId=${d.id}`)}>
                 <div className="between">
                   <h3>{d.name}</h3>
                   <div className="row" style={{ gap: 4 }} onClick={(e) => e.stopPropagation()}>

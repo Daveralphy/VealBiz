@@ -4,7 +4,8 @@
 .sb { background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .sb-org { display: flex; gap: 12px; align-items: center; padding: 8px; border-radius: 14px; border: 1px solid var(--line); margin-bottom: 18px; }
 .mini .sb { padding: 18px 12px; align-items: center; }
-.mini .sb-org { border: 0; padding: 0; }
+/* Collapsed keeps the same vertical rhythm as expanded: same block heights, only widths change. */
+.mini .sb-org { border-color: transparent; justify-content: center; }
 .sb-logo { position: relative; width: 40px; height: 40px; flex: none; border-radius: 10px; }
 .sb-logo .mark { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; color: #fff; overflow: hidden; }
 .sb-logo .mark.has-img { border: 1px solid var(--line); }
@@ -26,17 +27,17 @@
 .sb-org-name small { font-size: 12px; display: flex; align-items: center; gap: 5px; }
 .sb-org-name small i { width: 6px; height: 6px; border-radius: 50%; }
 .sb-lab { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; padding: 16px 12px 8px; }
-.mini .sb-lab { display: none; }
+.mini .sb-lab { position: relative; color: transparent; white-space: nowrap; overflow: hidden; }
+.mini .sb-lab::after { content: ""; position: absolute; left: 50%; top: calc(16px + .6em); width: 28px; margin-left: -14px; height: 1px; background: var(--line); }
 .sb-sep { display: none; }
-.mini .sb-sep { display: block; width: 28px; height: 1px; background: var(--line); margin: 10px auto; }
-.sb-item { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 10px; color: var(--text); font-weight: 500; font-size: 14.5px; position: relative; }
+.sb-item { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 0 12px; border-radius: 10px; color: var(--text); font-weight: 500; font-size: 14.5px; position: relative; }
 .sb-item svg { color: #7a84a0; flex: none; }
 .sb-item:hover { background: var(--soft); }
 .sb-item.active { background: var(--pale); color: var(--navy); font-weight: 600; }
 :root[data-theme="dark"] .sb-item.active { color: var(--ink); }
 .sb-item.active svg { color: var(--blue); }
 .sb-item .n { margin-left: auto; font-size: 11.5px; font-weight: 600; background: var(--navy); color: #fff; border-radius: 999px; padding: 1px 8px; }
-.mini .sb-item { padding: 11px; justify-content: center; }
+.mini .sb-item { padding: 0 11px; justify-content: center; }
 .mini .sb-item .label { display: none; }
 .mini .sb-item .n { position: absolute; top: 3px; right: 1px; padding: 0 5px; font-size: 10px; }
 .sb-grow { flex: 1; }

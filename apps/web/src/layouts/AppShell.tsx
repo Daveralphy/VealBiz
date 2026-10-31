@@ -150,7 +150,7 @@ function NewMenu() {
       {(close) => (
         <>
           {can("workflows", "edit") && <button onClick={() => go("/workflows?new=task", close)}><SquareCheck size={16} />Task</button>}
-          {can("people", "edit") && <button onClick={() => go("/people?new=employee", close)}><Users size={16} />Employee</button>}
+          {can("people", "edit") && <button onClick={() => go("/people/directory?new=employee", close)}><Users size={16} />Employee</button>}
           {can("recruitment", "edit") && <button onClick={() => go("/recruitment/jobs/new", close)}><UserPlus size={16} />Job</button>}
           {can("crm", "edit") && <button onClick={() => go("/crm/leads?new=lead", close)}><Briefcase size={16} />Lead</button>}
           {can("crm", "edit") && <button onClick={() => go("/crm/pipeline?new=deal", close)}><Briefcase size={16} />Deal</button>}

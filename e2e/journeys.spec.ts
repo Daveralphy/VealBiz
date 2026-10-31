@@ -10,7 +10,7 @@ function watchErrors(page: Page) {
 }
 
 const SCREENS = [
-  "/", "/people", "/people/departments", "/people/leave", "/people/attendance", "/people/onboarding",
+  "/", "/people", "/people/directory", "/people/departments", "/people/leave", "/people/attendance", "/people/onboarding",
   "/recruitment", "/recruitment/candidates", "/recruitment/interviews", "/recruitment/careers", "/recruitment/jobs/new",
   "/crm", "/crm/pipeline", "/crm/companies", "/crm/leads", "/crm/follow-ups",
   "/workflows", "/workflows/approvals", "/workflows/all", "/workflows/templates",
@@ -77,7 +77,7 @@ test("a candidate applies on the careers page and is hired into People & HR", as
     data: { jobTitle: "Accounts Officer", startDate: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10) },
   });
   expect(r.ok()).toBeTruthy();
-  await page.goto("/people?q=Nkem");
+  await page.goto("/people/directory?q=Nkem");
   await expect(page.getByText("Nkem Obi").first()).toBeVisible();
   expect(errors).toEqual([]);
   void context;

@@ -79,7 +79,7 @@ export function Overview() {
       )}
 
       <div className="stats">
-        {d.kpis.team && <Link to="/people" className="stat"><small className="row" style={{ justifyContent: "space-between" }}>Team members <Users size={16} color="var(--blue)" /></small><b>{d.kpis.team.value}</b><em>{d.kpis.team.extra} on leave today</em></Link>}
+        {d.kpis.team && <Link to="/people/directory" className="stat"><small className="row" style={{ justifyContent: "space-between" }}>Team members <Users size={16} color="var(--blue)" /></small><b>{d.kpis.team.value}</b><em>{d.kpis.team.extra} on leave today</em></Link>}
         {d.kpis.deals && <Link to="/crm/pipeline" className="stat"><small className="row" style={{ justifyContent: "space-between" }}>Open deals <Briefcase size={16} color="var(--blue)" /></small><b>{d.kpis.deals.value}</b><em className="up">{money(d.kpis.deals.extra ?? 0, true)} in pipeline</em></Link>}
         {d.kpis.roles && <Link to="/recruitment" className="stat"><small className="row" style={{ justifyContent: "space-between" }}>Open roles <UserPlus size={16} color="var(--blue)" /></small><b>{d.kpis.roles.value}</b><em>{d.kpis.roles.extra} new applicants this week</em></Link>}
         {d.kpis.tasks && <Link to="/workflows" className="stat"><small className="row" style={{ justifyContent: "space-between" }}>Tasks due this week <SquareCheck size={16} color="var(--blue)" /></small><b>{d.kpis.tasks.value}</b><em>{d.kpis.tasks.extra} overdue</em></Link>}

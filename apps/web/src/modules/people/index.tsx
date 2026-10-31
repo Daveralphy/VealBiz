@@ -12,14 +12,15 @@ import { OnboardingPage } from "./Onboarding";
 import { EmployeeDrawer } from "./EmployeeForm";
 import "./people.css";
 
+// Attendance is the first thing people see; the Directory has its own tab.
 const TABS = [
-  { to: "/people", label: "Directory" },
+  { to: "/people", label: "Attendance" },
+  { to: "/people/directory", label: "Directory" },
   { to: "/people/departments", label: "Departments" },
   { to: "/people/leave", label: "Leave", count: "leave" as const },
-  { to: "/people/attendance", label: "Attendance" },
   { to: "/people/onboarding", label: "Onboarding", count: "onboarding" as const },
 ];
-const SECTIONS = ["departments", "leave", "attendance", "onboarding"];
+const SECTIONS = ["", "attendance", "departments", "leave", "onboarding"];
 
 export default function PeopleModule() {
   const { can, hasSpecial } = useSession();
@@ -60,7 +61,8 @@ export default function PeopleModule() {
       <nav className="tabs" aria-label="People & HR sections">
         {TABS.map((t) => {
           const count = t.count === "leave" ? s?.pendingForMe : t.count === "onboarding" ? s?.onboardingInProgress : undefined;
-          const active = t.to === "/people" ? isDirectory : pathname.startsWith(t.to);
+          // Employee profiles count as the Directory.
+          const active = t.to === "/people" ? section === "" || section === "attendance" : t.to === "/people/directory" ? isDirectory : pathname.startsWith(t.to);
           return (
             <NavLink key={t.to} to={t.to} end className={`tab ${active ? "active" : ""}`} aria-current={active ? "page" : undefined}>
               {t.label}
@@ -70,10 +72,11 @@ export default function PeopleModule() {
         })}
       </nav>
       <Routes>
-        <Route index element={<Directory onAdd={openAdd} />} />
+        <Route index element={<AttendancePage />} />
+        <Route path="directory" element={<Directory onAdd={openAdd} />} />
         <Route path="departments" element={<Departments />} />
         <Route path="leave" element={<LeavePage />} />
-        <Route path="attendance" element={<AttendancePage />} />
+        <Route path="attendance" element={<Navigate to="/people" replace />} />
         <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="employees/:id" element={<ProfilePage />} />
         <Route path=":id" element={<ProfilePage />} />

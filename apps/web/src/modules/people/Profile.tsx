@@ -46,7 +46,7 @@ export function ProfilePage() {
     onError: (e: Error) => toast(e.message, "error"),
   });
 
-  const back = <button className="back-link ppl-back" onClick={() => navigate("/people")}><ChevronLeft size={16} />Back to directory</button>;
+  const back = <button className="back-link ppl-back" onClick={() => navigate("/people/directory")}><ChevronLeft size={16} />Back to directory</button>;
   if (q.isLoading) return <>{back}<Loading /></>;
   if (q.isError || !q.data) {
     const nf = q.error instanceof ApiError && q.error.status === 404;
