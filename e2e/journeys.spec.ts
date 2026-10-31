@@ -221,6 +221,11 @@ test("your clock in the top bar: clock in, take a break, resume and clock out; o
   await expect(page.locator(".toast", { hasText: "You worked" })).toBeVisible();
   await expect(clock).toHaveClass(/hclock-done/);
   await expect(me.locator(".ppl-daycell b")).toHaveText(/\dh \d\dm/);
+  // Clocked out by mistake: Resume from the menu, and the Attendance card offers it too.
+  await expect(page.locator(".ppl-myday").getByRole("button", { name: "Resume" })).toBeVisible();
+  await clock.click();
+  await page.locator(".menu-float").getByRole("button", { name: "Resume" }).click();
+  await expect(clock).toHaveClass(/hclock-in/);
 
   // Someone who hasn't clocked in yet starts from the top bar.
   await page.request.post("/api/auth/logout");

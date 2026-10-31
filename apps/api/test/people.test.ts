@@ -216,6 +216,12 @@ describe("people: attendance", () => {
     expect(out.status).toBe(200);
     expect(out.body.record.breaks.every((b: any) => b.end)).toBe(true);
     expect(typeof out.body.minutes).toBe("number");
+    // Clocked out by mistake: Resume reopens the day; the time away is a break, not work.
+    const reopened = await admin.c.post("/api/people/attendance/resume");
+    expect(reopened.status).toBe(200);
+    expect(reopened.body.record.clockOut).toBeNull();
+    expect(reopened.body.record.breaks.at(-1).end).toBeTruthy();
+    expect((await admin.c.post("/api/people/attendance/clock-out")).status).toBe(200);
     expect((await admin.c.post("/api/people/attendance/pause")).status).toBe(409);
     const board = (await admin.c.get("/api/people/attendance")).body;
     const row = board.rows.find((r: any) => r.employee.id === e.id);

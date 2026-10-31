@@ -52,7 +52,7 @@ function MyDay() {
           <div className="ppl-myday-actions">
             {c.state === "out" && <button className="btn ppl-clockbtn" disabled={c.busy} onClick={c.clockIn}><LogIn size={16} />Clock in</button>}
             {c.state === "in" && <button className="btn ppl-clockbtn ghost" disabled={c.busy} onClick={c.pause}><Coffee size={16} />Take a break</button>}
-            {c.state === "break" && <button className="btn ppl-clockbtn" disabled={c.busy} onClick={c.resume}><Play size={16} />Resume</button>}
+            {(c.state === "break" || c.state === "done") && <button className="btn ppl-clockbtn" disabled={c.busy} onClick={c.resume}><Play size={16} />Resume</button>}
             {(c.state === "in" || c.state === "break") && <button className="btn ppl-clockbtn" disabled={c.busy} onClick={c.clockOut}><LogOut size={16} />Clock out</button>}
           </div>
         </div>

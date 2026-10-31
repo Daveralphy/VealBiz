@@ -136,8 +136,20 @@ export default async function attendanceRoutes(app: FastifyInstance) {
     return { ok: true, record: clockView(u!) };
   });
 
+  /** Back from a break, or back after clocking out (e.g. by mistake): the time away counts as a break. */
   app.post("/api/people/attendance/resume", async (req) => {
     const ctx = await requireOrg(req);
+    const me = await myEmployee(ctx);
+    if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+    const [done] = await db.select().from(attendance)
+      .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);
+    if (done?.clockIn && done.clockOut) {
+      const now = new Date().toISOString();
+      const [u] = await db.update(attendance).set({
+        clockOut: null, breaks: [...done.breaks, { start: done.clockOut.toISOString(), end: now }], version: dsql`${attendance.version} + 1`,
+      }).where(eq(attendance.id, done.id)).returning();
+      return { ok: true, record: clockView(u!) };
+    }
     const r = await myOpenRecord(ctx);
     if (!onBreak(r)) throw conflict("You're not on a break.");
     const breaks = r.breaks.map((b, i) => (i === r.breaks.length - 1 ? { ...b, end: new Date().toISOString() } : b));

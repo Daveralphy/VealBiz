@@ -49,6 +49,7 @@ export function useMyClock() {
   const until = r?.clockOut ? Date.parse(r.clockOut) : state === "break" ? Date.parse(r!.breaks[r!.breaks.length - 1]!.start) : now;
   const workedMs = r?.clockIn ? worked(r, until) : 0;
   const breakMs = r ? r.breaks.reduce((a, b) => a + Math.max(0, (b.end ? Date.parse(b.end) : now) - Date.parse(b.start)), 0) : 0;
+  const wasDone = state === "done";
   const act = useMutation({
     mutationFn: (what: "clock-in" | "clock-out" | "pause" | "resume") => api.post<{ minutes?: number }>(`/api/people/attendance/${what}`),
     onSuccess: (res, what) => {
@@ -56,7 +57,7 @@ export function useMyClock() {
         "clock-in": "You're clocked in",
         "clock-out": `You're clocked out. You worked ${fmtDuration((res.minutes ?? 0) * 60_000)} today.`,
         pause: "On a break. Your time is paused.",
-        resume: "Welcome back. Your time is running again.",
+        resume: wasDone ? "You're back on the clock. The time you were away isn't counted." : "Welcome back. Your time is running again.",
       }[what]);
       qc.invalidateQueries({ queryKey: ["people", "attendance"] });
     },
@@ -100,7 +101,10 @@ export function HeaderClock() {
             {s === "in" && <button onClick={() => { close(); c.pause(); }} disabled={c.busy}><Coffee size={16} />Take a break</button>}
             {s === "break" && <button onClick={() => { close(); c.resume(); }} disabled={c.busy}><Play size={16} />Resume</button>}
             {(s === "in" || s === "break") && <button className="danger" onClick={() => { close(); c.clockOut(); }} disabled={c.busy}><LogOut size={16} />Clock out</button>}
-            {s === "done" && <p className="hclock-done">You worked {fmtDuration(c.workedMs)} today.</p>}
+            {s === "done" && <>
+              <p className="hclock-done">You worked {fmtDuration(c.workedMs)} today. Clocked out by mistake, or back for more?</p>
+              <button onClick={() => { close(); c.resume(); }} disabled={c.busy}><Play size={16} />Resume</button>
+            </>}
           </div>
         )}
       </Menu>
