@@ -4,7 +4,7 @@ import { Splash } from "./components/Splash";
 import { Welcome } from "./pages/welcome";
 import { useMe } from "./lib/session";
 import { AppShell } from "./layouts/AppShell";
-import { SignIn, CreateAccount, VerifyEmail, ForgotPassword, ResetPassword, AcceptInvite } from "./pages/auth";
+import { SignIn, CreateAccount, VerifyEmail, ForgotPassword, ResetPassword, AcceptInvite, Invited } from "./pages/auth";
 import { SetupRoutes } from "./pages/setup";
 import { SettingsRoutes } from "./pages/settings";
 import { ProfileRoutes } from "./pages/profile";
@@ -43,7 +43,7 @@ function GuestOnly() {
 }
 
 /** Full-screen pages outside the workspace (welcome, sign-in, setup) get the same first-visit pause. */
-const FULL_SCREEN = /^\/(welcome|sign-in|create-account|forgot-password|reset-password|verify-email|invite|setup)(\/|$)/;
+const FULL_SCREEN = /^\/(welcome|sign-in|create-account|invited|forgot-password|reset-password|verify-email|invite|setup)(\/|$)/;
 
 function Root() {
   const loc = useLocation();
@@ -67,6 +67,7 @@ const router = createBrowserRouter([{ element: <Root />, children: [
       { path: "/welcome", element: <Welcome /> },
       { path: "/sign-in", element: <SignIn /> },
       { path: "/create-account", element: <CreateAccount /> },
+      { path: "/invited", element: <Invited /> },
       { path: "/forgot-password", element: <ForgotPassword /> },
     ],
   },

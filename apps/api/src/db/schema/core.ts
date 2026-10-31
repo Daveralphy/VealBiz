@@ -126,6 +126,10 @@ export const invitations = pgTable("invitations", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  /** "I was invited" without the email link: a 6-digit code sent to the invited address. */
+  claimCodeHash: text("claim_code_hash"),
+  claimExpiresAt: timestamp("claim_expires_at", { withTimezone: true }),
+  claimAttempts: integer("claim_attempts").notNull().default(0),
   ...timestamps(),
 }, (t) => [index("invitations_org_idx").on(t.orgId)]);
 

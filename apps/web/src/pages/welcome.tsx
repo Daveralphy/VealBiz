@@ -19,7 +19,7 @@ export function Welcome() {
           <Link to="/create-account" className="btn btn-light btn-lg">Create an account<ArrowRight size={18} /></Link>
           <Link to="/sign-in" className="btn btn-outline-light btn-lg">Sign in</Link>
         </div>
-        <p className="welcome-note">Joining your team? Use the email your invitation was sent to.</p>
+        <Link to="/invited" className="welcome-note">Invited by your employer? <b>Join your team</b> <ArrowRight size={14} /></Link>
       </div>
       <p className="welcome-foot">© {new Date().getFullYear()} WindVeal</p>
     </div>

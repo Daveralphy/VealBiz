@@ -301,7 +301,9 @@
 .welcome .btn-light:hover { background: #e9eefc; }
 .welcome .btn-outline-light { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); }
 .welcome .btn-outline-light:hover { border-color: #fff; background: rgba(255,255,255,.08); }
-.welcome-note { margin: -16px 0 0; color: rgba(255,255,255,.6); font-size: 14px; }
+.welcome-note { margin: -16px 0 0; color: rgba(255,255,255,.72); font-size: 14.5px; display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; }
+.welcome-note b { color: #fff; }
+.welcome-note:hover b { text-decoration: underline; }
 .welcome-foot { position: absolute; left: clamp(24px, 7vw, 112px); bottom: 24px; margin: 0; font-size: 13px; color: rgba(255,255,255,.5); }
 @media (max-width: 640px) {
   .welcome { justify-content: flex-end; padding-bottom: 72px; }
@@ -309,3 +311,11 @@
   .welcome-actions .btn { width: 100%; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) { .welcome-photo { animation: none; } }
+
+/* "Invited by your employer?" on sign-in and create-account */
+.invited-link { margin-top: 18px; display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--soft); color: var(--text); transition: border-color .15s, background .15s; }
+.invited-link:hover { border-color: var(--blue); background: var(--pale); }
+.invited-link > svg:first-child { color: var(--blue); flex: none; }
+.invited-link > svg:last-child { margin-left: auto; color: var(--muted); flex: none; }
+.invited-link b { display: block; color: var(--ink); font-size: 14.5px; }
+.invited-link small { display: block; color: var(--muted); font-size: 13px; }

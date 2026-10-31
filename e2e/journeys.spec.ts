@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { APP_URL, SITE_URL, signIn } from "./helpers";
+import { APP_URL, SITE_URL, latestMail, signIn } from "./helpers";
 
 /** Fails the test on any server error or uncaught page error while visiting. */
 function watchErrors(page: Page) {
@@ -152,7 +152,9 @@ test("the app opens on Welcome, and the website offers Download instead of sign-
   await page.goto(SITE_URL);
   await expect(page.getByRole("link", { name: /Sign in/ })).toHaveCount(0);
   await page.getByRole("link", { name: /^Download$/ }).first().click();
-  await expect(page.getByRole("heading", { name: /Get WindVeal/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /WindVeal for every device/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "macOS" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Android" })).toBeVisible();
 });
 
 test("a screen opened for the first time pauses briefly; going back shows it straight away", async ({ page }) => {
@@ -167,4 +169,32 @@ test("a screen opened for the first time pauses briefly; going back shows it str
   // Seen before: no pause, and it's there at once.
   await expect(page.getByRole("heading", { level: 1, name: "CRM" })).toBeVisible({ timeout: 300 });
   await expect(page.locator(".skel-page")).toHaveCount(0);
+});
+
+test("an invited employee joins from the sign-in screen without the email link", async ({ page }) => {
+  // The admin invites someone.
+  await signIn(page);
+  const email = `joiner-${Date.now()}@example.com`;
+  const inv = await page.request.post("/api/invitations", { data: { invites: [{ email, role: "member" }] } });
+  expect(inv.ok()).toBeTruthy();
+  await page.request.post("/api/auth/logout");
+  await page.context().clearCookies();
+
+  await page.goto("/sign-in");
+  await page.getByRole("link", { name: /Invited by your employer/ }).click();
+  await page.getByLabel("Email").fill(email);
+  await page.getByRole("button", { name: /Send code/ }).click();
+  // Wait for the code email (the invitation email arrived first).
+  let code: string | undefined;
+  for (let i = 0; i < 40 && !code; i++) {
+    code = (await latestMail(page, email)).code;
+    if (!code) await page.waitForTimeout(250);
+  }
+  await page.getByLabel("Code").fill(code!);
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await expect(page.getByRole("heading", { name: /Welcome to Example Trading/ })).toBeVisible();
+  await page.getByLabel("Full name").fill("Chidi Nwosu");
+  await page.getByLabel("Password", { exact: true }).fill("Testing#2026x");
+  await page.getByRole("button", { name: /Join Example Trading/ }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(/Good (morning|afternoon|evening), Chidi/);
 });

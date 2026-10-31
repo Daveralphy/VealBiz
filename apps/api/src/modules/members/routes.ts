@@ -1,16 +1,45 @@
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq, gt, isNull, sql as dsql } from "drizzle-orm";
 import { z } from "zod";
-import { ACCESS_LEVELS, DEFAULT_ACCESS, DEFAULT_SPECIAL, SPECIAL_PERMISSIONS, WORKSPACES, inviteInput, memberUpdateInput } from "@windveal/shared";
+import {
+  ACCESS_LEVELS, DEFAULT_ACCESS, DEFAULT_SPECIAL, SPECIAL_PERMISSIONS, WORKSPACES, invitedCompleteInput, invitedStartInput, invitedVerifyInput,
+  inviteInput, memberUpdateInput,
+} from "@windveal/shared";
 import { db } from "../../db/client";
 import { invitations, memberships, organisations, sessions, users } from "../../db/schema";
 import { computeAccess, requireAdmin, requireOrg, requireUser } from "../../lib/context";
-import { randomToken, sha256 } from "../../lib/crypto";
+import { hashPassword, randomToken, sha256, sixDigitCode } from "../../lib/crypto";
 import { badRequest, conflict, forbidden, notFound, parse } from "../../lib/http";
 import { audit, notify } from "../../lib/audit";
 import { sendMail } from "../../lib/mailer";
 import { env } from "../../env";
-import { mePayload } from "../auth/routes";
+import { mePayload, startSession } from "../auth/routes";
+
+const CLAIM_LIMIT = { config: { rateLimit: { max: env.isTest ? 10_000 : 10, timeWindow: "1 minute" } } };
+
+/** The newest invitation still waiting for this email address. */
+async function waitingInvitation(email: string) {
+  const [row] = await db.select({ i: invitations, o: organisations, by: users }).from(invitations)
+    .innerJoin(organisations, eq(organisations.id, invitations.orgId)).innerJoin(users, eq(users.id, invitations.invitedBy))
+    .where(and(eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gt(invitations.expiresAt, new Date())))
+    .orderBy(desc(invitations.createdAt)).limit(1);
+  return row ?? null;
+}
+
+/** Checks the emailed code for an invitation. Wrong codes count towards a limit. */
+async function checkClaimCode(email: string, code: string) {
+  const row = await waitingInvitation(email);
+  const inv = row?.i;
+  if (!inv || !inv.claimCodeHash || !inv.claimExpiresAt || inv.claimExpiresAt < new Date()) {
+    throw badRequest("That code has expired. Ask for a new one.", { code: "Code expired" });
+  }
+  if (inv.claimAttempts >= 5) throw badRequest("Too many attempts. Ask for a new code.", { code: "Too many attempts" });
+  if (inv.claimCodeHash !== sha256(code)) {
+    await db.update(invitations).set({ claimAttempts: inv.claimAttempts + 1 }).where(eq(invitations.id, inv.id));
+    throw badRequest("That code isn't right.", { code: "That code isn't right" });
+  }
+  return row!;
+}
 
 const INVITE_DAYS = 7;
 
@@ -162,6 +191,62 @@ export default async function memberRoutes(app: FastifyInstance) {
       orgName: row.o.tradingName || row.o.legalName, email: row.i.email, role: row.i.role, invitedBy: row.by.name,
       expired: row.i.expiresAt < new Date(), accepted: !!row.i.acceptedAt, hasAccount: !!existing,
     };
+  });
+
+  // ---------------- "I was invited" (without the email link) ----------------
+  /** Step 1: email. A code goes to the address if an invitation is waiting. The answer is the same either way. */
+  app.post("/api/invited/start", CLAIM_LIMIT, async (req) => {
+    const { email } = parse(invitedStartInput, req.body);
+    const row = await waitingInvitation(email);
+    if (row) {
+      const orgName = row.o.tradingName || row.o.legalName;
+      const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
+      if (existing) {
+        await sendMail({
+          to: email, subject: `Your invitation to ${orgName}`, link: `${env.appUrl}/sign-in`,
+          text: `You already have a WindVeal account with this email. Sign in and your invitation to ${orgName} will be waiting: ${env.appUrl}/sign-in`,
+        });
+      } else {
+        const code = sixDigitCode();
+        await db.update(invitations).set({ claimCodeHash: sha256(code), claimExpiresAt: new Date(Date.now() + 15 * 60_000), claimAttempts: 0 })
+          .where(eq(invitations.id, row.i.id));
+        await sendMail({
+          to: email, subject: `Your code to join ${orgName} on WindVeal`, code,
+          text: `${row.by.name} invited you to ${orgName}. Enter ${code} in WindVeal to set up your account. It expires in 15 minutes.`,
+        });
+      }
+    }
+    return { ok: true };
+  });
+
+  /** Step 2: the code. Shows who the invitation is from before the person sets a password. */
+  app.post("/api/invited/verify", CLAIM_LIMIT, async (req) => {
+    const { email, code } = parse(invitedVerifyInput, req.body);
+    const row = await checkClaimCode(email, code);
+    return { orgName: row.o.tradingName || row.o.legalName, role: row.i.role, invitedBy: row.by.name };
+  });
+
+  /** Step 3: name and password. Creates the (already verified) account, joins the organisation and signs in. */
+  app.post("/api/invited/complete", CLAIM_LIMIT, async (req, reply) => {
+    const input = parse(invitedCompleteInput, req.body);
+    const row = await checkClaimCode(input.email, input.code);
+    const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, input.email)).limit(1);
+    if (existing) throw conflict("You already have an account with this email. Sign in instead.");
+    const inv = row.i;
+    const user = await db.transaction(async (tx) => {
+      const [u] = await tx.insert(users).values({
+        email: input.email, name: input.name, passwordHash: await hashPassword(input.password), emailVerifiedAt: new Date(),
+      }).returning();
+      await tx.insert(memberships).values({ orgId: inv.orgId, userId: u!.id, role: inv.role });
+      await tx.update(invitations).set({ acceptedAt: new Date(), claimCodeHash: null, claimExpiresAt: null }).where(eq(invitations.id, inv.id));
+      await audit({ org: row.o, user: u!, deviceLabel: null }, {
+        action: "member.joined", category: "access", summary: `${u!.name} accepted the invitation and joined as ${inv.role}`,
+      }, tx);
+      await notify(inv.orgId, inv.invitedBy, `${u!.name} joined ${row.o.tradingName || row.o.legalName}`, undefined, "/settings", tx);
+      return u!;
+    });
+    await startSession(req, reply, user.id, false);
+    return mePayload(user.id);
   });
 
   app.post<{ Params: { token: string } }>("/api/invite/:token/accept", async (req) => {

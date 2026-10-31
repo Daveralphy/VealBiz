@@ -3372,18 +3372,74 @@ img {
 @media (max-width: 640px) { .careers-skel-head { margin-left: 16px; } }
 
 /* ---------- Download ---------- */
-.download-hero { padding-bottom: 48px; }
-.download-body { padding-bottom: 112px; }
-.download-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-.download-card { border: 1px solid var(--line); border-radius: 28px; padding: 32px 28px; background: var(--surface); display: flex; flex-direction: column; gap: 10px; }
-.download-card h2, .download-web h2 { font-size: 22px; letter-spacing: -0.02em; margin: 6px 0 0; }
-.download-card p, .download-web p { margin: 0; color: var(--text); line-height: 1.55; }
-.download-icon { width: 48px; height: 48px; border-radius: 14px; background: var(--pale); color: var(--deep); display: inline-flex; align-items: center; justify-content: center; flex: none; }
-.download-soon { margin-top: auto; align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--muted); background: var(--soft); border-radius: 999px; padding: 6px 12px; }
-.download-web { margin-top: 16px; border-radius: 28px; padding: 32px; background: var(--soft); display: flex; align-items: center; gap: 20px; }
-.download-web > div { flex: 1; }
-.download-note { text-align: center; color: var(--muted); margin-top: 28px; }
-@media (max-width: 860px) {
-  .download-grid { grid-template-columns: 1fr; }
-  .download-web { flex-direction: column; align-items: flex-start; }
+.dl-hero { position: relative; overflow: hidden; color: #fff; padding: 176px 0 112px;
+  background: radial-gradient(900px 520px at 85% 15%, rgba(72, 111, 228, 0.45), transparent 70%), linear-gradient(160deg, #172b63 0%, #0e1c45 60%); }
+.dl-hero-in { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 56px; align-items: center; }
+.dl-hero h1 { color: #fff; font-size: clamp(44px, 5.4vw, 76px); line-height: 1.02; letter-spacing: -0.045em; font-weight: 800; margin: 0; }
+.dl-hero h1 span { color: #9db6ff; }
+.dl-hero-copy > p { color: rgba(255, 255, 255, 0.78); font-size: 19px; line-height: 1.6; margin: 24px 0 36px; max-width: 520px; }
+.dl-hero-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.dl-hero-actions .btn { gap: 10px; }
+.dl-hero-meta { color: rgba(255, 255, 255, 0.6) !important; font-size: 14px !important; margin: 16px 0 0 !important; }
+.dl-devices { position: relative; padding: 0 0 40px; }
+.dl-desktop { border-radius: 18px; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.6); }
+/* The product shot sits straight on the hero: no frame of its own, a slimmer sidebar. */
+.dl-desktop .shot { margin: 0; padding: 0; background: none; border-radius: 16px; }
+.dl-desktop .shot-window { border-radius: 16px; min-height: 400px; }
+.dl-desktop .shot-side { width: 148px; padding: 18px 10px; }
+.dl-desktop .shot-side span { font-size: 12.5px; padding: 8px 10px; }
+.dl-desktop .shot-main { padding: 22px 22px 28px; }
+.phone { position: absolute; right: -8px; bottom: -8px; width: 200px; border-radius: 34px; padding: 9px; background: #0b1533;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.7), inset 0 0 0 1.5px rgba(255, 255, 255, 0.14); }
+.phone-screen { position: relative; border-radius: 26px; background: #f4f6fb; padding: 34px 14px 18px; color: #0f1a3a; min-height: 360px; }
+.phone-notch { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 64px; height: 16px; border-radius: 10px; background: #0b1533; }
+.phone-hi { font-weight: 800; font-size: 15px; margin: 0 0 12px; font-family: var(--display); letter-spacing: -0.02em; }
+.phone-clock { background: #172b63; color: #fff; border-radius: 16px; padding: 14px; display: grid; gap: 6px; }
+.phone-clock span { font-size: 11px; color: rgba(255, 255, 255, 0.7); display: flex; align-items: center; gap: 5px; }
+.phone-clock b { font-size: 26px; font-family: var(--display); letter-spacing: -0.03em; }
+.phone-clock i { font-style: normal; background: #fff; color: #172b63; font-weight: 700; font-size: 12px; text-align: center; border-radius: 999px; padding: 7px; }
+.phone-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: #5b6480; font-weight: 700; margin: 14px 0 6px; }
+.phone-task { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e3e7f0; border-radius: 10px; padding: 9px 10px; font-size: 11.5px; margin-bottom: 6px; }
+.phone-task em { width: 12px; height: 12px; border-radius: 4px; border: 1.5px solid #c4cbe0; flex: none; }
+
+.dl-platforms { scroll-margin-top: 80px; }
+.dl-group { margin: 0 0 22px; }
+.dl-group:not(:first-child) { margin-top: 64px; }
+.dl-group h2 { font-size: 32px; letter-spacing: -0.03em; margin: 0 0 6px; }
+.dl-group p { margin: 0; color: var(--text); font-size: 17px; }
+.dl-grid { display: grid; gap: 16px; }
+.dl-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dl-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dl-card { position: relative; border: 1px solid var(--line); border-radius: 28px; padding: 32px 28px 28px; background: var(--surface); display: flex; flex-direction: column; align-items: flex-start; gap: 8px; transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+.dl-card:hover { border-color: #c9d3ee; transform: translateY(-2px); box-shadow: 0 24px 48px -32px rgba(15, 26, 58, 0.35); }
+.dl-card-you { border-color: var(--blue); box-shadow: 0 0 0 1px var(--blue); }
+.dl-you { position: absolute; top: 22px; right: 22px; font-size: 12px; font-weight: 700; color: var(--blue); background: var(--pale); border-radius: 999px; padding: 4px 10px; }
+.dl-glyph { width: 60px; height: 60px; border-radius: 18px; background: var(--soft); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; flex: none; margin-bottom: 10px; }
+.dl-card h3, .dl-web h3 { font-size: 22px; letter-spacing: -0.02em; margin: 0; }
+.dl-card p, .dl-web p { margin: 0 0 14px; color: var(--text); line-height: 1.5; }
+.dl-card .dl-btn { margin-top: auto; gap: 8px; }
+.dl-status { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.store-badge { margin-top: auto; display: inline-flex; align-items: center; gap: 10px; background: #0f1a3a; color: #fff; border: 0; border-radius: 12px; padding: 9px 18px 9px 14px; cursor: pointer; text-align: left; transition: background 0.15s; }
+.store-badge:hover { background: #263f91; }
+.store-badge small { display: block; font-size: 10.5px; opacity: 0.8; line-height: 1.1; }
+.store-badge b { display: block; font-size: 17px; line-height: 1.15; letter-spacing: -0.01em; }
+.dl-web { margin-top: 64px; border-radius: 28px; padding: 32px; background: var(--soft); display: flex; align-items: center; gap: 22px; }
+.dl-web .dl-glyph { background: var(--surface); margin: 0; }
+.dl-web > div { flex: 1; }
+.dl-web p { margin: 4px 0 0; }
+.dl-note { text-align: center; color: var(--muted); margin: 28px 0 0; }
+.dl-platforms { padding-bottom: 120px; }
+@media (max-width: 1000px) {
+  .dl-hero-in { grid-template-columns: 1fr; }
+  .dl-devices { max-width: 640px; }
+  .dl-grid-3 { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .dl-hero { padding: 132px 0 72px; }
+  .dl-grid-2 { grid-template-columns: 1fr; }
+  .phone { width: 150px; right: -4px; }
+  .dl-desktop .shot-side { display: none; }
+  .phone-screen { min-height: 280px; padding: 30px 10px 12px; }
+  .dl-web { flex-direction: column; align-items: flex-start; }
+  .dl-hero-actions .btn { width: 100%; justify-content: center; }
 }

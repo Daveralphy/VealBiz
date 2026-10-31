@@ -25,7 +25,7 @@ function deviceLabelFrom(ua: string | undefined): string {
 }
 
 /** Creates a session (and registers the device). Returns whether the device is new for this user. */
-async function startSession(req: FastifyRequest, reply: FastifyReply, userId: string, remember: boolean) {
+export async function startSession(req: FastifyRequest, reply: FastifyReply, userId: string, remember: boolean) {
   let deviceId = req.cookies?.[DEVICE_COOKIE];
   let isNewDevice = false;
   let device = deviceId

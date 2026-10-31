@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Check, KeyRound, Mail, UserPlus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, KeyRound, Mail, MailCheck, UserPlus } from "lucide-react";
 import { BrandLogo, Button, Checkbox, Input, Loading, Notice, PasswordInput } from "@windveal/ui";
 import { api, ApiError } from "../../lib/api";
 
@@ -67,6 +67,7 @@ export function SignIn() {
         <Button type="submit" size="lg" block loading={f.busy}>Sign in <ArrowRight size={16} /></Button>
       </form>
       <p className="swap">New to WindVeal? <Link to="/create-account" className="link">Create an account</Link></p>
+      <Link to="/invited" className="invited-link"><MailCheck size={18} /><span><b>Invited by your employer?</b><small>Join with the email your invite was sent to.</small></span><ArrowRight size={16} /></Link>
     </AuthLayout>
   );
 }
@@ -118,6 +119,61 @@ export function CreateAccount() {
         <Button type="submit" size="lg" block loading={f.busy}>Create account <ArrowRight size={16} /></Button>
       </form>
       <p className="swap">Already have an account? <Link to="/sign-in" className="link">Sign in</Link></p>
+      <Link to="/invited" className="invited-link"><MailCheck size={18} /><span><b>Invited by your employer?</b><small>Join with the email your invite was sent to.</small></span><ArrowRight size={16} /></Link>
+    </AuthLayout>
+  );
+}
+
+/** Joining from an invitation without its link: email → code → name and password → straight into WindVeal. */
+export function Invited() {
+  const [step, setStep] = useState<"email" | "code" | "account">("email");
+  const [invite, setInvite] = useState<{ orgName: string; role: string; invitedBy: string } | null>(null);
+  const f = useForm({ email: "", code: "", name: "", password: "" });
+  const after = useAfterAuth();
+  useEffect(() => { document.title = "Join your team · WindVeal"; }, []);
+  const steps = ["Your email", "Confirm it's you", "Set your password"];
+  const current = step === "email" ? 0 : step === "code" ? 1 : 2;
+  return (
+    <AuthLayout photo="/images/team.jpg" aside={<>
+      <h2>Join <span>your team.</span></h2>
+      <div className="auth-steps">
+        {steps.map((s, i) => <div key={s} className={i <= current ? "on" : ""}><b>{i < current ? <Check size={13} strokeWidth={3} /> : i + 1}</b>{s}</div>)}
+      </div>
+    </>}>
+      {step === "email" && <>
+        <h1>Invited to WindVeal?</h1>
+        <p className="sub">Enter the email address your invitation was sent to. We'll send you a code to confirm it's you.</p>
+        <form noValidate onSubmit={(e) => { e.preventDefault(); f.submit(async (v) => { await api.post("/api/invited/start", { email: v.email }); setStep("code"); }); }}>
+          <Input label="Email" type="email" autoComplete="email" autoFocus {...f.bind("email")} />
+          <Button type="submit" size="lg" block loading={f.busy}>Send code <ArrowRight size={16} /></Button>
+        </form>
+      </>}
+      {step === "code" && <>
+        <h1>Check your email.</h1>
+        <p className="sub">If there's an invitation for <b className="ink">{f.values.email}</b>, we've sent it a 6-digit code. Already have an account? We've emailed you a link to sign in instead.</p>
+        <form noValidate onSubmit={(e) => { e.preventDefault(); f.submit(async (v) => {
+          setInvite(await api.post("/api/invited/verify", { email: v.email, code: v.code }));
+          setStep("account");
+        }); }}>
+          <Input label="Code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} autoFocus {...f.bind("code")} />
+          <Button type="submit" size="lg" block loading={f.busy}>Continue <ArrowRight size={16} /></Button>
+        </form>
+        <p className="swap"><button className="link" onClick={() => { f.set("code", ""); setStep("email"); }}>Use a different email</button></p>
+      </>}
+      {step === "account" && invite && <>
+        <h1>Welcome to {invite.orgName}.</h1>
+        <p className="sub">{invite.invitedBy} invited you to join as {invite.role}. Set up your account to get started.</p>
+        <form noValidate onSubmit={(e) => { e.preventDefault(); f.submit(async (v) => after(await api.post<Me>("/api/invited/complete", v))); }}>
+          <Input label="Email" value={f.values.email} disabled readOnly />
+          <Input label="Full name" autoComplete="name" autoFocus {...f.bind("name")} />
+          <div className="field">
+            <PasswordInput label="Password" autoComplete="new-password" {...f.bind("password")} />
+            <PasswordRules value={f.values.password} />
+          </div>
+          <Button type="submit" size="lg" block loading={f.busy}>Join {invite.orgName} <ArrowRight size={16} /></Button>
+        </form>
+      </>}
+      <p className="swap">Not invited? <Link to="/create-account" className="link">Create an account</Link> · <Link to="/sign-in" className="link">Sign in</Link></p>
     </AuthLayout>
   );
 }

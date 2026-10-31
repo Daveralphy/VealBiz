@@ -149,3 +149,28 @@ describe("WindVeal admin panel", () => {
     expect((await c.post(`/api/admin/users/${me.id}/platform-admin`, { value: false })).status).toBe(400);
   });
 });
+
+describe("joining from an invitation without the link", () => {
+  it("finds the invitation by email, confirms a code, then creates the account and joins", async () => {
+    const app = await getApp();
+    const { c: admin, org } = await signUpWithOrg(app);
+    const email = `invitee-${Date.now()}@example.com`;
+    await admin.post("/api/invitations", { invites: [{ email, role: "member" }] });
+    const anon = new Client(app);
+    // The answer doesn't reveal whether an invitation exists.
+    expect((await anon.post("/api/invited/start", { email: "nobody-invited@example.com" })).body).toEqual({ ok: true });
+    expect((await anon.post("/api/invited/start", { email })).body).toEqual({ ok: true });
+    const code = recentMail(email).find((m) => m.code)!.code!;
+    expect((await anon.post("/api/invited/verify", { email, code: "000000" })).status).toBe(400);
+    const v = await anon.post("/api/invited/verify", { email, code });
+    expect(v.body.orgName).toBe(org.name);
+    const done = await anon.post("/api/invited/complete", { email, code, name: "Chidi Nwosu", password: PASSWORD });
+    expect(done.status).toBe(200);
+    expect(done.body.user.emailVerified).toBe(true);
+    expect(done.body.org.id).toBe(org.id);
+    expect(done.body.membership.role).toBe("member");
+    // Signed in, and the code can't be used again.
+    expect((await anon.get("/api/auth/me")).body.user.email).toBe(email);
+    expect((await new Client(app).post("/api/invited/complete", { email, code, name: "Someone Else", password: PASSWORD })).status).toBe(400);
+  });
+});
