@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, Minus } from "lucide-react";
 import { formatMoney } from "@windveal/shared";
+import { Skeleton, SkeletonText } from "@windveal/ui";
 import { detectCurrency, monthlyPrice, usePricing } from "../lib/pricing";
 import { CtaBand, MarketingLayout } from "../components/Layout";
 import { GET_STARTED_URL, useTitle } from "../lib/site";
@@ -51,7 +52,18 @@ export default function Pricing() {
       </section>
 
       <section className="container">
-        {pricing.status === "loading" && <p className="currency-note">Loading prices…</p>}
+        {pricing.status === "loading" && (
+          <div className="plans" role="status" aria-label="Loading prices">
+            {[0, 1, 2].map((i) => (
+              <article key={i} className="plan">
+                <Skeleton width="45%" height={24} radius={8} />
+                <div style={{ marginTop: 14 }}><SkeletonText lines={2} /></div>
+                <Skeleton width="60%" height={44} radius={10} style={{ margin: "26px 0 22px" }} />
+                <SkeletonText lines={5} />
+              </article>
+            ))}
+          </div>
+        )}
         {pricing.status === "error" && <p className="currency-note">Prices couldn't be loaded. Please refresh the page.</p>}
         <div className="plans">
           {data && plans.map((p) => {

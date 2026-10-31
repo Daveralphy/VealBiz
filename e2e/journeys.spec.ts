@@ -125,3 +125,17 @@ test("WindVeal admins review an organisation and open what it sent", async ({ pa
   await expect(page.getByRole("heading", { name: /Members \(/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("signing out asks first", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "Account menu" }).first().click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  const dialog = page.getByRole("dialog", { name: "Sign out?" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(page).not.toHaveURL(/sign-in/);
+  await page.getByRole("button", { name: "Account menu" }).first().click();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("dialog", { name: "Sign out?" }).getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/sign-in/);
+});

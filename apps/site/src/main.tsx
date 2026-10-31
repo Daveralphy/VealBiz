@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
-import { ToastProvider } from "@windveal/ui";
+import { ToastProvider, usePageTransition } from "@windveal/ui";
 import "@windveal/ui/styles.css";
 import "./site.css";
 import Home from "./pages/Home";
@@ -28,10 +28,18 @@ function ScrollToTop() {
   return null;
 }
 
+/** Fades each page in as you move around the site. */
+function PageTransition({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  const ref = usePageTransition<HTMLDivElement>(pathname);
+  return <div ref={ref} className="page-enter">{children}</div>;
+}
+
 function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <PageTransition>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/product" element={<Product />} />
@@ -46,6 +54,7 @@ function App() {
         <Route path="/careers/:slug/jobs/:jobSlug/apply" element={<ApplyPage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </PageTransition>
     </BrowserRouter>
   );
 }

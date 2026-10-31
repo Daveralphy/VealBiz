@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowUpRight, SearchX } from "lucide-react";
+import { Skeleton } from "@windveal/ui";
 import { brandVars, websiteHref, type ApiError, type CareersOrg } from "./api";
 
 export function OrgLogo({ org, size = 40, className = "" }: { org: CareersOrg; size?: number; className?: string }) {
@@ -62,7 +63,16 @@ export function CareersState({ state, error, onRetry }: { state: "loading" | "er
     <div className="careers careers-plain" style={brandVars(null) as CSSProperties}>
       <main id="main" className="careers-state">
         {state === "loading" ? (
-          <div className="spinner" role="status" aria-label="Loading" />
+          <div className="careers-skel" role="status" aria-label="Loading">
+            <Skeleton height={260} radius={24} />
+            <div className="careers-skel-head">
+              <Skeleton width={112} height={112} radius={26} />
+              <div className="careers-skel-title"><Skeleton width="55%" height={34} radius={8} /><Skeleton width="35%" height={16} /></div>
+            </div>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="careers-skel-row"><Skeleton width="40%" height={18} /><Skeleton width="25%" height={14} /></div>
+            ))}
+          </div>
         ) : notFound ? (
           <div className="careers-empty">
             <span className="careers-empty-icon">

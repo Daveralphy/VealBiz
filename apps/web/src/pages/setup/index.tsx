@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Building2, Check, Clock, Plus, Upload, UserCheck, X } from "lucide-react";
-import { BrandLogo, Button, IconButton, Input, Notice, Segmented, Select, Textarea } from "@windveal/ui";
+import { BrandLogo, Button, IconButton, Input, Notice, Segmented, Select, Textarea, usePageTransition } from "@windveal/ui";
 import { INDUSTRIES, TEAM_SIZES, formatMoney } from "@windveal/shared";
 import { monthlyPrice, usePricing, yearlyTotal, type PricingPlan } from "../../lib/pricing";
 import { api, ApiError, publicFileUrl } from "../../lib/api";
 import { ME_KEY, useMe, type Me } from "../../lib/session";
 import { useForm } from "../../lib/form";
+import { useSignOut } from "../../lib/signout";
 import { CONTACT_EMAIL } from "../../lib/config";
 
 const STEPS = [
@@ -21,13 +22,13 @@ const STEPS = [
 ];
 
 function Wizard({ step, children }: { step: string; children: ReactNode }) {
-  const qc = useQueryClient();
-  const navigate = useNavigate();
   const idx = step === "done" ? STEPS.length : STEPS.findIndex((s) => s.key === step);
-  const exit = async () => { await api.post("/api/auth/logout"); qc.clear(); navigate("/sign-in"); };
+  const exit = useSignOut({ title: "Save and exit?", message: "Your progress is saved. Sign in again any time to finish setting up.", confirmLabel: "Save and exit" });
+  const panel = usePageTransition<HTMLElement>(step);
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
-      <header className="wz-top"><div className="in"><BrandLogo height={36} /><button className="link" onClick={exit}>Save and exit</button></div></header>
+      <header className="wz-top"><div className="in"><BrandLogo height={36} /><button className="link" onClick={exit.ask}>Save and exit</button></div></header>
+      {exit.dialog}
       <div className="wz-bar"><i style={{ width: `${((idx + 1) / STEPS.length) * 100}%` }} /></div>
       <div className="wz">
         <aside className="wz-side">
@@ -40,7 +41,7 @@ function Wizard({ step, children }: { step: string; children: ReactNode }) {
           </ul>
           <div className="wz-help"><b className="ink" style={{ display: "block", marginBottom: 4 }}>Need a hand?</b>You can save and come back to finish any time.</div>
         </aside>
-        <main className="wz-panel">{children}</main>
+        <main className="wz-panel page-enter" ref={panel}>{children}</main>
       </div>
     </div>
   );

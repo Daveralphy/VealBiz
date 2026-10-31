@@ -12,6 +12,7 @@ import { useForm } from "../../lib/form";
 import { SITE_URL } from "../../lib/config";
 import { fmtDate, timeAgo } from "../../lib/format";
 import { FileViewer, type ViewableFile } from "../../components/FileViewer";
+import { useSignOut } from "../../lib/signout";
 
 function ProfileTabs() {
   return (
@@ -38,11 +39,11 @@ async function uploadImage(file: File): Promise<string> {
 // ---------------- Personal ----------------
 function Personal() {
   const { user, org, membership } = useSession();
-  const qc = useQueryClient();
   const navigate = useNavigate();
   const [emailOpen, setEmailOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const devices = useQuery({ queryKey: ["devices"], queryFn: () => api.get<any[]>("/api/auth/devices") });
+  const signOutAll = useSignOut({ everywhere: true });
   return (
     <>
       <Card>
@@ -86,12 +87,13 @@ function Personal() {
           </Card>
         </div>
         <Card title="Your devices" subtitle="Where you're signed in to WindVeal."
-          actions={<Button variant="danger" size="sm" onClick={async () => { await api.post("/api/auth/logout-all"); qc.clear(); navigate("/sign-in"); }}>Sign out everywhere</Button>}>
+          actions={<Button variant="danger" size="sm" onClick={signOutAll.ask}>Sign out everywhere</Button>}>
           {devices.isLoading ? <Loading /> : (devices.data ?? []).map((d) => (
             <div key={d.id} className="list-row"><Clock size={18} className="muted" /><div style={{ flex: 1 }}><b className="ink" style={{ display: "block" }}>{d.label}{d.current && <> <Pill tone="ok">This device</Pill></>}</b><small className="muted">Last active {timeAgo(d.lastSeenAt)}</small></div>{d.blocked && <Pill tone="red">Blocked</Pill>}</div>
           ))}
         </Card>
       </div>
+      {signOutAll.dialog}
       <EmailChange open={emailOpen} onClose={() => setEmailOpen(false)} />
       <PasswordChange open={passwordOpen} onClose={() => setPasswordOpen(false)} />
     </>

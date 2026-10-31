@@ -5,6 +5,7 @@ import {
 import { Eye, EyeOff, Search as SearchIcon, ChevronLeft, Inbox } from "lucide-react";
 import { initials } from "@windveal/shared";
 import { useToast } from "./overlays";
+import { SkeletonText } from "./motion";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 export { cx };
@@ -232,8 +233,10 @@ export function EmptyState({ title, children, action, icon }: { title: ReactNode
   );
 }
 
-export function Loading({ label = "Loading" }: { label?: string }) {
-  return <div className="loading" role="status" aria-label={label}><span className="spinner" /></div>;
+/** Loading placeholder: shimmering lines shaped like the content on the way (or a spinner for small spaces). */
+export function Loading({ label = "Loading", variant = "skeleton", lines = 4 }: { label?: string; variant?: "skeleton" | "spinner"; lines?: number }) {
+  if (variant === "spinner") return <div className="loading" role="status" aria-label={label}><span className="spinner" /></div>;
+  return <div className="loading loading-skel" role="status" aria-label={label}><SkeletonText lines={lines} /></div>;
 }
 
 export function Notice({ tone = "info", icon, children, action }: { tone?: "info" | "warn" | "error" | "ok"; icon?: ReactNode; children: ReactNode; action?: ReactNode }) {

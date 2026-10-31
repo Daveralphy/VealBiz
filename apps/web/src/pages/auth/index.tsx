@@ -8,13 +8,14 @@ import { SITE_URL } from "../../lib/config";
 
 import { ME_KEY, useMe, type Me } from "../../lib/session";
 import { useForm } from "../../lib/form";
+import { useSignOut } from "../../lib/signout";
 
 function AuthLayout({ children, photo, aside }: { children: ReactNode; photo: string; aside: ReactNode }) {
   return (
     <div className="auth">
       <div className="auth-form">
         <a href={SITE_URL} className="logo" aria-label="WindVeal home"><BrandLogo height={40} /></a>
-        <div className="auth-box">{children}</div>
+        <div className="auth-box page-enter">{children}</div>
         <div className="auth-legal"><span>© {new Date().getFullYear()} WindVeal</span><span>Privacy · Terms</span></div>
       </div>
       <div className="auth-photo" style={{ backgroundImage: `linear-gradient(0deg,rgba(14,28,69,.95) 0%,rgba(14,28,69,.55) 45%,rgba(14,28,69,.1) 75%),url(${photo})` }}>
@@ -28,7 +29,7 @@ function SoloLayout({ children, topRight }: { children: ReactNode; topRight?: Re
   return (
     <div className="solo">
       <div className="solo-top"><a href={SITE_URL} aria-label="WindVeal home"><BrandLogo height={38} /></a>{topRight}</div>
-      <div className="solo-card">{children}</div>
+      <div className="solo-card page-enter">{children}</div>
     </div>
   );
 }
@@ -167,9 +168,9 @@ export function VerifyEmail() {
     if (clean && i < 5) refs.current[i + 1]?.focus();
     if (next.every(Boolean)) submit(next.join(""));
   };
-  const signOut = async () => { await api.post("/api/auth/logout"); qc.clear(); navigate("/sign-in"); };
+  const signOut = useSignOut();
   return (
-    <SoloLayout topRight={<button className="link" onClick={signOut}>Sign out</button>}>
+    <SoloLayout topRight={<><button className="link" onClick={signOut.ask}>Sign out</button>{signOut.dialog}</>}>
       <span className="ic"><Mail size={28} /></span>
       <h1>Check your email.</h1>
       <p className="sub">We sent a 6-digit code to <b className="ink">{me.user.email}</b>. Enter it below to verify your email.</p>

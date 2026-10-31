@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsFetching, useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell, Briefcase, ChevronDown, CircleHelp, CreditCard, Download, FileText, Home, LineChart, LogOut, Menu as MenuIcon, Moon,
   PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShieldCheck, SquareCheck, User, UserPlus, Users, X, Building2,
 } from "lucide-react";
-import { Avatar, BrandLogo, Menu, Progress, Switch, IconButton } from "@windveal/ui";
+import { Avatar, BrandLogo, Menu, Progress, Switch, IconButton, TopProgress, usePageTransition } from "@windveal/ui";
 import { formatBytes, type Workspace } from "@windveal/shared";
 import { api, publicFileUrl } from "../lib/api";
 import { useSession } from "../lib/session";
 import { timeAgo } from "../lib/format";
 import { useTheme } from "../lib/theme";
+import { useSignOut } from "../lib/signout";
 
 const NAV: { to: string; label: string; icon: ReactNode; ws?: Workspace; badgeKey?: string }[] = [
   { to: "/recruitment", label: "Recruitment", icon: <UserPlus size={18} />, ws: "recruitment" },
@@ -185,14 +186,10 @@ function Notifications() {
 function AccountMenu() {
   const { user, membership } = useSession();
   const { theme, setTheme } = useTheme();
-  const qc = useQueryClient();
   const navigate = useNavigate();
-  const signOut = async () => {
-    await api.post("/api/auth/logout");
-    qc.clear();
-    navigate("/sign-in");
-  };
+  const signOut = useSignOut();
   return (
+    <>
     <Menu trigger={(toggle) => <button className="me-btn" onClick={toggle} aria-label="Account menu"><Avatar name={user.name} size={36} src={user.avatarFileId ? publicFileUrl(user.avatarFileId) : null} /><ChevronDown size={16} /></button>}>
       {(close) => (
         <div style={{ width: 280 }}>
@@ -210,10 +207,12 @@ function AccountMenu() {
           <button onClick={() => { close(); navigate("/settings/billing"); }}><CreditCard size={16} />Plan and billing</button>
           <button onClick={() => { close(); navigate("/help"); }}><CircleHelp size={16} />Help and support</button>
           <hr />
-          <button onClick={signOut}><LogOut size={16} />Sign out</button>
+          <button onClick={() => { close(); signOut.ask(); }}><LogOut size={16} />Sign out</button>
         </div>
       )}
     </Menu>
+    {signOut.dialog}
+    </>
   );
 }
 
@@ -233,8 +232,11 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", h);
   }, []);
   useEffect(() => setDrawer(false), [location.pathname]);
+  const content = usePageTransition<HTMLElement>(location.pathname);
+  const busy = useIsFetching() + useIsMutating() > 0;
   return (
     <div className={`shell ${mini ? "mini" : ""}`}>
+      <TopProgress active={busy} />
       <Sidebar mini={mini} onToggle={toggle} />
       <div className="main">
         <header className="topbar">
@@ -252,7 +254,7 @@ export function AppShell() {
           <b>{org.name}</b>
           <div className="r"><Notifications /><AccountMenu /></div>
         </header>
-        <main className="content"><Outlet /></main>
+        <main className="content page-enter" ref={content}><Outlet /></main>
         <button className="fab" aria-label="Create" onClick={() => navigate("/workflows?new=task")}><Plus size={24} strokeWidth={2.4} /></button>
       </div>
       {drawer && (

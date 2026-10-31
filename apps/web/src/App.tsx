@@ -1,5 +1,5 @@
 import { Navigate, Outlet, RouterProvider, createBrowserRouter, useLocation } from "react-router-dom";
-import { Loading } from "@windveal/ui";
+import { Splash } from "./components/Splash";
 import { useMe } from "./lib/session";
 import { AppShell } from "./layouts/AppShell";
 import { SignIn, CreateAccount, VerifyEmail, ForgotPassword, ResetPassword, AcceptInvite } from "./pages/auth";
@@ -21,7 +21,7 @@ import ImportModule from "./modules/imports";
 function Gate({ need }: { need: "app" | "setup" }) {
   const { data: me, isLoading } = useMe();
   const loc = useLocation();
-  if (isLoading || !me) return <Loading />;
+  if (isLoading || !me) return <Splash />;
   if (!me.user) return <Navigate to={`/sign-in?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   if (!me.user.emailVerified) return <Navigate to="/verify-email" replace />;
   if (!me.org) return need === "setup" ? <Outlet /> : <Navigate to="/setup" replace />;
@@ -34,7 +34,7 @@ function Gate({ need }: { need: "app" | "setup" }) {
 /** Signed-in people don't need to see sign-in screens. */
 function GuestOnly() {
   const { data: me, isLoading } = useMe();
-  if (isLoading) return <Loading />;
+  if (isLoading) return <Splash />;
   if (me?.user?.emailVerified) return <Navigate to="/" replace />;
   return <Outlet />;
 }

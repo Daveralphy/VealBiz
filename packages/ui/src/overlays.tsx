@@ -120,7 +120,9 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, children, confi
     <Modal open={open} onClose={onClose} title={title}
       footer={<>
         <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-        <button className={`btn ${danger ? "btn-danger" : "btn-primary"}`} disabled={loading} onClick={onConfirm}>{confirmLabel}</button>
+        <button className={`btn ${danger ? "btn-danger" : "btn-primary"}`} disabled={loading} onClick={onConfirm}>
+          {loading && <span className="spinner" style={{ width: 16, height: 16, borderWidth: 2 }} />}{confirmLabel}
+        </button>
       </>}>
       {children}
     </Modal>

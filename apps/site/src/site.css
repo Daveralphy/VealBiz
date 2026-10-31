@@ -3361,3 +3361,12 @@ img {
     transition: none !important;
   }
 }
+
+/* Careers page placeholder while it loads */
+.careers-state:has(.careers-skel) { display: block; padding: 32px 24px 80px; }
+.careers-skel { max-width: 1104px; margin: 0 auto; }
+.careers-skel-head { display: flex; align-items: flex-end; gap: 24px; margin: -56px 0 40px 40px; position: relative; }
+.careers-skel-head > .skel:first-child { border: 6px solid var(--surface, #fff); box-sizing: content-box; }
+.careers-skel-title { flex: 1; display: grid; gap: 12px; padding-bottom: 8px; }
+.careers-skel-row { display: grid; gap: 10px; padding: 22px 0; border-top: 1px solid var(--line); }
+@media (max-width: 640px) { .careers-skel-head { margin-left: 16px; } }
