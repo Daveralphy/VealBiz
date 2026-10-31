@@ -23,7 +23,7 @@ function readEnv() {
 }
 
 const env = readEnv();
-const url = process.env.DATABASE_URL ?? env.DATABASE_URL ?? "postgres://windveal:windveal@localhost:5433/windveal";
+const url = process.env.WINDVEAL_DATABASE_URL ?? env.WINDVEAL_DATABASE_URL ?? "postgres://windveal:windveal@localhost:5433/windveal";
 const name = new URL(url).pathname.slice(1);
 const storage = path.resolve(api, env.STORAGE_DIR ?? "./storage");
 
@@ -39,5 +39,5 @@ await admin.unsafe(`drop database if exists "${name}" with (force)`);
 await admin.unsafe(`create database "${name}"`);
 await admin.end();
 for (const dir of [storage, path.join(api, ".mailbox")]) fs.rmSync(dir, { recursive: true, force: true });
-execSync("npx drizzle-kit push --force", { cwd: api, stdio: "ignore", env: { ...process.env, DATABASE_URL: url } });
+execSync("npx drizzle-kit push --force", { cwd: api, stdio: "ignore", env: { ...process.env, WINDVEAL_DATABASE_URL: url } });
 console.log(`✓ "${name}" is now an empty database. Uploaded files and the dev mailbox were cleared.`);

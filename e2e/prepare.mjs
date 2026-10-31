@@ -11,6 +11,6 @@ await admin.unsafe(`drop database if exists "${name}" with (force)`);
 await admin.unsafe(`create database "${name}"`);
 await admin.end();
 const api = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../apps/api");
-const env = { ...process.env, DATABASE_URL: url };
+const env = { ...process.env, WINDVEAL_DATABASE_URL: url };
 execSync("npx drizzle-kit push --force", { cwd: api, stdio: "ignore", env });
 execSync("npx tsx test/fixtures/sample-business.ts", { cwd: api, stdio: "inherit", env });

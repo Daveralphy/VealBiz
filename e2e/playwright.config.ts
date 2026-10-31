@@ -27,7 +27,7 @@ export default defineConfig({
       url: "http://localhost:4000/api/health",
       reuseExistingServer: false,
       timeout: 60_000,
-      env: { DATABASE_URL: E2E_DB, STORAGE_DIR: "./storage-e2e" },
+      env: { WINDVEAL_DATABASE_URL: E2E_DB, STORAGE_DIR: "./storage-e2e" },
       cwd: "..",
     },
     { command: "pnpm --filter @windveal/web dev", url: "http://localhost:5173", reuseExistingServer: false, timeout: 60_000, cwd: ".." },
