@@ -2028,10 +2028,15 @@ img {
   font-family: var(--display);
   font-weight: 800;
 }
+/* A logo always sits on white; the brand colour is only used behind the initial when there's no logo. */
+.org-logo.has-img {
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(15, 26, 58, 0.08);
+}
 .org-logo img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 .careers .btn-brand {
   background: var(--brand);

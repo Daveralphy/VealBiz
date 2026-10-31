@@ -5,16 +5,19 @@
 .sb-org { display: flex; gap: 12px; align-items: center; padding: 8px; border-radius: 14px; border: 1px solid var(--line); margin-bottom: 18px; }
 .mini .sb { padding: 18px 12px; align-items: center; }
 .mini .sb-org { border: 0; padding: 0; }
-.mini .sb-org { flex-direction: column; gap: 8px; }
-.sb-logo { width: 40px; height: 40px; flex: none; border-radius: 10px; }
+.sb-logo { position: relative; width: 40px; height: 40px; flex: none; border-radius: 10px; }
 .sb-logo .mark { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-family: var(--display); font-weight: 800; color: #fff; overflow: hidden; }
-.sb-logo .mark img { width: 100%; height: 100%; object-fit: cover; }
-.sb-toggle { position: relative; flex: none; width: 26px; height: 26px; border: 0; padding: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.sb-logo .mark.has-img { border: 1px solid var(--line); }
+.sb-logo .mark img { width: 100%; height: 100%; object-fit: contain; }
+.sb-toggle { position: relative; flex: none; width: 26px; height: 26px; border: 0; padding: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .12s; }
+.sb-org:hover .sb-toggle, .sb-toggle:focus-visible { opacity: 1; }
 .sb-toggle:hover, .sb-toggle:focus-visible { background: var(--soft); color: var(--ink); }
-.sb-toggle .tip { position: absolute; left: 0; top: 32px; white-space: nowrap; background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 500; border-radius: 8px; padding: 6px 10px; display: none; gap: 8px; align-items: center; z-index: 30; box-shadow: 0 8px 20px -8px rgba(0,0,0,.4); }
-.shell:not(.mini) .sb-toggle .tip { left: auto; right: 0; }
-/* Collapsed: the sidebar is too narrow, so the tip sits to the right of the icon (which is always at the same spot). */
-.mini .sb-toggle .tip { position: fixed; left: 66px; top: 65px; }
+/* Collapsed: the control covers the logo while hovered. */
+.sb-toggle.over { position: absolute; inset: 0; width: 40px; height: 40px; border-radius: 10px; background: rgba(14, 28, 69, .82); color: #fff; }
+.sb-toggle.over:hover, .sb-toggle.over:focus-visible { background: rgba(14, 28, 69, .9); color: #fff; }
+.sb-toggle .tip { position: absolute; top: 32px; right: 0; white-space: nowrap; background: var(--ink); color: #fff; font-size: 12.5px; font-weight: 500; border-radius: 8px; padding: 6px 10px; display: none; gap: 8px; align-items: center; z-index: 30; box-shadow: 0 8px 20px -8px rgba(0,0,0,.4); }
+/* The collapsed sidebar is too narrow, so its tip sits to the right of the logo (always at the same spot). */
+.sb-toggle.over .tip { position: fixed; left: 66px; top: 24px; right: auto; }
 :root[data-theme="dark"] .sb-toggle .tip { background: #fff; color: #0f1a3a; }
 .sb-toggle:hover .tip { display: flex; }
 .sb-toggle .tip kbd { font-family: var(--font); font-size: 11px; background: rgba(255,255,255,.18); border-radius: 5px; padding: 0 5px; }

@@ -5,7 +5,7 @@ import { brandVars, websiteHref, type ApiError, type CareersOrg } from "./api";
 
 export function OrgLogo({ org, size = 40, className = "" }: { org: CareersOrg; size?: number; className?: string }) {
   return (
-    <span className={`org-logo ${className}`} style={{ width: size, height: size, fontSize: size * 0.45 }}>
+    <span className={`org-logo ${org.logoUrl ? "has-img" : ""} ${className}`} style={{ width: size, height: size, fontSize: size * 0.45 }}>
       {org.logoUrl ? <img src={org.logoUrl} alt={`${org.name} logo`} /> : <span aria-hidden>{org.name.trim().charAt(0).toUpperCase()}</span>}
     </span>
   );

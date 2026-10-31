@@ -21,10 +21,21 @@ const NAV: { to: string; label: string; icon: ReactNode; ws?: Workspace; badgeKe
   { to: "/insights", label: "Insights", icon: <LineChart size={18} />, ws: "insights" },
 ];
 
+/** Collapse/expand control. Hidden until the organisation block is hovered (or the control is focused). */
+function ToggleButton({ mini, onToggle }: { mini: boolean; onToggle: () => void }) {
+  return (
+    <button className={`sb-toggle ${mini ? "over" : ""}`} onClick={onToggle} aria-label={mini ? "Expand sidebar" : "Collapse sidebar"}>
+      {mini ? <PanelLeftOpen size={mini ? 18 : 16} /> : <PanelLeftClose size={16} />}
+      <span className="tip">{mini ? "Expand" : "Collapse"} sidebar<kbd>Ctrl B</kbd></span>
+    </button>
+  );
+}
+
 function OrgMark({ size = 40 }: { size?: number }) {
   const { org } = useSession();
   return (
-    <span className="mark" style={{ width: size, height: size, background: org.brandColor || "var(--navy)" }}>
+    // A logo always sits on white; the brand colour is only used behind the initial when there's no logo.
+    <span className={`mark ${org.logoFileId ? "has-img" : ""}`} style={{ width: size, height: size, background: org.logoFileId ? "#fff" : org.brandColor || "var(--navy)" }}>
       {org.logoFileId ? <img src={publicFileUrl(org.logoFileId)} alt="" draggable={false} /> : org.name.slice(0, 1).toUpperCase()}
     </span>
   );
@@ -44,7 +55,11 @@ function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () 
   return (
     <aside className="sb">
       <div className="sb-org">
-        <span className="sb-logo"><OrgMark /></span>
+        <span className="sb-logo">
+          <OrgMark />
+          {/* Collapsed: hovering the logo reveals the expand control on top of it. */}
+          {onToggle && mini && <ToggleButton mini onToggle={onToggle} />}
+        </span>
         {!mini && (
           <Link to="/profile/company" className="sb-org-name" onClick={onNavigate}>
             <span style={{ minWidth: 0, flex: 1 }}>
@@ -53,12 +68,7 @@ function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () 
             </span>
           </Link>
         )}
-        {onToggle && (
-          <button className="sb-toggle" onClick={onToggle} aria-label={mini ? "Expand sidebar" : "Collapse sidebar"}>
-            {mini ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-            <span className="tip">{mini ? "Expand" : "Collapse"} sidebar<kbd>Ctrl B</kbd></span>
-          </button>
-        )}
+        {onToggle && !mini && <ToggleButton mini={false} onToggle={onToggle} />}
       </div>
       <nav aria-label="Main">
         {item("/", "Overview", <Home size={18} />, undefined, true)}
