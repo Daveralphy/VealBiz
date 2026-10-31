@@ -4,6 +4,8 @@
 .sb { background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 14px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .sb-org { display: flex; gap: 12px; align-items: center; padding: 8px; border-radius: 14px; border: 1px solid var(--line); margin-bottom: 18px; }
 .mini .sb { padding: 18px 12px; align-items: center; }
+/* Above the top bar, so the sidebar's hints (e.g. "Expand sidebar") show in full instead of slipping underneath it. */
+.shell > .sb { z-index: 25; }
 /* Collapsed keeps the same vertical rhythm as expanded: same block heights, only widths change. */
 .mini .sb-org { border-color: transparent; justify-content: center; }
 .sb-logo { position: relative; width: 40px; height: 40px; flex: none; border-radius: 10px; }
