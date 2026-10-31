@@ -44,19 +44,20 @@ function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () 
   return (
     <aside className="sb">
       <div className="sb-org">
-        <button className="sb-logo" onClick={onToggle} aria-label={mini ? "Expand sidebar" : "Collapse sidebar"}>
-          <OrgMark />
-          {onToggle && <span className="hov">{mini ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}</span>}
-          {onToggle && <span className="tip">{mini ? "Expand" : "Collapse"} sidebar<kbd>Ctrl B</kbd></span>}
-        </button>
+        <span className="sb-logo"><OrgMark /></span>
         {!mini && (
           <Link to="/profile/company" className="sb-org-name" onClick={onNavigate}>
             <span style={{ minWidth: 0, flex: 1 }}>
               <b>{org.name}</b>
               <small style={{ color: org.verificationStatus === "verified" ? "var(--ok)" : "var(--warn)" }}><i style={{ background: statusColor }} />{statusText}</small>
             </span>
-            <ChevronDown size={16} className="muted" />
           </Link>
+        )}
+        {onToggle && (
+          <button className="sb-toggle" onClick={onToggle} aria-label={mini ? "Expand sidebar" : "Collapse sidebar"}>
+            {mini ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            <span className="tip">{mini ? "Expand" : "Collapse"} sidebar<kbd>Ctrl B</kbd></span>
+          </button>
         )}
       </div>
       <nav aria-label="Main">
