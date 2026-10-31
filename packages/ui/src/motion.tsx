@@ -69,3 +69,69 @@ export function TopProgress({ active }: { active: boolean }) {
   }, [active]);
   return <div className={`top-progress ${shown ? "on" : ""}`} role="progressbar" aria-hidden={!shown} aria-label="Loading" />;
 }
+
+const FIRST_VISIT_MS = 550;
+const visitedCache = new Map<string, Set<string>>();
+
+function visitedFor(scope: string): Set<string> {
+  let set = visitedCache.get(scope);
+  if (!set) {
+    let saved: string[] = [];
+    try { saved = JSON.parse(sessionStorage.getItem(`wv-visited:${scope}`) ?? "[]"); } catch { /* ignore */ }
+    set = new Set(saved);
+    visitedCache.set(scope, set);
+  }
+  return set;
+}
+
+/**
+ * The first time a page is opened (this browser session), hold it back for about half a second behind
+ * a loading state, so screens don't snap in instantly. Pages already seen, and going back or forward
+ * in history, show straight away. The page still renders (and loads its data) underneath while held.
+ */
+export function useFirstVisitHold(scope: string, path: string, isHistoryMove: boolean, ms = FIRST_VISIT_MS) {
+  const visited = visitedFor(scope);
+  const [held, setHeld] = useState(() => !isHistoryMove && !visited.has(path) && !reducedMotion());
+  const [heldPath, setHeldPath] = useState(path);
+  // Decide during render for a new path, so the page never flashes before the hold starts.
+  if (heldPath !== path) {
+    setHeldPath(path);
+    setHeld(!isHistoryMove && !visited.has(path) && !reducedMotion());
+  }
+  useEffect(() => {
+    visited.add(path);
+    try { sessionStorage.setItem(`wv-visited:${scope}`, JSON.stringify([...visited].slice(-300))); } catch { /* ignore */ }
+    if (!held) return;
+    const t = setTimeout(() => setHeld(false), ms);
+    return () => clearTimeout(t);
+  }, [path, held]);
+  return held;
+}
+
+/**
+ * Remembers how far down each page was scrolled. Going back or forward returns to the same spot;
+ * opening a page from a link starts at the top (or at #anchor). For routers without built-in
+ * scroll restoration.
+ */
+export function useScrollMemory(locationKey: string, isHistoryMove: boolean, hash = "") {
+  const positions = useRef(new Map<string, number>());
+  const current = useRef(locationKey);
+  useEffect(() => {
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    const save = () => positions.current.set(current.current, window.scrollY);
+    window.addEventListener("scroll", save, { passive: true });
+    return () => window.removeEventListener("scroll", save);
+  }, []);
+  useEffect(() => {
+    current.current = locationKey;
+    if (isHistoryMove && positions.current.has(locationKey)) {
+      const y = positions.current.get(locationKey)!;
+      // Wait a frame so the page has its height back before scrolling.
+      requestAnimationFrame(() => window.scrollTo(0, y));
+    } else if (hash) {
+      document.getElementById(hash.slice(1))?.scrollIntoView();
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [locationKey]);
+}

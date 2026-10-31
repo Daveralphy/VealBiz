@@ -21,6 +21,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: (count, err) => !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,
+      // Screens you've already opened come back instantly from memory, then refresh quietly in the background.
+      staleTime: 30_000,
+      gcTime: 30 * 60_000,
       refetchOnWindowFocus: false,
     },
   },

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { Header, Logo } from "./Header";
-import { GET_STARTED_URL, SIGN_IN_URL } from "../lib/site";
+import { DOWNLOAD_PATH } from "../lib/site";
 import { WORKSPACE_LIST } from "../lib/workspaces";
 
 export function MarketingLayout({ children, overlayHeader }: { children: ReactNode; overlayHeader?: boolean }) {
@@ -55,16 +55,13 @@ export function Footer() {
             </ul>
           </div>
           <div className="footer-col">
-            <h2>Get started</h2>
+            <h2>Get the app</h2>
             <ul>
               <li>
+                <Link to={DOWNLOAD_PATH}>Download</Link>
+              </li>
+              <li>
                 <Link to="/pricing">Pricing</Link>
-              </li>
-              <li>
-                <a href={SIGN_IN_URL}>Sign in</a>
-              </li>
-              <li>
-                <a href={GET_STARTED_URL}>Get started</a>
               </li>
             </ul>
           </div>
@@ -104,7 +101,7 @@ function CtaLink({ action, className, arrow }: { action: CtaAction; className: s
 export function CtaBand({
   title = "Ready to bring it all together?",
   text = "Set up your organisation in minutes and choose the plan that fits as you grow.",
-  primary = { label: "Get started", href: GET_STARTED_URL, external: true },
+  primary = { label: "Download WindVeal", href: DOWNLOAD_PATH },
   secondary = { label: "See pricing", href: "/pricing" },
 }: {
   title?: string;

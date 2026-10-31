@@ -139,3 +139,32 @@ test("signing out asks first", async ({ page }) => {
   await page.getByRole("dialog", { name: "Sign out?" }).getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/sign-in/);
 });
+
+test("the app opens on Welcome, and the website offers Download instead of sign-in", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/welcome$/);
+  await expect(page.getByRole("heading", { name: /Welcome to/ })).toBeVisible();
+  await page.getByRole("link", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await page.getByRole("link", { name: "WindVeal" }).first().click();
+  await expect(page).toHaveURL(/\/welcome$/);
+
+  await page.goto(SITE_URL);
+  await expect(page.getByRole("link", { name: /Sign in/ })).toHaveCount(0);
+  await page.getByRole("link", { name: /^Download$/ }).first().click();
+  await expect(page.getByRole("heading", { name: /Get WindVeal/ })).toBeVisible();
+});
+
+test("a screen opened for the first time pauses briefly; going back shows it straight away", async ({ page }) => {
+  await signIn(page);
+  await page.locator('nav[aria-label="Main"] a[href="/crm"]').click();
+  await expect(page.locator(".skel-page")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "CRM" })).toBeVisible();
+  await expect(page.locator(".skel-page")).toHaveCount(0);
+  await page.locator('nav[aria-label="Main"] a[href="/people"]').click();
+  await expect(page.getByRole("heading", { level: 1, name: "People & HR" })).toBeVisible();
+  await page.goBack();
+  // Seen before: no pause, and it's there at once.
+  await expect(page.getByRole("heading", { level: 1, name: "CRM" })).toBeVisible({ timeout: 300 });
+  await expect(page.locator(".skel-page")).toHaveCount(0);
+});

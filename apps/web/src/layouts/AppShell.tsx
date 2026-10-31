@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { useIsFetching, useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell, Briefcase, ChevronDown, CircleHelp, CreditCard, Download, FileText, Home, LineChart, LogOut, Menu as MenuIcon, Moon,
   PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShieldCheck, SquareCheck, User, UserPlus, Users, X, Building2,
 } from "lucide-react";
-import { Avatar, BrandLogo, Menu, Progress, Switch, IconButton, TopProgress, usePageTransition } from "@windveal/ui";
+import { Avatar, BrandLogo, Menu, PageSkeleton, Progress, Switch, IconButton, TopProgress, useFirstVisitHold, usePageTransition } from "@windveal/ui";
 import { formatBytes, type Workspace } from "@windveal/shared";
 import { api, publicFileUrl } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -232,7 +232,10 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", h);
   }, []);
   useEffect(() => setDrawer(false), [location.pathname]);
-  const content = usePageTransition<HTMLElement>(location.pathname);
+  // First time on a screen: a short loading moment before it appears. Back/forward shows it as it was.
+  const historyMove = useNavigationType() === "POP";
+  const held = useFirstVisitHold("app", location.pathname, historyMove);
+  const content = usePageTransition<HTMLDivElement>(held ? "held" : location.pathname);
   const busy = useIsFetching() + useIsMutating() > 0;
   return (
     <div className={`shell ${mini ? "mini" : ""}`}>
@@ -254,7 +257,11 @@ export function AppShell() {
           <b>{org.name}</b>
           <div className="r"><Notifications /><AccountMenu /></div>
         </header>
-        <main className="content page-enter" ref={content}><Outlet /></main>
+        <main className="content">
+          {held && <PageSkeleton />}
+          {/* Rendered while held, so the screen's data loads during the pause. */}
+          <div ref={content} className="page-enter" style={held ? { display: "none" } : undefined}><Outlet /></div>
+        </main>
         <button className="fab" aria-label="Create" onClick={() => navigate("/workflows?new=task")}><Plus size={24} strokeWidth={2.4} /></button>
       </div>
       {drawer && (

@@ -1,5 +1,7 @@
-import { Navigate, Outlet, RouterProvider, createBrowserRouter, useLocation } from "react-router-dom";
+import { Navigate, Outlet, RouterProvider, ScrollRestoration, createBrowserRouter, useLocation, useNavigationType } from "react-router-dom";
+import { useFirstVisitHold } from "@windveal/ui";
 import { Splash } from "./components/Splash";
+import { Welcome } from "./pages/welcome";
 import { useMe } from "./lib/session";
 import { AppShell } from "./layouts/AppShell";
 import { SignIn, CreateAccount, VerifyEmail, ForgotPassword, ResetPassword, AcceptInvite } from "./pages/auth";
@@ -22,7 +24,8 @@ function Gate({ need }: { need: "app" | "setup" }) {
   const { data: me, isLoading } = useMe();
   const loc = useLocation();
   if (isLoading || !me) return <Splash />;
-  if (!me.user) return <Navigate to={`/sign-in?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+  // Opening the app signed out starts at Welcome; a deeper link goes to sign-in and comes back after.
+  if (!me.user) return <Navigate to={loc.pathname === "/" ? "/welcome" : `/sign-in?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   if (!me.user.emailVerified) return <Navigate to="/verify-email" replace />;
   if (!me.org) return need === "setup" ? <Outlet /> : <Navigate to="/setup" replace />;
   const setupDone = me.org.setupStep === "done" || me.membership?.role !== "admin";
@@ -39,10 +42,29 @@ function GuestOnly() {
   return <Outlet />;
 }
 
-const router = createBrowserRouter([
+/** Full-screen pages outside the workspace (welcome, sign-in, setup) get the same first-visit pause. */
+const FULL_SCREEN = /^\/(welcome|sign-in|create-account|forgot-password|reset-password|verify-email|invite|setup)(\/|$)/;
+
+function Root() {
+  const loc = useLocation();
+  const historyMove = useNavigationType() === "POP";
+  const fullScreen = FULL_SCREEN.test(loc.pathname);
+  const held = useFirstVisitHold("screens", fullScreen ? loc.pathname : "workspace", historyMove || !fullScreen);
+  return (
+    <>
+      {/* Back/forward returns to the same scroll position; following a link starts at the top. */}
+      <ScrollRestoration />
+      {held && <Splash />}
+      <div style={held ? { display: "none" } : undefined}><Outlet /></div>
+    </>
+  );
+}
+
+const router = createBrowserRouter([{ element: <Root />, children: [
   {
     element: <GuestOnly />,
     children: [
+      { path: "/welcome", element: <Welcome /> },
       { path: "/sign-in", element: <SignIn /> },
       { path: "/create-account", element: <CreateAccount /> },
       { path: "/forgot-password", element: <ForgotPassword /> },
@@ -71,7 +93,7 @@ const router = createBrowserRouter([
       { path: "*", element: <NotFound /> },
     ],
   },
-]);
+] }]);
 
 export function App() {
   return <RouterProvider router={router} />;

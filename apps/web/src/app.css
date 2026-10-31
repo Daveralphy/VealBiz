@@ -285,3 +285,27 @@
   .pf-logo { width: 68px; height: 68px; }
   .pf-head .btn, .pf-company-bar .btn { width: 100%; justify-content: center; }
 }
+
+/* ---------- Welcome (the app's front door) ---------- */
+.welcome { position: relative; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 48px clamp(24px, 7vw, 112px); background: var(--night); color: #fff; overflow: hidden; }
+.welcome-photo { position: absolute; inset: 0; background: linear-gradient(100deg, rgba(14,28,69,.97) 0%, rgba(14,28,69,.86) 42%, rgba(14,28,69,.35) 100%), url(/images/team.jpg) center/cover; animation: welcome-zoom 18s ease-out both; }
+@keyframes welcome-zoom { from { transform: scale(1.06); } }
+.welcome-in { position: relative; max-width: 560px; display: flex; flex-direction: column; gap: 40px; }
+.welcome-copy h1 { color: #fff; font-size: clamp(40px, 6vw, 64px); line-height: 1.02; font-weight: 800; letter-spacing: -0.045em; margin: 0 0 16px; }
+.welcome-copy h1 span { color: #9db6ff; }
+.welcome-copy p { color: rgba(255,255,255,.78); font-size: 18px; line-height: 1.55; margin: 0; max-width: 460px; }
+.welcome-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.welcome-actions .btn { gap: 8px; }
+.welcome .btn-lg { padding: 15px 26px; font-size: 16px; border-radius: 999px; }
+.welcome .btn-light { background: #fff; color: var(--navy); border: 1px solid #fff; }
+.welcome .btn-light:hover { background: #e9eefc; }
+.welcome .btn-outline-light { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,.4); }
+.welcome .btn-outline-light:hover { border-color: #fff; background: rgba(255,255,255,.08); }
+.welcome-note { margin: -16px 0 0; color: rgba(255,255,255,.6); font-size: 14px; }
+.welcome-foot { position: absolute; left: clamp(24px, 7vw, 112px); bottom: 24px; margin: 0; font-size: 13px; color: rgba(255,255,255,.5); }
+@media (max-width: 640px) {
+  .welcome { justify-content: flex-end; padding-bottom: 72px; }
+  .welcome-photo { background: linear-gradient(0deg, rgba(14,28,69,.98) 0%, rgba(14,28,69,.85) 55%, rgba(14,28,69,.4) 100%), url(/images/team.jpg) center/cover; }
+  .welcome-actions .btn { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) { .welcome-photo { animation: none; } }

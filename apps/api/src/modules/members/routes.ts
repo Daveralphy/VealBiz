@@ -22,7 +22,15 @@ async function activeAdminCount(orgId: string) {
 
 async function sendInvite(orgName: string, inviterName: string, email: string, role: string, token: string) {
   const link = `${env.appUrl}/invite/${token}`;
-  await sendMail({ to: email, subject: `${inviterName} invited you to ${orgName} on WindVeal`, text: `Join as ${role}: ${link} (expires in ${INVITE_DAYS} days)`, link });
+  await sendMail({
+    to: email, subject: `${inviterName} invited you to ${orgName} on WindVeal`, link,
+    text: [
+      `${inviterName} invited you to join ${orgName} on WindVeal as ${role}.`,
+      `1. Get the WindVeal app: ${env.siteUrl}/download`,
+      `2. Accept your invitation (expires in ${INVITE_DAYS} days): ${link}`,
+      `Sign up or sign in with this email address (${email}).`,
+    ].join("\n"),
+  });
 }
 
 export default async function memberRoutes(app: FastifyInstance) {

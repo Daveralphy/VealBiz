@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { MarketingLayout, Benefits, ArrowLink } from "../components/Layout";
 import { AppShot, DashboardMock } from "../components/Mocks";
-import { GET_STARTED_URL, useTitle } from "../lib/site";
+import { DOWNLOAD_PATH, useTitle } from "../lib/site";
 
 function TileHead({ title, text, to }: { title: string; text: string; to: string }) {
   return (
@@ -35,9 +35,9 @@ export default function Home() {
             <b>WindVeal Biz Platform</b> brings your people, customers, documents and daily work into one simple workspace for your whole team.
           </p>
           <div className="hero-actions">
-            <a href={GET_STARTED_URL} className="btn btn-light btn-lg">
-              Get started <ArrowRight size={16} aria-hidden />
-            </a>
+<Link to={DOWNLOAD_PATH} className="btn btn-light btn-lg">
+              Download WindVeal <ArrowRight size={16} aria-hidden />
+            </Link>
             <Link to="/product" className="btn btn-text-light btn-lg">
               Explore the product <ArrowRight size={16} aria-hidden />
             </Link>
@@ -176,9 +176,9 @@ export default function Home() {
               <h2>Ready to bring it all together?</h2>
               <p>Set up your organisation in minutes and choose the plan that fits as you grow.</p>
               <div className="cta-actions">
-                <a href={GET_STARTED_URL} className="btn btn-primary btn-lg">
-                  Get started <ArrowRight size={16} aria-hidden />
-                </a>
+                <Link to={DOWNLOAD_PATH} className="btn btn-primary btn-lg">
+                  Download WindVeal <ArrowRight size={16} aria-hidden />
+                </Link>
                 <Link to="/pricing" className="btn btn-secondary btn-lg">
                   See pricing
                 </Link>

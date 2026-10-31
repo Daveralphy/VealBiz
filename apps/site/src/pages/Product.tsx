@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { MarketingLayout, Benefits, CtaBand, ArrowLink } from "../components/Layout";
 import { AppShot, BarChartMock, DashboardMock, Folders, MiniDeals, MiniPeople, MiniPipeline, MiniTasks } from "../components/Mocks";
-import { GET_STARTED_URL, useTitle } from "../lib/site";
+import { DOWNLOAD_PATH, useTitle } from "../lib/site";
 
 export function PageHero({ title, accent, children, accentBreak }: { title: string; accent: string; children: ReactNode; accentBreak?: boolean }) {
   return (
@@ -15,9 +15,9 @@ export function PageHero({ title, accent, children, accentBreak }: { title: stri
         </h1>
         <p className="lede">{children}</p>
         <div className="hero-buttons">
-          <a href={GET_STARTED_URL} className="btn btn-primary btn-lg">
-            Get started <ArrowRight size={16} aria-hidden />
-          </a>
+          <Link to={DOWNLOAD_PATH} className="btn btn-primary btn-lg">
+            Download WindVeal <ArrowRight size={16} aria-hidden />
+          </Link>
           <Link to="/pricing" className="btn btn-secondary btn-lg">
             See pricing
           </Link>

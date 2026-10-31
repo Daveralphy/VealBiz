@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Menu, X, Download } from "lucide-react";
 import { BrandLogo } from "@windveal/ui";
-import { GET_STARTED_URL, SIGN_IN_URL } from "../lib/site";
+import { DOWNLOAD_PATH } from "../lib/site";
 import { WORKSPACE_LIST } from "../lib/workspaces";
 
 export function Logo({ light }: { light?: boolean }) {
@@ -109,12 +109,9 @@ export function Header({ overlay }: { overlay?: boolean }) {
           </NavLink>
         </nav>
         <div className="header-actions">
-          <a href={SIGN_IN_URL} className="nav-link sign-in">
-            Sign in
-          </a>
-          <a href={GET_STARTED_URL} className={`btn ${overlay ? "btn-light" : "btn-primary"} header-cta`}>
-            Get started
-          </a>
+          <Link to={DOWNLOAD_PATH} className={`btn ${overlay ? "btn-light" : "btn-primary"} header-cta`}>
+            <Download size={16} aria-hidden /> Download
+          </Link>
           <button type="button" className="menu-btn" aria-label="Open menu" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)}>
             <Menu size={22} aria-hidden />
           </button>
@@ -157,12 +154,9 @@ export function Header({ overlay }: { overlay?: boolean }) {
             </Link>
           </nav>
           <div className="mobile-nav-foot">
-            <a href={GET_STARTED_URL} className="btn btn-primary btn-lg btn-block">
-              Get started <ArrowRight size={16} aria-hidden />
-            </a>
-            <a href={SIGN_IN_URL} className="btn btn-secondary btn-lg btn-block">
-              Sign in
-            </a>
+            <Link to={DOWNLOAD_PATH} className="btn btn-primary btn-lg btn-block">
+              <Download size={16} aria-hidden /> Download WindVeal
+            </Link>
           </div>
         </div>
       )}

@@ -3370,3 +3370,20 @@ img {
 .careers-skel-title { flex: 1; display: grid; gap: 12px; padding-bottom: 8px; }
 .careers-skel-row { display: grid; gap: 10px; padding: 22px 0; border-top: 1px solid var(--line); }
 @media (max-width: 640px) { .careers-skel-head { margin-left: 16px; } }
+
+/* ---------- Download ---------- */
+.download-hero { padding-bottom: 48px; }
+.download-body { padding-bottom: 112px; }
+.download-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.download-card { border: 1px solid var(--line); border-radius: 28px; padding: 32px 28px; background: var(--surface); display: flex; flex-direction: column; gap: 10px; }
+.download-card h2, .download-web h2 { font-size: 22px; letter-spacing: -0.02em; margin: 6px 0 0; }
+.download-card p, .download-web p { margin: 0; color: var(--text); line-height: 1.55; }
+.download-icon { width: 48px; height: 48px; border-radius: 14px; background: var(--pale); color: var(--deep); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.download-soon { margin-top: auto; align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--muted); background: var(--soft); border-radius: 999px; padding: 6px 12px; }
+.download-web { margin-top: 16px; border-radius: 28px; padding: 32px; background: var(--soft); display: flex; align-items: center; gap: 20px; }
+.download-web > div { flex: 1; }
+.download-note { text-align: center; color: var(--muted); margin-top: 28px; }
+@media (max-width: 860px) {
+  .download-grid { grid-template-columns: 1fr; }
+  .download-web { flex-direction: column; align-items: flex-start; }
+}

@@ -5,7 +5,7 @@ import { formatMoney } from "@windveal/shared";
 import { Skeleton, SkeletonText } from "@windveal/ui";
 import { detectCurrency, monthlyPrice, usePricing } from "../lib/pricing";
 import { CtaBand, MarketingLayout } from "../components/Layout";
-import { GET_STARTED_URL, useTitle } from "../lib/site";
+import { DOWNLOAD_PATH, useTitle } from "../lib/site";
 
 type Billing = "monthly" | "yearly";
 
@@ -85,9 +85,9 @@ export default function Pricing() {
                   <span>{p.storageGB} GB storage</span>
                   <span>{p.aiRequestsPerMonth ? `AI: ${p.aiRequestsPerMonth.toLocaleString("en-GB")} / mo` : "No AI"}</span>
                 </div>
-                <a href={`${GET_STARTED_URL}?plan=${p.key}&billing=${billing}`} className={`btn btn-lg btn-block ${p.popular ? "btn-light" : "btn-primary"}`}>
+                <Link to={DOWNLOAD_PATH} className={`btn btn-lg btn-block ${p.popular ? "btn-light" : "btn-primary"}`}>
                   {p.cta}
-                </a>
+                </Link>
                 <ul className="plan-features">
                   {p.features.map((f) => (
                     <li key={f}>
@@ -168,7 +168,7 @@ export default function Pricing() {
         title="Need something built around you?"
         text="Talk to us about storage, AI and support that fit your organisation."
         primary={{ label: "Contact us", href: "/contact?topic=sales" }}
-        secondary={{ label: "Get started", href: GET_STARTED_URL, external: true }}
+        secondary={{ label: "Download WindVeal", href: DOWNLOAD_PATH }}
       />
     </MarketingLayout>
   );
