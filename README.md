@@ -64,7 +64,7 @@ pnpm db:push      # create the database tables
 
 The database starts empty: nothing about a business is written into the code.
 
-**Load WindVeal (no sign-up needed).** WindVeal's details live in `data/windveal.json`: the organisation, Raphael Daveal as CEO and primary admin, windveal.com, verified, on the Enterprise plan, with the real logo. Load it with:
+**Load WindVeal (no sign-up needed).** WindVeal's details live in `data/windveal.json`: the organisation, Raphael Daveal as CEO and primary admin (signs in with their own email, work email raphael@windveal.com), windveal.com, verified, on the Enterprise plan, with the real logo. Load it with:
 
 ```bash
 pnpm data:load                      # loads data/windveal.json

@@ -49,7 +49,10 @@ const fileSchema = z.object({
   }),
   owner: z.object({
     name: z.string().trim().min(2),
+    /** The email they sign in with (password resets and notifications go here). */
     email: z.string().trim().toLowerCase().email(),
+    /** Their work email, shown on their employee profile. Defaults to the sign-in email. */
+    workEmail: z.string().trim().toLowerCase().email().optional().nullable(),
     jobTitle: blankable(120),
     department: blankable(120),
   }),
@@ -97,6 +100,17 @@ for (const f of [resolveFile(o.logo), resolveFile(o.cover)]) {
 
 // 1. Owner's user account (verified; password is set with the one-time link below).
 let [user] = await db.select().from(s.users).where(eq(s.users.email, owner.email)).limit(1);
+if (!user) {
+  // The owner's sign-in email changed in the file: update their existing account instead of making a new one.
+  const [existingOrg] = await db.select().from(s.organisations).where(eq(s.organisations.slug, o.slug)).limit(1);
+  if (existingOrg?.ownerEmail && existingOrg.ownerEmail !== owner.email) {
+    const [previous] = await db.select().from(s.users).where(eq(s.users.email, existingOrg.ownerEmail)).limit(1);
+    if (previous) {
+      [user] = await db.update(s.users).set({ email: owner.email }).where(eq(s.users.id, previous.id)).returning();
+      console.log(`✓ Changed the sign-in email from ${existingOrg.ownerEmail} to ${owner.email}`);
+    }
+  }
+}
 const newUser = !user;
 if (!user) {
   [user] = await db.insert(s.users).values({
@@ -162,13 +176,13 @@ const [first, ...rest] = owner.name.split(/\s+/);
 const [emp] = await db.select().from(s.employees).where(and(eq(s.employees.orgId, orgId), eq(s.employees.userId, u.id), isNull(s.employees.deletedAt))).limit(1);
 if (!emp) {
   const [e] = await db.insert(s.employees).values({
-    orgId, userId: u.id, firstName: first!, lastName: rest.join(" ") || first!, email: owner.email, jobTitle: owner.jobTitle,
+    orgId, userId: u.id, firstName: first!, lastName: rest.join(" ") || first!, email: owner.workEmail ?? owner.email, jobTitle: owner.jobTitle,
     departmentId, status: "active", startDate: new Date().toISOString().slice(0, 10),
   }).returning();
   await db.insert(s.employmentHistory).values({ orgId, employeeId: e!.id, occurredOn: e!.startDate!, event: `Joined as ${owner.jobTitle ?? "owner"}` });
   if (departmentId) await db.update(s.departments).set({ headEmployeeId: e!.id }).where(eq(s.departments.id, departmentId));
 } else {
-  await db.update(s.employees).set({ firstName: first!, lastName: rest.join(" ") || first!, jobTitle: owner.jobTitle, departmentId: departmentId ?? emp.departmentId }).where(eq(s.employees.id, emp.id));
+  await db.update(s.employees).set({ firstName: first!, lastName: rest.join(" ") || first!, email: owner.workEmail ?? owner.email, jobTitle: owner.jobTitle, departmentId: departmentId ?? emp.departmentId }).where(eq(s.employees.id, emp.id));
 }
 
 // 5. One-time link for the owner to set their password (valid 7 days).
