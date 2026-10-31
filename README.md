@@ -64,7 +64,7 @@ pnpm db:push      # create the database tables
 
 The database starts empty: nothing about a business is written into the code.
 
-**Load WindVeal (no sign-up needed).** WindVeal's details live in `data/windveal.json`: the organisation, Raphael Daveal as CEO and primary admin (signs in with their own email, work email raphael@windveal.com), windveal.com, verified, on the Enterprise plan, with the real logo. Load it with:
+**Load WindVeal (no sign-up needed).** WindVeal's details live in `data/windveal.json`: the organisation, Raphael Daveal as CEO and primary admin (signs in with their own email, work email raphael@windveal.com), windveal.com, verified, on the Enterprise plan, with the real logo. `"platformAdmin": true` on the owner gives that account the **WindVeal admin** panel (review and approve organisations). Load it with:
 
 ```bash
 pnpm data:load                      # loads data/windveal.json
@@ -89,14 +89,16 @@ pnpm dev          # API + business app + public site together
 
 Then open http://localhost:5173 and create an account. In development no real emails are sent: verification codes, invitation links and password reset links appear at http://localhost:5173/dev/mailbox (and in the API console).
 
-To test the public careers page, open **Settings → Organisation** and use **Mark as verified** (development only), publish a job in **Recruitment**, then visit http://localhost:5174/careers/your-organisation-slug (for WindVeal, `windveal`).
+**Where things are.** Your own details, photo, email and password are in **Profile** (account menu → My profile); the company's details, logo, cover and verification documents are in **Profile → Company**. **Settings** holds Members, Roles and permissions, Plan and billing, and Audit history. Changing an email or password needs a code sent by email (see the dev mailbox).
+
+**Verifying organisations.** New organisations wait for review in **WindVeal admin** (sidebar, WindVeal admins only). Open one to see everything it sent in, open its documents and files, then approve it or say what to fix. Once verified, publish a job in **Recruitment** and visit http://localhost:5174/careers/your-organisation-slug (for WindVeal, `windveal`).
 
 ### Checks
 
 ```bash
 pnpm typecheck    # TypeScript across all packages
 pnpm test         # API tests (use a separate database, windveal_test)
-pnpm test:e2e     # browser tests in Edge (use a throwaway database with a fictional test business)
+pnpm test:e2e     # browser tests in Edge (throwaway database, own ports 4100/5273/5274, so it runs beside pnpm dev)
 pnpm build        # production builds
 ```
 

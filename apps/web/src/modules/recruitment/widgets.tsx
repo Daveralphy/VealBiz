@@ -35,7 +35,6 @@ export function AddCandidateModal({ jobId, open, onClose }: { jobId: string; ope
   return (
     <Modal open={open} onClose={onClose} title="Add candidate" subtitle="They'll start at the first stage. If they're already a candidate, we'll reuse their details."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Add candidate</Button></>}>
-      {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         <Input label="First name" {...f.bind("firstName")} autoFocus />
         <Input label="Last name" {...f.bind("lastName")} />
@@ -62,7 +61,6 @@ export function RejectModal({ applicationId, name, open, onClose }: { applicatio
   return (
     <Modal open={open} onClose={onClose} title={`Reject ${name}?`} subtitle="They'll leave the pipeline. You can restore them later."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button variant="danger" loading={f.busy} onClick={save}>Reject</Button></>}>
-      {f.formError && !f.errors.reason && <Notice tone="error">{f.formError}</Notice>}
       <Select label="Reason" placeholder="Choose a reason" {...f.bind("reason")}
         options={["Not enough experience", "Skills don't match the role", "Salary expectations too high", "Withdrew their application", "Position filled", "Didn't attend interview"]} />
       <Textarea label="Or write your own" optional style={{ minHeight: 70 }} value={f.values.reason} onChange={(e) => f.set("reason", e.target.value)} wrapClassName="rc-mt" />
@@ -96,7 +94,6 @@ export function ScheduleModal({ applicationId, name, open, onClose }: { applicat
   return (
     <Modal open={open} onClose={onClose} title="Schedule interview" subtitle={`With ${name}`}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Schedule</Button></>}>
-      {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         <Input label="Title" {...f.bind("title")} wrapClassName="span-2" placeholder="Phone screen, final interview…" />
         <Input label="Date and time" type="datetime-local" value={f.values.when} onChange={(e) => f.set("when", e.target.value)} error={f.errors.scheduledAt} />
@@ -240,7 +237,6 @@ export function HireModal({ detail, open, onClose }: { detail: ApplicationDetail
     <Modal open={open} onClose={onClose} size="lg" title={`Hire ${detail.candidate.name}`}
       subtitle="This creates their employee record in People & HR. Check the details first."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Hire and create employee</Button></>}>
-      {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         <Input label="Job title" {...f.bind("jobTitle")} />
         <Select label="Department" placeholder={departments.data?.length ? "No department" : "No departments yet"} options={(departments.data ?? []).map((d) => ({ value: d.id, label: d.name }))} {...f.bind("departmentId")} />

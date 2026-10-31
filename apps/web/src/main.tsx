@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ToastProvider } from "@windveal/ui";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ToastProvider, showToast } from "@windveal/ui";
 import "@windveal/ui/styles.css";
 import "./app.css";
 import { App } from "./App";
@@ -14,6 +14,10 @@ try {
 } catch { /* ignore */ }
 
 const queryClient = new QueryClient({
+  // Every failed change shows its error as a toast (forms and screens may add their own handling).
+  mutationCache: new MutationCache({
+    onError: (err) => showToast(err instanceof ApiError ? err.message : "Something went wrong. Please try again.", "error"),
+  }),
   defaultOptions: {
     queries: {
       retry: (count, err) => !(err instanceof ApiError && err.status >= 400 && err.status < 500) && count < 2,

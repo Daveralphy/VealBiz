@@ -4,7 +4,10 @@ import { ACCESS_LEVELS, formatMoney } from "@windveal/shared";
 import { api } from "./api";
 
 export type Me = {
-  user: { id: string; name: string; email: string; emailVerified: boolean } | null;
+  user: {
+    id: string; name: string; email: string; emailVerified: boolean; phone: string | null; avatarFileId: string | null;
+    platformAdmin: boolean; createdAt: string;
+  } | null;
   org: {
     id: string; name: string; legalName: string; slug: string; country: string; currency: string; plan: string;
     verificationStatus: "pending" | "verified" | "rejected"; brandColor: string | null; logoFileId: string | null; setupStep: string;

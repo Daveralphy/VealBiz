@@ -290,7 +290,6 @@ function ContactModal({ companyId, contact, onClose }: { companyId: string; cont
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button loading={f.busy} onClick={save}>{existing ? "Save" : "Add contact"}</Button>
       </>}>
-      {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         <Input label="Name" autoFocus {...f.bind("name")} />
         <Input label="Role" optional placeholder="e.g. Purchasing Manager" {...f.bind("role")} />

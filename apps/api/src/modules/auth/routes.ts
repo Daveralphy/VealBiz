@@ -1,9 +1,12 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { and, desc, eq, gt, isNull, sql as dsql } from "drizzle-orm";
-import { forgotPasswordInput, loginInput, registerInput, resetPasswordInput, verifyEmailInput } from "@windveal/shared";
+import {
+  emailChangeInput, forgotPasswordInput, loginInput, passwordChangeInput, passwordCodeInput, profileInput, registerInput,
+  resetPasswordInput, verifyEmailInput,
+} from "@windveal/shared";
 import { db } from "../../db/client";
-import { authTokens, devices, invitations, memberships, organisations, sessions, users } from "../../db/schema";
-import { DEVICE_COOKIE, SESSION_COOKIE, computeAccess, computeSpecial, requireUser, setSessionCookie } from "../../lib/context";
+import { authTokens, devices, employees, files, invitations, memberships, organisations, sessions, users } from "../../db/schema";
+import { DEVICE_COOKIE, SESSION_COOKIE, computeAccess, computeSpecial, requireOrg, requireUser, setSessionCookie } from "../../lib/context";
 import { hashPassword, randomToken, sha256, sixDigitCode, verifyPassword } from "../../lib/crypto";
 import { AppError, badRequest, conflict, parse } from "../../lib/http";
 import { sendMail } from "../../lib/mailer";
@@ -53,6 +56,21 @@ async function sendVerificationCode(user: { id: string; email: string; name: str
   await sendMail({ to: user.email, subject: "Your WindVeal verification code", text: `Hi ${user.name}, your code is ${code}. It expires in 15 minutes.`, code });
 }
 
+/** Checks the latest unused emailed code for a purpose; marks it used when it matches. */
+async function checkCode(userId: string, purpose: "change_email" | "change_password", code: string) {
+  const [tok] = await db.select().from(authTokens)
+    .where(and(eq(authTokens.userId, userId), eq(authTokens.purpose, purpose), isNull(authTokens.usedAt)))
+    .orderBy(desc(authTokens.createdAt)).limit(1);
+  if (!tok || tok.expiresAt < new Date()) throw badRequest("That code has expired. Ask for a new one.", { code: "Code expired" });
+  if (tok.attempts >= 5) throw badRequest("Too many attempts. Ask for a new code.", { code: "Too many attempts" });
+  if (tok.tokenHash !== sha256(code)) {
+    await db.update(authTokens).set({ attempts: tok.attempts + 1 }).where(eq(authTokens.id, tok.id));
+    throw badRequest("That code isn't right.", { code: "That code isn't right" });
+  }
+  await db.update(authTokens).set({ usedAt: new Date() }).where(eq(authTokens.id, tok.id));
+  return tok;
+}
+
 /** Everything the app needs to know about the signed-in person. */
 export async function mePayload(userId: string) {
   const [u] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
@@ -65,7 +83,10 @@ export async function mePayload(userId: string) {
     .where(and(eq(invitations.email, u.email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gt(invitations.expiresAt, new Date())))
     .orderBy(desc(invitations.createdAt)).limit(1);
   return {
-    user: { id: u.id, name: u.name, email: u.email, emailVerified: !!u.emailVerifiedAt },
+    user: {
+      id: u.id, name: u.name, email: u.email, emailVerified: !!u.emailVerifiedAt, phone: u.phone, avatarFileId: u.avatarFileId,
+      platformAdmin: u.platformAdmin, createdAt: u.createdAt,
+    },
     org: row ? {
       id: row.o.id, name: row.o.tradingName || row.o.legalName, legalName: row.o.legalName, slug: row.o.slug,
       country: row.o.country, currency: row.o.currency, plan: row.o.plan, verificationStatus: row.o.verificationStatus,
@@ -177,7 +198,9 @@ export default async function authRoutes(app: FastifyInstance) {
       throw badRequest("This reset link has expired or was already used. Ask for a new one.");
     }
     await db.transaction(async (tx) => {
-      await tx.update(authTokens).set({ usedAt: new Date() }).where(eq(authTokens.id, tok.id));
+      // This link and any other unused reset links for the account stop working.
+      await tx.update(authTokens).set({ usedAt: new Date() })
+        .where(and(eq(authTokens.userId, tok.userId), eq(authTokens.purpose, "reset_password"), isNull(authTokens.usedAt)));
       await tx.update(users).set({ passwordHash: await hashPassword(input.password), emailVerifiedAt: new Date() }).where(eq(users.id, tok.userId));
       await tx.update(sessions).set({ revokedAt: new Date() }).where(and(eq(sessions.userId, tok.userId), isNull(sessions.revokedAt)));
     });
@@ -189,23 +212,97 @@ export default async function authRoutes(app: FastifyInstance) {
     return mePayload(req.auth.user.id);
   });
 
+  /** Personal details (Profile → Personal). */
   app.patch("/api/auth/profile", async (req) => {
     const auth = requireUser(req);
-    const { name } = parse(registerInput.pick({ name: true }), req.body);
-    await db.update(users).set({ name }).where(eq(users.id, auth.user.id));
+    const input = parse(profileInput, req.body);
+    if (input.avatarFileId) {
+      const [f] = await db.select().from(files).where(and(eq(files.id, input.avatarFileId), eq(files.uploadedBy, auth.user.id), isNull(files.deletedAt))).limit(1);
+      if (!f || !f.mime.startsWith("image/")) throw badRequest("Upload a photo (PNG, JPG or WebP).");
+      // Profile photos are shown wherever the person appears, like the organisation logo.
+      await db.update(files).set({ isPublic: true }).where(eq(files.id, f.id));
+    }
+    const phone = input.phone || null;
+    const jobTitle = input.jobTitle || null;
+    await db.update(users).set({
+      name: input.name, phone, ...(input.avatarFileId !== undefined ? { avatarFileId: input.avatarFileId } : {}),
+    }).where(eq(users.id, auth.user.id));
+    const [m] = await db.select().from(memberships).where(and(eq(memberships.userId, auth.user.id), isNull(memberships.deletedAt))).limit(1);
+    if (m) {
+      await db.update(memberships).set({ jobTitle }).where(eq(memberships.id, m.id));
+      // Keep their employee record (People & HR) in step with what they entered.
+      await db.update(employees).set({ phone, jobTitle })
+        .where(and(eq(employees.orgId, m.orgId), eq(employees.userId, auth.user.id), isNull(employees.deletedAt)));
+    }
     return mePayload(auth.user.id);
   });
 
-  app.post("/api/auth/change-password", AUTH_LIMIT, async (req) => {
+  /** Email change, step 1: confirm the password, then a code goes to the NEW address. */
+  app.post("/api/auth/email-change/request", AUTH_LIMIT, async (req) => {
     const auth = requireUser(req);
-    const input = parse(resetPasswordInput.pick({ password: true }).extend({ currentPassword: loginInput.shape.password }), req.body);
+    const input = parse(emailChangeInput, req.body);
+    if (!(await verifyPassword(auth.user.passwordHash, input.currentPassword))) {
+      throw badRequest("Your password isn't right.", { currentPassword: "Incorrect password" });
+    }
+    if (input.newEmail === auth.user.email) throw badRequest("That's already your email.", { newEmail: "Same as your current email" });
+    const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, input.newEmail)).limit(1);
+    if (taken) throw conflict("That email is already in use.", { newEmail: "Already in use" });
+    const code = sixDigitCode();
+    await db.update(authTokens).set({ usedAt: new Date() })
+      .where(and(eq(authTokens.userId, auth.user.id), eq(authTokens.purpose, "change_email"), isNull(authTokens.usedAt)));
+    await db.insert(authTokens).values({
+      userId: auth.user.id, purpose: "change_email", tokenHash: sha256(code), payload: input.newEmail, expiresAt: new Date(Date.now() + 15 * 60_000),
+    });
+    await sendMail({ to: input.newEmail, subject: "Confirm your new WindVeal email", text: `Hi ${auth.user.name}, enter ${code} to make this your WindVeal email. It expires in 15 minutes.`, code });
+    return { ok: true, sentTo: input.newEmail };
+  });
+
+  /** Email change, step 2: the code from the new address switches the email and tells the old one. */
+  app.post("/api/auth/email-change/confirm", AUTH_LIMIT, async (req) => {
+    const auth = requireUser(req);
+    const { code } = parse(verifyEmailInput, req.body);
+    const tok = await checkCode(auth.user.id, "change_email", code);
+    const newEmail = tok.payload!;
+    const [taken] = await db.select({ id: users.id }).from(users).where(eq(users.email, newEmail)).limit(1);
+    if (taken) throw conflict("That email is already in use.");
+    const oldEmail = auth.user.email;
+    await db.update(users).set({ email: newEmail, emailVerifiedAt: new Date() }).where(eq(users.id, auth.user.id));
+    await sendMail({
+      to: oldEmail, subject: "Your WindVeal email was changed",
+      text: `Hi ${auth.user.name}, your WindVeal sign-in email was changed to ${newEmail}. If you didn't do this, contact support straight away.`,
+    });
+    const ctx = await requireOrg(req).catch(() => null);
+    if (ctx) await audit(ctx, { action: "auth.email_changed", category: "access", summary: `${auth.user.name} changed their sign-in email`, meta: { from: oldEmail, to: newEmail } });
+    return mePayload(auth.user.id);
+  });
+
+  /** Password change, step 1: confirm the current password, then a code goes to their email. */
+  app.post("/api/auth/change-password/request", AUTH_LIMIT, async (req) => {
+    const auth = requireUser(req);
+    const input = parse(passwordCodeInput, req.body);
     if (!(await verifyPassword(auth.user.passwordHash, input.currentPassword))) {
       throw badRequest("Your current password isn't right.", { currentPassword: "Incorrect password" });
     }
+    const code = sixDigitCode();
+    await db.update(authTokens).set({ usedAt: new Date() })
+      .where(and(eq(authTokens.userId, auth.user.id), eq(authTokens.purpose, "change_password"), isNull(authTokens.usedAt)));
+    await db.insert(authTokens).values({ userId: auth.user.id, purpose: "change_password", tokenHash: sha256(code), expiresAt: new Date(Date.now() + 15 * 60_000) });
+    await sendMail({
+      to: auth.user.email, subject: "Confirm your WindVeal password change",
+      text: `Hi ${auth.user.name}, enter ${code} to change your password. It expires in 15 minutes. If you didn't ask for this, change your password now.`, code,
+    });
+    return { ok: true, sentTo: auth.user.email };
+  });
+
+  /** Password change, step 2: the emailed code plus the new password. Other sessions are signed out. */
+  app.post("/api/auth/change-password", AUTH_LIMIT, async (req) => {
+    const auth = requireUser(req);
+    const input = parse(passwordChangeInput, req.body);
+    await checkCode(auth.user.id, "change_password", input.code);
     await db.update(users).set({ passwordHash: await hashPassword(input.password) }).where(eq(users.id, auth.user.id));
-    // Sign out other sessions, keep this one.
     await db.update(sessions).set({ revokedAt: new Date() })
       .where(and(eq(sessions.userId, auth.user.id), isNull(sessions.revokedAt), dsql`${sessions.id} <> ${auth.sessionId}`));
+    await sendMail({ to: auth.user.email, subject: "Your WindVeal password was changed", text: `Hi ${auth.user.name}, your password was changed and your other devices were signed out.` });
     return { ok: true };
   });
 

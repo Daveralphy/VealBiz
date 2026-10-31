@@ -5,6 +5,12 @@ import { defineConfig } from "@playwright/test";
  * They run against a separate database (windveal_e2e) seeded with demo data — see e2e/prepare.mjs.
  */
 const E2E_DB = process.env.E2E_DATABASE_URL ?? "postgres://windveal:windveal@localhost:5433/windveal_e2e";
+// Own ports, so the tests can run while `pnpm dev` is using 4000, 5173 and 5174.
+const PORTS = { API_PORT: "4100", WEB_PORT: "5273", SITE_PORT: "5274" };
+const APP_URL = `http://localhost:${PORTS.WEB_PORT}`;
+const SITE_URL = `http://localhost:${PORTS.SITE_PORT}`;
+const SHARED = { ...PORTS, APP_URL, SITE_URL, VITE_APP_URL: APP_URL, VITE_SITE_URL: SITE_URL, E2E_API_URL: `http://localhost:${PORTS.API_PORT}` };
+Object.assign(process.env, { E2E_APP_URL: APP_URL, E2E_SITE_URL: SITE_URL, E2E_API_URL: SHARED.E2E_API_URL });
 
 export default defineConfig({
   testDir: ".",
@@ -15,7 +21,7 @@ export default defineConfig({
   reporter: [["list"]],
   use: {
     channel: "msedge",
-    baseURL: "http://localhost:5173",
+    baseURL: APP_URL,
     headless: true,
     viewport: { width: 1440, height: 900 },
     screenshot: "only-on-failure",
@@ -24,13 +30,13 @@ export default defineConfig({
   webServer: [
     {
       command: "pnpm --filter @windveal/api start",
-      url: "http://localhost:4000/api/health",
+      url: `${SHARED.E2E_API_URL}/api/health`,
       reuseExistingServer: false,
       timeout: 60_000,
-      env: { WINDVEAL_DATABASE_URL: E2E_DB, STORAGE_DIR: "./storage-e2e" },
+      env: { ...SHARED, WINDVEAL_DATABASE_URL: E2E_DB, STORAGE_DIR: "./storage-e2e" },
       cwd: "..",
     },
-    { command: "pnpm --filter @windveal/web dev", url: "http://localhost:5173", reuseExistingServer: false, timeout: 60_000, cwd: ".." },
-    { command: "pnpm --filter @windveal/site dev", url: "http://localhost:5174", reuseExistingServer: false, timeout: 60_000, cwd: ".." },
+    { command: "pnpm --filter @windveal/web dev", url: APP_URL, reuseExistingServer: false, timeout: 60_000, cwd: "..", env: SHARED },
+    { command: "pnpm --filter @windveal/site dev", url: SITE_URL, reuseExistingServer: false, timeout: 60_000, cwd: "..", env: SHARED },
   ],
 });

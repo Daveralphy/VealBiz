@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CheckCircle2, FileText, Upload, X } from "lucide-react";
 import { CareersLayout, CareersState, OrgLogo } from "./CareersLayout";
+import { useToast } from "@windveal/ui";
 import { ApiError, careersApi, orgPlace, useLoad, type JobQuestion } from "./api";
 import { JobFacts } from "./JobPage";
 
@@ -59,12 +60,18 @@ export default function ApplyPage() {
   const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const toast = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const data = load.status === "ok" ? load.data : null;
+
+  // Errors are shown as toasts.
+  useEffect(() => {
+    if (formError) toast(formError, "error");
+  }, [formError, toast]);
 
   useEffect(() => {
     document.title = data ? `Apply for ${data.job.title} · ${data.org.name}` : "Careers";
@@ -218,12 +225,6 @@ export default function ApplyPage() {
             <p className="apply-intro">
               Fields marked <Req /> are required. Your application goes straight to the {org.name} hiring team.
             </p>
-
-            {formError && (
-              <div className="form-alert" role="alert">
-                {formError}
-              </div>
-            )}
 
             <form onSubmit={submit} noValidate className="apply-form">
               <fieldset>

@@ -100,9 +100,9 @@ export default async function overviewRoutes(app: FastifyInstance) {
     const [jobCount] = await db.select({ n: count }).from(jobs).where(and(eq(jobs.orgId, orgId), isNull(jobs.deletedAt)));
     const [companyCount] = await db.select({ n: count }).from(companies).where(and(eq(companies.orgId, orgId), isNull(companies.deletedAt)));
     const setup = [
-      { key: "details", label: "Add business details", done: true, href: "/settings" },
-      { key: "logo", label: "Add your logo", done: !!ctx.org.logoFileId, href: "/settings" },
-      { key: "team", label: "Invite your team", done: (members?.n ?? 0) > 1 || (invites?.n ?? 0) > 0, href: "/settings/members" },
+      { key: "details", label: "Add business details", done: true, href: "/profile/company" },
+      { key: "logo", label: "Add your logo", done: !!ctx.org.logoFileId, href: "/profile/company/edit" },
+      { key: "team", label: "Invite your team", done: (members?.n ?? 0) > 1 || (invites?.n ?? 0) > 0, href: "/settings" },
       { key: "import", label: "Import your data", done: (imports?.n ?? 0) > 0, href: "/import" },
       { key: "people", label: "Add your first employee", done: (emps?.n ?? 0) > 0, href: "/people?new=employee" },
       { key: "clients", label: "Add a client or lead", done: (companyCount?.n ?? 0) > 0, href: "/crm/leads?new=lead" },

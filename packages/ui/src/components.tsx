@@ -1,9 +1,10 @@
 import {
-  forwardRef, useId, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes,
+  forwardRef, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
 import { Eye, EyeOff, Search as SearchIcon, ChevronLeft, Inbox } from "lucide-react";
 import { initials } from "@windveal/shared";
+import { useToast } from "./overlays";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 export { cx };
@@ -236,13 +237,28 @@ export function Loading({ label = "Loading" }: { label?: string }) {
 }
 
 export function Notice({ tone = "info", icon, children, action }: { tone?: "info" | "warn" | "error" | "ok"; icon?: ReactNode; children: ReactNode; action?: ReactNode }) {
+  if (tone === "error") return <ErrorNotice action={action}>{children}</ErrorNotice>;
   return (
-    <div className={cx("notice", `notice-${tone}`)} role={tone === "error" ? "alert" : undefined}>
+    <div className={cx("notice", `notice-${tone}`)}>
       {icon}
       <span>{children}</span>
       {action && <span className="act">{action}</span>}
     </div>
   );
+}
+
+/** Errors are shown as toasts. Only a retry action (if any) stays on the page. */
+function ErrorNotice({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  const toast = useToast();
+  const key = typeof children === "string" ? children : null;
+  const shown = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (shown.current === key && shown.current !== undefined) return;
+    shown.current = key;
+    toast(children, "error");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return action ? <div className="notice-retry">{action}</div> : null;
 }
 
 export function Progress({ value }: { value: number }) {

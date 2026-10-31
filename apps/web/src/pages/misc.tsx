@@ -15,6 +15,7 @@ export function Help() {
     ["Recruitment", "Post jobs, review candidates and hire into People & HR.", "/recruitment"],
     ["CRM", "Track leads, deals and clients, and never miss a follow-up.", "/crm"],
     ["Workflows", "Tasks, approvals and reusable checklists across the business.", "/workflows"],
+    ["Profile", "Your details, photo, email and password, and your company profile.", "/profile"],
     ["Settings", "Members, roles and permissions, plan and audit history.", "/settings"],
   ];
   return (

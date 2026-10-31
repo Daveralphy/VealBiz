@@ -88,7 +88,6 @@ export function EmployeeDrawer({ open, onClose, onSaved, employee }: {
         </div>
       </>}>
       <form className="stack" onSubmit={(e) => { e.preventDefault(); save(); }}>
-        {f.formError && <Notice tone="error">{f.formError}</Notice>}
         <div className="section-label">Basic details</div>
         <div className="form-grid">
           <Input label="First name" autoFocus {...f.bind("firstName")} />

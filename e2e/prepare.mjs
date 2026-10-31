@@ -14,3 +14,7 @@ const api = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../apps/
 const env = { ...process.env, WINDVEAL_DATABASE_URL: url };
 execSync("npx drizzle-kit push --force", { cwd: api, stdio: "ignore", env });
 execSync("npx tsx test/fixtures/sample-business.ts", { cwd: api, stdio: "inherit", env });
+// The test business's admin also gets WindVeal admin access, so the admin panel screens are covered.
+const db = postgres(url, { onnotice: () => {} });
+await db`update users set platform_admin = true where email = 'admin@example-trading.test'`;
+await db.end();

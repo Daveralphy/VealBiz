@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, eq, isNull, sql as dsql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql as dsql } from "drizzle-orm";
 import { z } from "zod";
 import { orgBrandingInput, orgDetailsInput, orgPlanInput, orgRoleInput, slugify } from "@windveal/shared";
 import { db } from "../../db/client";
@@ -11,12 +11,15 @@ import { sendMail } from "../../lib/mailer";
 import { mePayload } from "../auth/routes";
 import { seedOrgDefaults } from "./defaults";
 import { currencyForCountry } from "../../lib/pricing";
+import { notifyPlatformAdmins } from "../../lib/platform";
+import { fileView } from "../files/routes";
 
 export function orgView(o: typeof organisations.$inferSelect) {
   return {
     id: o.id, slug: o.slug, legalName: o.legalName, tradingName: o.tradingName, name: o.tradingName || o.legalName,
     industry: o.industry, teamSize: o.teamSize, country: o.country, currency: o.currency, city: o.city, address: o.address,
     registrationNumber: o.registrationNumber, website: o.website, verificationStatus: o.verificationStatus, verificationNote: o.verificationNote,
+    verificationDocumentIds: o.verificationDocumentIds, verificationReviewedAt: o.verificationReviewedAt,
     ownerName: o.ownerName, ownerEmail: o.ownerEmail, brandColor: o.brandColor, tagline: o.tagline, about: o.about,
     logoFileId: o.logoFileId, coverFileId: o.coverFileId, plan: o.plan, billing: o.billing, settings: o.settings,
     setupStep: o.setupStep, createdAt: o.createdAt,
@@ -69,6 +72,7 @@ export default async function orgRoutes(app: FastifyInstance) {
       }, tx);
       return stages;
     });
+    await notifyPlatformAdmins(`New organisation: ${org.legalName}`, `${auth.user.name} (${auth.user.email}) registered ${org.legalName}. It's waiting for verification.`, `/admin/organisations/${org.id}`);
     return { org: orgView(org) };
   });
 
@@ -87,6 +91,11 @@ export default async function orgRoutes(app: FastifyInstance) {
       website: input.website === "" ? null : input.website, version: dsql`${organisations.version} + 1`,
     }).where(eq(organisations.id, ctx.org.id)).returning();
     await audit(ctx, { action: "org.details_updated", category: "settings", summary: `${ctx.user.name} updated the business details`, meta: { fields: Object.keys(input) } });
+    const keyChanged = (input.legalName !== undefined && input.legalName !== ctx.org.legalName)
+      || (input.registrationNumber !== undefined && (input.registrationNumber || null) !== ctx.org.registrationNumber);
+    if (keyChanged) {
+      await notifyPlatformAdmins(`${o!.legalName} changed its registration details`, `${ctx.user.name} changed the registered name or registration number. You may want to check it again.`, `/admin/organisations/${o!.id}`);
+    }
     return { org: orgView(o!) };
   });
 
@@ -147,13 +156,40 @@ export default async function orgRoutes(app: FastifyInstance) {
     return { org: orgView(o!), paymentRequired: input.plan !== "free" };
   });
 
+  /** Documents sent in for verification (certificate of incorporation, etc.). */
+  app.get("/api/org/verification-documents", async (req) => {
+    const ctx = await requireOrg(req);
+    const ids = ctx.org.verificationDocumentIds;
+    const rows = ids.length ? await db.select().from(files).where(and(inArray(files.id, ids), isNull(files.deletedAt))) : [];
+    return rows.map(fileView);
+  });
+
   app.post("/api/org/verification-document", async (req) => {
     const ctx = await requireAdmin(req);
     const { fileId } = parse(z.object({ fileId: z.string().uuid() }), req.body);
-    const [f] = await db.select().from(files).where(and(eq(files.id, fileId), eq(files.orgId, ctx.org.id))).limit(1);
+    const [f] = await db.select().from(files).where(and(eq(files.id, fileId), eq(files.orgId, ctx.org.id), eq(files.uploadedBy, ctx.user.id))).limit(1);
     if (!f) throw notFound("That file");
-    await audit(ctx, { action: "org.verification_document", category: "settings", summary: `${ctx.user.name} uploaded a verification document`, entityType: "file", entityId: f.id });
-    return { ok: true };
+    if (ctx.org.verificationDocumentIds.length >= 10) throw badRequest("You can send up to 10 documents. Remove one first.");
+    // A rejected organisation that sends new documents goes back to the review queue.
+    const [o] = await db.update(organisations).set({
+      verificationDocumentIds: Array.from(new Set([...ctx.org.verificationDocumentIds, f.id])),
+      verificationStatus: ctx.org.verificationStatus === "rejected" ? "pending" : ctx.org.verificationStatus,
+    }).where(eq(organisations.id, ctx.org.id)).returning();
+    await audit(ctx, { action: "org.verification_document", category: "settings", summary: `${ctx.user.name} sent ${f.name} for verification`, entityType: "file", entityId: f.id });
+    if (o!.verificationStatus !== "verified") {
+      await notifyPlatformAdmins(`${o!.legalName} sent a verification document`, `${ctx.user.name} uploaded ${f.name}.`, `/admin/organisations/${o!.id}`);
+    }
+    return { org: orgView(o!) };
+  });
+
+  app.delete<{ Params: { fileId: string } }>("/api/org/verification-document/:fileId", async (req) => {
+    const ctx = await requireAdmin(req);
+    if (!ctx.org.verificationDocumentIds.includes(req.params.fileId)) throw notFound("That document");
+    const [o] = await db.update(organisations).set({
+      verificationDocumentIds: ctx.org.verificationDocumentIds.filter((x) => x !== req.params.fileId),
+    }).where(eq(organisations.id, ctx.org.id)).returning();
+    await audit(ctx, { action: "org.verification_document_removed", category: "settings", summary: `${ctx.user.name} removed a verification document`, entityType: "file", entityId: req.params.fileId });
+    return { org: orgView(o!) };
   });
 
   app.post("/api/org/transfer-primary-admin", async (req) => {

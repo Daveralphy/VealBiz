@@ -92,7 +92,6 @@ export function NewFolderModal({ open, onClose, parentId, folders, onCreated }: 
     <Modal open={open} onClose={onClose} title="New folder"
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={form.busy} onClick={save}>Create folder</Button></>}>
       <form className="stack" onSubmit={(e) => { e.preventDefault(); save(); }}>
-        {form.formError && !Object.keys(form.errors).length && <Notice tone="error">{form.formError}</Notice>}
         <Input label="Name" autoFocus placeholder="e.g. Suppliers" {...form.bind("name")} />
         <Select label="Inside" value={form.values.parentId} onChange={(e) => form.set("parentId", e.target.value)} error={form.errors.parentId}>
           <option value="">All files (top level)</option>
@@ -113,7 +112,6 @@ export function RenameModal({ open, onClose, title, current, onSave }: { open: b
     <Modal open={open} onClose={onClose} title={title}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={form.busy} onClick={save}>Save</Button></>}>
       <form onSubmit={(e) => { e.preventDefault(); save(); }}>
-        {form.formError && !Object.keys(form.errors).length && <Notice tone="error">{form.formError}</Notice>}
         <Input label="Name" autoFocus {...form.bind("name")} />
       </form>
     </Modal>
@@ -168,7 +166,6 @@ export function DetailsModal({ open, onClose, file }: { open: boolean; onClose: 
     <Modal open={open} onClose={onClose} title="Edit details"
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={form.busy} onClick={save}>Save</Button></>}>
       <form className="stack" onSubmit={(e) => { e.preventDefault(); save(); }}>
-        {form.formError && !Object.keys(form.errors).length && <Notice tone="error">{form.formError}</Notice>}
         <Input label="Category" optional list="dc-categories" placeholder="e.g. Client contract" {...form.bind("category")} />
         <datalist id="dc-categories">{CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
         <Input label="Tags" optional hint="Separate with commas, e.g. renewal, linen" {...form.bind("tags")} />

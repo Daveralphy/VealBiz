@@ -234,7 +234,6 @@ function NewRequestModal({ open, onClose, onCreated }: { open: boolean; onClose:
     <Modal open={open} onClose={onClose} title="New request" subtitle="It goes to your manager first, then anyone your admins' rules add."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={form.busy} onClick={save}>Send request</Button></>}>
       <form className="stack" onSubmit={(e) => { e.preventDefault(); save(); }}>
-        {form.formError && !Object.keys(form.errors).length && <Notice tone="error">{form.formError}</Notice>}
         <Select label="Type" value={form.values.kind} onChange={(e) => form.set("kind", e.target.value)}
           options={[{ value: "purchase", label: "Purchase" }, { value: "document", label: "Document sign-off" }, { value: "other", label: "Something else" }]} />
         <Input label="What's it for?" autoFocus placeholder="e.g. Delivery van tyres" {...form.bind("title")} />
@@ -293,7 +292,6 @@ function RulesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       )}
       <h4 className="section-label wf-sec">Add a rule</h4>
       <form className="form-grid" onSubmit={(e) => { e.preventDefault(); add(); }}>
-        {form.formError && !Object.keys(form.errors).length && <div className="span-2"><Notice tone="error">{form.formError}</Notice></div>}
         <Select label="For" value={form.values.kind} onChange={(e) => form.set("kind", e.target.value)}
           options={[{ value: "purchase", label: "Purchases" }, { value: "document", label: "Documents" }, { value: "offer", label: "Job offers" }, { value: "other", label: "Other requests" }]} />
         <Input label={`Over amount (${org.currency})`} optional inputMode="decimal" placeholder="Any amount" {...form.bind("minAmount")} />

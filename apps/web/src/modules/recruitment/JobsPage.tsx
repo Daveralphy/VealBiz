@@ -101,7 +101,7 @@ export function JobsPage() {
   return (
     <>
       {!verified && (
-        <Notice tone="warn" icon={<Lock size={18} />} action={<Link to="/settings">Check status</Link>}>
+        <Notice tone="warn" icon={<Lock size={18} />} action={<Link to="/profile/company">Check status</Link>}>
           <b>Your careers page isn't live yet.</b> Jobs can be shared publicly once {org.name} is verified. You can prepare them now.
         </Notice>
       )}

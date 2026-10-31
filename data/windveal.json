@@ -26,6 +26,7 @@
     "email": "raphaeldaveal@gmail.com",
     "workEmail": "raphael@windveal.com",
     "jobTitle": "CEO and Manager",
-    "department": "Leadership"
+    "department": "Leadership",
+    "platformAdmin": true
   }
 }

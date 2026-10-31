@@ -137,7 +137,6 @@ export function CompanyModal({ open, onClose, company, onSaved }: { open: boolea
   return (
     <Modal open={open} onClose={onClose} title={company ? `Edit ${company.name}` : "New company"} subtitle={company ? undefined : "Add a business you sell to or want to sell to."}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>{company ? "Save changes" : "Add company"}</Button></>}>
-      {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         <Input label="Company name" wrapClassName="span-2" autoFocus {...f.bind("name")} />
         <Input label="Industry" optional placeholder="e.g. Hospitality" {...f.bind("industry")} />
@@ -192,7 +191,6 @@ export function DealModal({ open, onClose, companyId, onSaved }: { open: boolean
   return (
     <Modal open={open} onClose={onClose} title="New deal" subtitle="Track an opportunity through your pipeline."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Add deal</Button></>}>
-      {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         {!companyId && (
           <div className="span-2">
@@ -259,7 +257,6 @@ export function LeadModal({ open, onClose, lead }: { open: boolean; onClose: () 
   return (
     <Modal open={open} onClose={onClose} title={lead ? `Edit ${lead.companyName}` : "Add lead"} subtitle={lead ? undefined : "Someone you might sell to. Qualify them before they become a deal."}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>{lead ? "Save changes" : "Add lead"}</Button></>}>
-      {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         <Input label="Company name" wrapClassName="span-2" autoFocus {...f.bind("companyName")} />
         <Input label="Contact name" optional {...f.bind("contactName")} />
@@ -324,7 +321,6 @@ export function ConvertModal({ lead, onClose, onDone }: { lead: Lead | null; onC
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} disabled={!preview} onClick={convert}>Convert to client</Button></>}>
       {loadError ? <ErrorNotice error={loadError} /> : !preview ? <Loading /> : (
         <div className="stack">
-          {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
           <div>
             <div className="section-label crm-sec">Company</div>
             {existing && (
@@ -387,7 +383,6 @@ export function ReasonModal({ open, onClose, title, subtitle, label, confirm, on
         </div>
       )}
       <Input label={label} autoFocus {...f.bind("reason")} />
-      {f.formError && !f.errors.reason && <Notice tone="error">{f.formError}</Notice>}
     </Modal>
   );
 }
@@ -499,7 +494,6 @@ export function ActivityComposer({ target, contacts = [], initialType = "note", 
           <AssigneeSelect value={f.values.fuAssignee} onChange={(v) => f.set("fuAssignee", v)} />
         </div>
       )}
-      {f.formError && <div className="crm-composer-err" role="alert">{Object.values(f.errors).find(Boolean) ?? f.formError}</div>}
       <div className="crm-composer-foot">
         <Button variant="secondary" size="sm" icon={withFollowUp ? <X size={14} /> : <Clock size={14} />} onClick={() => setWithFollowUp((x) => !x)}>
           {withFollowUp ? "No follow-up" : "Add follow-up"}
@@ -643,7 +637,6 @@ export function FollowUpModal({ open, onClose, target }: { open: boolean; onClos
   return (
     <Modal open={open} onClose={onClose} title="New follow-up" subtitle={target ? target.name : "A reminder to get back to a client, deal or lead."}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Add follow-up</Button></>}>
-      {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         <Input label="What needs to happen" wrapClassName="span-2" autoFocus placeholder="e.g. Call Grace about the proposal" {...f.bind("title")} />
         {!target && (
@@ -766,7 +759,6 @@ function DealEditModal({ open, onClose, deal, contacts }: { open: boolean; onClo
   return (
     <Modal open={open} onClose={onClose} title="Edit deal"
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Save changes</Button></>}>
-      {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         <Input label="Deal name" wrapClassName="span-2" {...f.bind("name")} />
         <Input label={`Value (${org.currency})`} inputMode="decimal" {...f.bind("value")} />

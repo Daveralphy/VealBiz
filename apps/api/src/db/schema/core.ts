@@ -8,6 +8,10 @@ export const users = pgTable("users", {
   email: text("email").notNull(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
+  phone: text("phone"),
+  avatarFileId: uuid("avatar_file_id"),
+  /** WindVeal staff: can open the WindVeal admin panel and review every organisation. */
+  platformAdmin: boolean("platform_admin").notNull().default(false),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
   ...timestamps(),
@@ -39,8 +43,10 @@ export const sessions = pgTable("sessions", {
 export const authTokens = pgTable("auth_tokens", {
   id: pk(),
   userId: uuid("user_id").notNull().references(() => users.id),
-  purpose: text("purpose").$type<"verify_email" | "reset_password">().notNull(),
+  purpose: text("purpose").$type<"verify_email" | "reset_password" | "change_email" | "change_password">().notNull(),
   tokenHash: text("token_hash").notNull(),
+  /** Extra data for the token, e.g. the new address for an email change. */
+  payload: text("payload"),
   attempts: integer("attempts").notNull().default(0),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),
@@ -73,6 +79,10 @@ export const organisations = pgTable("organisations", {
   website: text("website"),
   verificationStatus: text("verification_status").$type<"pending" | "verified" | "rejected">().notNull().default("pending"),
   verificationNote: text("verification_note"),
+  /** Certificates and other documents uploaded to support verification. */
+  verificationDocumentIds: jsonb("verification_document_ids").$type<string[]>().notNull().default([]),
+  verificationReviewedAt: timestamp("verification_reviewed_at", { withTimezone: true }),
+  verificationReviewedBy: uuid("verification_reviewed_by"),
   ownerName: text("owner_name"),
   ownerEmail: text("owner_email"),
   createdBy: uuid("created_by").notNull().references(() => users.id),

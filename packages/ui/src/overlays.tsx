@@ -71,23 +71,41 @@ export function Menu({ trigger, children, align = "right" }: { trigger: (toggle:
   );
 }
 
-type Toast = { id: number; text: string; tone: "default" | "error" };
-const ToastCtx = createContext<(text: string, tone?: "default" | "error") => void>(() => {});
+type Toast = { id: number; text: ReactNode; tone: "default" | "error" };
+type Push = (text: ReactNode, tone?: "default" | "error") => void;
+const ToastCtx = createContext<Push>(() => {});
 export const useToast = () => useContext(ToastCtx);
+
+let globalPush: Push | null = null;
+/** Shows a toast from outside React (e.g. a query client error handler). */
+export function showToast(text: ReactNode, tone: "default" | "error" = "default") {
+  globalPush?.(text, tone);
+}
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Toast[]>([]);
-  const push = useCallback((text: string, tone: "default" | "error" = "default") => {
+  const recent = useRef(new Map<string, number>());
+  const push = useCallback<Push>((text, tone = "default") => {
+    // The same message raised twice in a moment (e.g. by a form and the query client) shows once.
+    if (typeof text === "string") {
+      const now = Date.now();
+      if ((recent.current.get(text) ?? 0) > now - 2000) return;
+      recent.current.set(text, now);
+    }
     const id = Date.now() + Math.random();
     setItems((t) => [...t, { id, text, tone }]);
-    setTimeout(() => setItems((t) => t.filter((x) => x.id !== id)), 3800);
+    setTimeout(() => setItems((t) => t.filter((x) => x.id !== id)), tone === "error" ? 6000 : 3800);
   }, []);
+  useEffect(() => {
+    globalPush = push;
+    return () => { if (globalPush === push) globalPush = null; };
+  }, [push]);
   return (
     <ToastCtx.Provider value={push}>
       {children}
       {createPortal(
         <div className="toasts" aria-live="polite">
-          {items.map((t) => <div key={t.id} className={`toast ${t.tone === "error" ? "error" : ""}`}>{t.text}</div>)}
+          {items.map((t) => <div key={t.id} className={`toast ${t.tone === "error" ? "error" : ""}`} role={t.tone === "error" ? "alert" : undefined}>{t.text}</div>)}
         </div>,
         document.body,
       )}

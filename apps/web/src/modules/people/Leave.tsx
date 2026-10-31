@@ -90,7 +90,6 @@ export function RequestLeaveModal({ open, onClose, employeeId, employeeName }: {
     <Modal open={open} onClose={onClose} title={employeeName ? `Request leave for ${employeeName}` : "Request leave"}
       subtitle="Weekends and public holidays aren't counted."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} disabled={!!noRecord} onClick={save}>Send request</Button></>}>
-      {f.formError && <Notice tone="error">{f.formError}</Notice>}
       {noRecord && !canForOthers && <Notice tone="warn">You don't have an employee record yet. Ask HR to add you to People & HR first.</Notice>}
       <div className="stack">
         {canForOthers && !employeeId && (
@@ -335,7 +334,6 @@ function ManageLeaveTypes({ onClose }: { onClose: () => void }) {
           <IconButton label={`Remove ${h.name}`} onClick={() => removeHol.mutate(h.id)}><Trash2 size={16} /></IconButton>
         </div>
       ))}
-      {hol.formError && <Notice tone="error">{hol.formError}</Notice>}
       <div className="ppl-hol-form">
         <Input placeholder="Holiday name" aria-label="Holiday name" {...hol.bind("name")} />
         <Input type="date" aria-label="Date" {...hol.bind("day")} />
@@ -363,7 +361,6 @@ function LeaveTypeModal({ type, onClose, onSaved }: { type: LeaveType | null; on
   return (
     <Modal open onClose={onClose} title={type ? `Edit ${type.name}` : "Add leave type"}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Save</Button></>}>
-      {f.formError && <Notice tone="error">{f.formError}</Notice>}
       <div className="stack">
         <Input label="Name" placeholder="e.g. Study leave" {...f.bind("name")} />
         <Input label="Days a year" optional inputMode="decimal" hint="Leave empty for no set limit" {...f.bind("daysPerYear")} />

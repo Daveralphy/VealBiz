@@ -273,3 +273,5 @@ button { font: inherit; color: inherit; }
 
 .wv-logo.always-light .on-light { display: none; }
 .wv-logo.always-light .on-dark { display: block; }
+
+.notice-retry { display: flex; justify-content: center; padding: 16px 0; }

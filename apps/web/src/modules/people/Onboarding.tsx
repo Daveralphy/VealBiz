@@ -149,7 +149,6 @@ function AddTaskModal({ checklist, onClose, onSaved }: { checklist: Detail; onCl
   return (
     <Modal open onClose={onClose} title="Add task" subtitle={`To ${checklist.employee.name}'s ${checklist.kind}. It also appears in Workflows.`}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Add task</Button></>}>
-      {f.formError && <Notice tone="error">{f.formError}</Notice>}
       <div className="stack">
         <Input label="Task" autoFocus placeholder="e.g. Order laptop" {...f.bind("title")} />
         <Input label="Details" optional {...f.bind("description")} />

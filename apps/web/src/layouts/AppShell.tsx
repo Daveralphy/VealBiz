@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell, Briefcase, ChevronDown, CircleHelp, CreditCard, Download, FileText, Home, LineChart, LogOut, Menu as MenuIcon, Moon,
-  PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, SquareCheck, User, UserPlus, Users, X,
+  PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShieldCheck, SquareCheck, User, UserPlus, Users, X, Building2,
 } from "lucide-react";
 import { Avatar, BrandLogo, Menu, Progress, Switch, IconButton } from "@windveal/ui";
 import { formatBytes, type Workspace } from "@windveal/shared";
@@ -31,7 +31,7 @@ function OrgMark({ size = 40 }: { size?: number }) {
 }
 
 function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () => void; onNavigate?: () => void }) {
-  const { org, can, isAdmin } = useSession();
+  const { org, user, can, isAdmin } = useSession();
   const { data: counts } = useQuery({ queryKey: ["shell-counts"], queryFn: () => api.get<{ tasks: number }>("/api/overview/counts"), refetchInterval: 60_000 });
   const { data: storage } = useQuery({ queryKey: ["storage"], queryFn: () => api.get<{ used: number; limit: number }>("/api/storage"), staleTime: 300_000 });
   const statusColor = org.verificationStatus === "verified" ? "var(--ok-dot)" : org.verificationStatus === "rejected" ? "#e5484d" : "#e0a43c";
@@ -50,7 +50,7 @@ function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () 
           {onToggle && <span className="tip">{mini ? "Expand" : "Collapse"} sidebar<kbd>Ctrl B</kbd></span>}
         </button>
         {!mini && (
-          <Link to="/settings" className="sb-org-name" onClick={onNavigate}>
+          <Link to="/profile/company" className="sb-org-name" onClick={onNavigate}>
             <span style={{ minWidth: 0, flex: 1 }}>
               <b>{org.name}</b>
               <small style={{ color: org.verificationStatus === "verified" ? "var(--ok)" : "var(--warn)" }}><i style={{ background: statusColor }} />{statusText}</small>
@@ -66,6 +66,7 @@ function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () 
         <div className="sb-lab">Organisation</div><div className="sb-sep" />
         {(isAdmin || can("people", "manage") || can("crm", "manage") || can("recruitment", "manage")) && item("/import", "Import data", <Download size={18} />)}
         {item("/settings", "Settings", <Settings size={18} />)}
+        {user.platformAdmin && item("/admin", "WindVeal admin", <ShieldCheck size={18} />)}
         {item("/help", "Help", <CircleHelp size={18} />)}
       </nav>
       <div className="sb-grow" />
@@ -181,14 +182,16 @@ function AccountMenu() {
     navigate("/sign-in");
   };
   return (
-    <Menu trigger={(toggle) => <button className="me-btn" onClick={toggle} aria-label="Account menu"><Avatar name={user.name} size={36} /><ChevronDown size={16} /></button>}>
+    <Menu trigger={(toggle) => <button className="me-btn" onClick={toggle} aria-label="Account menu"><Avatar name={user.name} size={36} src={user.avatarFileId ? publicFileUrl(user.avatarFileId) : null} /><ChevronDown size={16} /></button>}>
       {(close) => (
         <div style={{ width: 280 }}>
           <div className="row" style={{ padding: "10px 10px 12px", borderBottom: "1px solid var(--line)", marginBottom: 6 }}>
-            <Avatar name={user.name} size={36} />
+            <Avatar name={user.name} size={36} src={user.avatarFileId ? publicFileUrl(user.avatarFileId) : null} />
             <div style={{ minWidth: 0 }}><b className="ink" style={{ display: "block" }}>{user.name}</b><small className="muted">{user.email} · {membership.role}</small></div>
           </div>
-          <button onClick={() => { close(); navigate("/settings/profile"); }}><User size={16} />My profile</button>
+          <button onClick={() => { close(); navigate("/profile"); }}><User size={16} />My profile</button>
+          <button onClick={() => { close(); navigate("/profile/company"); }}><Building2 size={16} />Company profile</button>
+          {user.platformAdmin && <button onClick={() => { close(); navigate("/admin"); }}><ShieldCheck size={16} />WindVeal admin</button>}
           <button onClick={(e) => { e.preventDefault(); setTheme(theme === "dark" ? "light" : "dark"); }}>
             <Moon size={16} />Dark mode<span style={{ marginLeft: "auto" }}><Switch label="Dark mode" checked={theme === "dark"} onChange={(v) => setTheme(v ? "dark" : "light")} /></span>
           </button>

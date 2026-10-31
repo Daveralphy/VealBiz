@@ -1,12 +1,17 @@
 import { useState } from "react";
+import { useToast } from "@windveal/ui";
 import { ApiError } from "./api";
 
-/** Minimal form state helper: values, per-field errors (from the API's `details`), and a submit wrapper. */
+/**
+ * Minimal form state helper: values, per-field errors (from the API's `details`), and a submit wrapper.
+ * Errors are shown as toasts; field errors also mark the fields they belong to.
+ */
 export function useForm<T extends Record<string, any>>(initial: T) {
   const [values, setValues] = useState<T>(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   const set = <K extends keyof T>(k: K, v: T[K]) => {
     setValues((s) => ({ ...s, [k]: v }));
@@ -27,12 +32,8 @@ export function useForm<T extends Record<string, any>>(initial: T) {
     try {
       await fn(values);
     } catch (e) {
-      if (e instanceof ApiError) {
-        if (e.details) setErrors(e.details);
-        setFormError(e.message);
-      } else {
-        setFormError("Something went wrong. Please try again.");
-      }
+      if (e instanceof ApiError && e.details) setErrors(e.details);
+      toast(e instanceof ApiError ? e.message : "Something went wrong. Please try again.", "error");
     } finally {
       setBusy(false);
     }

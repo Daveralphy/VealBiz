@@ -1,17 +1,16 @@
-import { useEffect, useRef, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, Download, KeyRound, Lock, MoreHorizontal, Pause, Plus, Shield, Trash2, Upload, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download, KeyRound, Lock, MoreHorizontal, Pause, Plus, Shield, Trash2, X } from "lucide-react";
 import {
   Avatar, Button, Card, ConfirmDialog, EmptyState, IconButton, Input, Loading, Menu, Modal, Notice, PageHeader, Pill, Progress,
-  SearchInput, Segmented, Select, Switch, Textarea, useToast,
+  SearchInput, Segmented, Select, Switch, useToast,
 } from "@windveal/ui";
 import {
-  ACCESS_LEVELS, INDUSTRIES, SPECIAL_PERMISSIONS, TEAM_SIZES, WORKSPACES, WORKSPACE_LABELS, formatBytes, formatMoney,
+  ACCESS_LEVELS, SPECIAL_PERMISSIONS, WORKSPACES, WORKSPACE_LABELS, formatBytes, formatMoney,
 } from "@windveal/shared";
-import { api, ApiError, publicFileUrl } from "../../lib/api";
-import { ME_KEY, useSession } from "../../lib/session";
-import { useForm } from "../../lib/form";
+import { api, ApiError } from "../../lib/api";
+import { useSession } from "../../lib/session";
 import { CONTACT_EMAIL } from "../../lib/config";
 import { monthlyPrice, usePricing, yearlyTotal, type PricingPlan } from "../../lib/pricing";
 import { fmtDate, timeAgo } from "../../lib/format";
@@ -19,8 +18,8 @@ import { fmtDate, timeAgo } from "../../lib/format";
 function SettingsTabs() {
   const { isAdmin } = useSession();
   const tabs = [
-    ["/settings", "Organisation", true], ["/settings/members", "Members", true], ["/settings/roles", "Roles and permissions", isAdmin],
-    ["/settings/billing", "Plan and billing", true], ["/settings/audit", "Audit history", isAdmin], ["/settings/profile", "My profile", true],
+    ["/settings", "Members", true], ["/settings/roles", "Roles and permissions", isAdmin],
+    ["/settings/billing", "Plan and billing", true], ["/settings/audit", "Audit history", isAdmin],
   ] as const;
   return (
     <div className="tabs">
@@ -28,146 +27,6 @@ function SettingsTabs() {
         <NavLink key={to} to={to} end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>{label}</NavLink>
       ))}
     </div>
-  );
-}
-
-// ---------------- Organisation ----------------
-function Organisation() {
-  const { isAdmin, membership } = useSession();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const orgQ = useQuery({ queryKey: ["org"], queryFn: () => api.get("/api/org") });
-  const membersQ = useQuery({ queryKey: ["members"], queryFn: () => api.get<any[]>("/api/members") });
-  const f = useForm({ legalName: "", tradingName: "", industry: "", teamSize: "", city: "", address: "", registrationNumber: "", website: "" });
-  const [transfer, setTransfer] = useState(false);
-  const [target, setTarget] = useState("");
-  const certInput = useRef<HTMLInputElement>(null);
-  const o = orgQ.data?.org;
-  const loaded = useRef(false);
-  useEffect(() => {
-    if (o && !loaded.current) {
-      loaded.current = true;
-      f.setValues({ legalName: o.legalName, tradingName: o.tradingName ?? "", industry: o.industry ?? "", teamSize: o.teamSize ?? "", city: o.city ?? "", address: o.address ?? "", registrationNumber: o.registrationNumber ?? "", website: o.website ?? "" });
-    }
-  }, [o]);
-  if (!o) return <Loading />;
-  const countryName = new Intl.DisplayNames(["en"], { type: "region" }).of(o.country) ?? o.country;
-  const owner = (membersQ.data ?? []).find((m) => m.isOwner);
-  const primary = (membersQ.data ?? []).find((m) => m.isPrimaryAdmin);
-  const status = o.verificationStatus as string;
-  return (
-    <div className="grid-side side-360">
-      <div>
-        <Card title="Business details" subtitle="Used for verification, invoices and your careers page.">
-          <form noValidate onSubmit={(e) => { e.preventDefault(); f.submit(async (v) => { await api.patch("/api/org/details", v); await qc.invalidateQueries({ queryKey: ["org"] }); await qc.invalidateQueries({ queryKey: ME_KEY }); toast("Business details saved"); }); }}>
-            <fieldset disabled={!isAdmin} style={{ border: 0, padding: 0, margin: 0 }}>
-              <div className="form-grid">
-                <Input label="Registered business name" {...f.bind("legalName")} />
-                <Input label="Trading name" optional {...f.bind("tradingName")} />
-                <Select label="Industry" options={INDUSTRIES} {...f.bind("industry")} />
-                <Select label="Team size" options={TEAM_SIZES} {...f.bind("teamSize")} />
-                <Input label="Country" value={`${countryName} · ${o.currency}`} disabled hint="Sets your currency. Contact support to change it." readOnly />
-                <Input label="City" {...f.bind("city")} />
-                <Input label="Business address" wrapClassName="span-2" {...f.bind("address")} />
-                <Input label="Company registration number" {...f.bind("registrationNumber")} />
-                <Input label="Website" {...f.bind("website")} />
-              </div>
-            </fieldset>
-            {isAdmin && <div className="row" style={{ justifyContent: "flex-end", borderTop: "1px solid var(--line)", paddingTop: 16, marginTop: 18 }}><Button type="submit" loading={f.busy}>Save changes</Button></div>}
-          </form>
-        </Card>
-        <BrandingCard org={o} />
-      </div>
-      <div>
-        <Card title="Verification" subtitle="Usually takes 1 to 2 working days." actions={
-          <Pill tone={status === "verified" ? "ok" : status === "rejected" ? "red" : "warn"}>{status === "verified" ? "Verified" : status === "rejected" ? "Not verified" : "Pending"}</Pill>
-        } className={status === "pending" ? "" : ""}>
-          <div className="stack" style={{ gap: 12, marginBottom: 16, fontSize: 14 }}>
-            <div className="row"><Pill tone="ok">✓</Pill><span>Business details submitted<br /><small className="muted">{fmtDate(o.createdAt)}</small></span></div>
-            <div className="row"><Pill tone={status === "verified" ? "ok" : "warn"}>{status === "verified" ? "✓" : "…"}</Pill><span>Checking registration details<br /><small className="muted">{status === "verified" ? "Done" : "In progress"}</small></span></div>
-            <div className="row"><Pill tone={status === "verified" ? "ok" : "grey"}>{status === "verified" ? "✓" : "3"}</Pill><span>Careers page goes live<br /><small className="muted">{status === "verified" ? "Live" : "After verification"}</small></span></div>
-          </div>
-          {o.verificationNote && <Notice tone="info">{o.verificationNote}</Notice>}
-          {isAdmin && status !== "verified" && <>
-            <Button variant="secondary" block icon={<Upload size={15} />} onClick={() => certInput.current?.click()}>Upload a certificate to speed this up</Button>
-            <input ref={certInput} type="file" accept=".pdf,.png,.jpg,.jpeg" hidden onChange={async (e) => {
-              const file = e.target.files?.[0]; if (!file) return;
-              try {
-                const r = await api.upload<{ file: { id: string } }>("/api/files", file, { kind: "system" });
-                await api.post("/api/org/verification-document", { fileId: r.file.id });
-                toast("Thanks. We've added it to your verification.");
-              } catch (err) { toast(err instanceof ApiError ? err.message : "Upload failed", "error"); }
-              e.target.value = "";
-            }} />
-          </>}
-          {import.meta.env.DEV && isAdmin && status !== "verified" && (
-            <p className="field-hint" style={{ marginTop: 10 }}>Testing locally? <button className="link" onClick={async () => { await api.post("/api/dev/verify-org", { status: "verified" }); qc.invalidateQueries(); toast("Marked as verified (development only)"); }}>Mark as verified</button></p>
-          )}
-        </Card>
-        <Card title="Ownership" subtitle="The owner and primary admin can't be removed.">
-          <div className="stack" style={{ gap: 0 }}>
-            <div className="list-row"><Avatar name={o.ownerName ?? owner?.name ?? "Owner"} /><div style={{ minWidth: 0, flex: 1 }}><b className="ink" style={{ display: "block" }}>{o.ownerName ?? owner?.name ?? "Not set"}</b><small className="muted">{o.ownerEmail ?? ""}</small></div><Pill>Owner</Pill></div>
-            {primary && <div className="list-row"><Avatar name={primary.name} /><div style={{ minWidth: 0, flex: 1 }}><b className="ink" style={{ display: "block" }}>{primary.name}{primary.isYou && <Pill tone="blue" className="" >You</Pill>}</b><small className="muted">{primary.jobTitle ?? primary.email}</small></div><Pill>Primary admin</Pill></div>}
-          </div>
-          {membership.isPrimaryAdmin && <Button variant="secondary" block style={{ marginTop: 14 }} onClick={() => setTransfer(true)}>Transfer primary admin</Button>}
-        </Card>
-      </div>
-      <Modal open={transfer} onClose={() => setTransfer(false)} title="Transfer primary admin" subtitle="The new primary admin gets full control and becomes the only person who can transfer it again."
-        footer={<><Button variant="secondary" onClick={() => setTransfer(false)}>Cancel</Button><Button disabled={!target} onClick={async () => {
-          try { await api.post("/api/org/transfer-primary-admin", { membershipId: target }); await qc.invalidateQueries(); setTransfer(false); toast("Primary admin transferred"); }
-          catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't transfer", "error"); }
-        }}>Transfer</Button></>}>
-        <Select label="New primary admin" placeholder="Choose a member" value={target} onChange={(e) => setTarget(e.target.value)}
-          options={(membersQ.data ?? []).filter((m) => !m.isYou && m.status === "active").map((m) => ({ value: m.id, label: `${m.name} (${m.role})` }))} />
-      </Modal>
-    </div>
-  );
-}
-
-function BrandingCard({ org }: { org: any }) {
-  const { isAdmin } = useSession();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const [open, setOpen] = useState(false);
-  const [color, setColor] = useState<string>(org.brandColor ?? "#1E6B47");
-  const [tagline, setTagline] = useState<string>(org.tagline ?? "");
-  const [about, setAbout] = useState<string>(org.about ?? "");
-  const [perks, setPerks] = useState<string>((org.settings?.perks ?? []).join("\n"));
-  const [logo, setLogo] = useState<string | null>(org.logoFileId);
-  const [cover, setCover] = useState<string | null>(org.coverFileId);
-  const save = useMutation({
-    mutationFn: () => api.patch("/api/org/branding", { brandColor: color, tagline, about, logoFileId: logo, coverFileId: cover, perks: perks.split("\n").map((p) => p.trim()).filter(Boolean) }),
-    onSuccess: async () => { await qc.invalidateQueries({ queryKey: ["org"] }); await qc.invalidateQueries({ queryKey: ME_KEY }); setOpen(false); toast("Branding saved"); },
-    onError: (e) => toast(e instanceof ApiError ? e.message : "Couldn't save", "error"),
-  });
-  const pick = async (file: File | undefined, set: (id: string) => void) => {
-    if (!file) return;
-    try { const r = await api.upload<{ file: { id: string } }>("/api/files", file, { kind: "system" }); set(r.file.id); }
-    catch (e) { toast(e instanceof ApiError ? e.message : "Upload failed", "error"); }
-  };
-  return (
-    <Card title="Branding and careers page" subtitle="Your logo, cover and colour." actions={isAdmin && <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>Edit branding</Button>}>
-      <div className="row" style={{ gap: 14 }}>
-        <span style={{ width: 52, height: 52, borderRadius: 12, background: org.logoFileId ? "#fff" : org.brandColor ?? "var(--navy)", overflow: "hidden", flex: "none", border: "1px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800 }}>
-          {org.logoFileId ? <img src={publicFileUrl(org.logoFileId)} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : org.name.slice(0, 1)}
-        </span>
-        <span style={{ flex: 1, height: 52, borderRadius: 12, background: org.coverFileId ? `url(${publicFileUrl(org.coverFileId)}) center/cover` : "var(--soft)", border: "1px solid var(--line)" }} />
-        <span className="row" style={{ border: "1px solid var(--line)", borderRadius: 10, padding: "8px 12px", fontSize: 13 }}><i style={{ width: 14, height: 14, borderRadius: 4, background: org.brandColor ?? "#1E6B47" }} />{org.brandColor ?? "Not set"}</span>
-      </div>
-      <Modal open={open} onClose={() => setOpen(false)} title="Edit branding" size="lg"
-        footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button loading={save.isPending} onClick={() => save.mutate()}>Save</Button></>}>
-        <div className="stack">
-          <div className="form-grid">
-            <label className="field"><span className="field-label">Logo</span><input type="file" accept="image/*" onChange={(e) => pick(e.target.files?.[0], setLogo)} /></label>
-            <label className="field"><span className="field-label">Cover image</span><input type="file" accept="image/*" onChange={(e) => pick(e.target.files?.[0], setCover)} /></label>
-          </div>
-          <label className="field"><span className="field-label">Brand colour</span><span className="row"><input type="color" value={color} onChange={(e) => setColor(e.target.value.toUpperCase())} /><span className="muted">{color}</span></span></label>
-          <Input label="Tagline" value={tagline} onChange={(e) => setTagline(e.target.value)} />
-          <Textarea label="About your business" value={about} onChange={(e) => setAbout(e.target.value)} />
-          <Textarea label="Why work with us" hint="One perk per line. Shown on your careers page." value={perks} onChange={(e) => setPerks(e.target.value)} />
-        </div>
-      </Modal>
-    </Card>
   );
 }
 
@@ -503,57 +362,20 @@ function Audit() {
   );
 }
 
-// ---------------- Profile ----------------
-function Profile() {
-  const { user } = useSession();
-  const qc = useQueryClient();
-  const toast = useToast();
-  const navigate = useNavigate();
-  const nameF = useForm({ name: user.name });
-  const pwF = useForm({ currentPassword: "", password: "" });
-  const devices = useQuery({ queryKey: ["devices"], queryFn: () => api.get<any[]>("/api/auth/devices") });
-  return (
-    <div className="grid-2">
-      <div>
-        <Card title="Your details">
-          <form className="stack" onSubmit={(e) => { e.preventDefault(); nameF.submit(async (v) => { qc.setQueryData(ME_KEY, await api.patch("/api/auth/profile", v)); toast("Saved"); }); }}>
-            <Input label="Full name" {...nameF.bind("name")} />
-            <Input label="Email" value={user.email} disabled readOnly hint="Contact your admin to change your email." />
-            <div><Button type="submit" loading={nameF.busy}>Save</Button></div>
-          </form>
-        </Card>
-        <Card title="Change password" subtitle="You'll stay signed in here and be signed out everywhere else.">
-          <form className="stack" onSubmit={(e) => { e.preventDefault(); pwF.submit(async (v) => { await api.post("/api/auth/change-password", v); pwF.setValues({ currentPassword: "", password: "" }); toast("Password changed"); }); }}>
-            {pwF.formError && !Object.keys(pwF.errors).length && <Notice tone="error">{pwF.formError}</Notice>}
-            <Input label="Current password" type="password" autoComplete="current-password" {...pwF.bind("currentPassword")} />
-            <Input label="New password" type="password" autoComplete="new-password" hint="At least 10 characters with a number, an uppercase letter and a symbol." {...pwF.bind("password")} />
-            <div><Button type="submit" loading={pwF.busy}>Change password</Button></div>
-          </form>
-        </Card>
-      </div>
-      <Card title="Your devices" subtitle="Where you're signed in to WindVeal." actions={<Button variant="danger" size="sm" onClick={async () => { await api.post("/api/auth/logout-all"); qc.clear(); navigate("/sign-in"); }}>Sign out everywhere</Button>}>
-        {devices.isLoading ? <Loading /> : (devices.data ?? []).map((d) => (
-          <div key={d.id} className="list-row"><Clock size={18} className="muted" /><div style={{ flex: 1 }}><b className="ink" style={{ display: "block" }}>{d.label}{d.current && <> <Pill tone="ok">This device</Pill></>}</b><small className="muted">Last active {timeAgo(d.lastSeenAt)}</small></div>{d.blocked && <Pill tone="red">Blocked</Pill>}</div>
-        ))}
-      </Card>
-    </div>
-  );
-}
-
 export function SettingsRoutes() {
   const { org, isAdmin } = useSession();
   useEffect(() => { document.title = "Settings · WindVeal"; }, []);
   return (
     <>
-      <PageHeader title="Settings" subtitle={`Manage ${org.name}, your team and your plan.`} />
+      <PageHeader title="Settings" subtitle={`Manage ${org.name}'s team, permissions and plan. Your details and the company's are in Profile.`} />
       <SettingsTabs />
       <Routes>
-        <Route index element={<Organisation />} />
-        <Route path="members" element={<Members />} />
+        <Route index element={<Members />} />
+        <Route path="members" element={<Navigate to="/settings" replace />} />
         <Route path="roles" element={isAdmin ? <Roles /> : <Navigate to="/settings" replace />} />
         <Route path="billing" element={<Billing />} />
         <Route path="audit" element={isAdmin ? <Audit /> : <Navigate to="/settings" replace />} />
-        <Route path="profile" element={<Profile />} />
+        <Route path="profile" element={<Navigate to="/profile" replace />} />
         <Route path="*" element={<Navigate to="/settings" replace />} />
       </Routes>
     </>

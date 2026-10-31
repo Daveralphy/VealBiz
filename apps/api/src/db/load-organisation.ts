@@ -55,6 +55,8 @@ const fileSchema = z.object({
     workEmail: z.string().trim().toLowerCase().email().optional().nullable(),
     jobTitle: blankable(120),
     department: blankable(120),
+    /** WindVeal staff only: opens the WindVeal admin panel (review and approve organisations). */
+    platformAdmin: z.boolean().default(false),
   }),
 });
 
@@ -114,10 +116,10 @@ if (!user) {
 const newUser = !user;
 if (!user) {
   [user] = await db.insert(s.users).values({
-    email: owner.email, name: owner.name, passwordHash: await hashPassword(randomToken(32)), emailVerifiedAt: new Date(),
+    email: owner.email, name: owner.name, passwordHash: await hashPassword(randomToken(32)), emailVerifiedAt: new Date(), platformAdmin: owner.platformAdmin,
   }).returning();
 } else {
-  await db.update(s.users).set({ name: owner.name, emailVerifiedAt: user.emailVerifiedAt ?? new Date() }).where(eq(s.users.id, user.id));
+  await db.update(s.users).set({ name: owner.name, platformAdmin: owner.platformAdmin, emailVerifiedAt: user.emailVerifiedAt ?? new Date() }).where(eq(s.users.id, user.id));
 }
 const u = user!;
 
@@ -190,7 +192,7 @@ const token = randomToken();
 await db.insert(s.authTokens).values({ userId: u.id, purpose: "reset_password", tokenHash: sha256(token), expiresAt: new Date(Date.now() + 7 * 86_400_000) });
 
 console.log(`\n✓ ${newOrg ? "Created" : "Updated"} ${o.tradingName ?? o.legalName} (${o.verificationStatus}, ${o.plan} plan, ${currency}) from ${path.relative(process.cwd(), target)}`);
-console.log(`✓ ${newUser ? "Created" : "Updated"} ${owner.name} <${owner.email}> as owner and primary admin`);
+console.log(`✓ ${newUser ? "Created" : "Updated"} ${owner.name} <${owner.email}> as owner and primary admin${owner.platformAdmin ? ", with WindVeal admin access" : ""}`);
 console.log(`\nSet your password here (valid for 7 days), then sign in:\n  ${env.appUrl}/reset-password?token=${token}\n`);
 console.log(`Careers page: ${env.siteUrl}/careers/${o.slug}\n`);
 await sql.end();

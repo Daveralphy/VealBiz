@@ -82,7 +82,6 @@ function Details() {
           navigate("/setup/role");
         });
       }}>
-        {f.formError && <Notice tone="error">{f.formError}</Notice>}
         <div className="form-grid">
           <Input label="Registered business name" {...f.bind("legalName")} autoFocus />
           <Input label="Trading name" optional {...f.bind("tradingName")} />
@@ -152,7 +151,6 @@ function Role() {
         ) : (
           <div className="form-grid"><Input label="Your job title" optional placeholder="Managing Director" {...f.bind("jobTitle")} /></div>
         )}
-        {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
         <div className="wz-foot">
           <Link to="/setup/details" className="link row"><ArrowLeft size={15} />Back</Link>
           <div className="r"><Button type="submit" size="lg" loading={f.busy}>Continue <ArrowRight size={16} /></Button></div>

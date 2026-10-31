@@ -229,7 +229,6 @@ function PayModal({ open, onClose, e, pay, onSaved }: { open: boolean; onClose: 
   return (
     <Modal open={open} onClose={onClose} title={`${e.firstName}'s pay details`} subtitle="Changes are recorded in the audit history."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Save</Button></>}>
-      {f.formError && <Notice tone="error">{f.formError}</Notice>}
       <div className="form-grid">
         <Input label="Salary" inputMode="decimal" {...f.bind("salaryAmount")} />
         <Input label="Currency" maxLength={3} {...f.bind("currency")} />
@@ -399,7 +398,6 @@ function LeavingModal({ open, e, onClose, onDone }: { open: boolean; e: Profile;
   return (
     <Modal open={open} onClose={onClose} title={`Mark ${e.firstName} as leaving`} subtitle="This starts the offboarding checklist, including removing app access on the last day."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Mark as leaving</Button></>}>
-      {f.formError && <Notice tone="error">{f.formError}</Notice>}
       <div className="stack">
         <Input label="Last working day" type="date" {...f.bind("endDate")} />
         <Input label="Reason" optional placeholder="e.g. Resigned, end of contract" {...f.bind("reason")} />

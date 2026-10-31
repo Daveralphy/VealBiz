@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
+import { ToastProvider } from "@windveal/ui";
 import "@windveal/ui/styles.css";
 import "./site.css";
 import Home from "./pages/Home";
@@ -51,6 +52,8 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <ToastProvider>
+      <App />
+    </ToastProvider>
   </React.StrictMode>,
 );

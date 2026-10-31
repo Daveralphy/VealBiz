@@ -35,13 +35,13 @@ export function CareersTab() {
             </div>
           </div>
         ) : (
-          <Notice tone="warn" icon={<Lock size={18} />} action={<Link to="/settings">Check status</Link>}>
+          <Notice tone="warn" icon={<Lock size={18} />} action={<Link to="/profile/company">Check status</Link>}>
             <b>Your careers page is locked until {org.name} is verified.</b> {org.verificationStatus === "rejected"
               ? "Verification wasn't approved. Check the details in Settings."
               : "You can prepare jobs now. They'll go live once verification is done."}
           </Notice>
         )}
-        {isAdmin && <p className="muted rc-mt">Logo, cover image, tagline and perks come from <Link to="/settings">your organisation's branding settings</Link>.</p>}
+        {isAdmin && <p className="muted rc-mt">Logo, cover image, tagline and perks come from <Link to="/profile/company">your organisation's branding settings</Link>.</p>}
       </Card>
 
       <Card title="On the careers page" subtitle={verified ? "Open jobs with “Show on careers page” turned on." : "These will show once you're verified."} flush>

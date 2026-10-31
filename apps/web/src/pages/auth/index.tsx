@@ -58,7 +58,6 @@ export function SignIn() {
       <h1>Welcome back.</h1>
       <p className="sub">Sign in to your WindVeal account.</p>
       <form noValidate onSubmit={(e) => { e.preventDefault(); f.submit(async (v) => after(await api.post<Me>("/api/auth/login", v))); }}>
-        {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
         <Input label="Email" type="email" autoComplete="email" autoFocus {...f.bind("email")} />
         <div className="field">
           <div className="between"><label className="field-label" htmlFor="pw">Password</label><Link to="/forgot-password" className="link" style={{ fontSize: 13 }}>Forgot password?</Link></div>
@@ -105,7 +104,6 @@ export function CreateAccount() {
       <h1>Create your account.</h1>
       <p className="sub">Start with your own account. You'll set up your business next.</p>
       <form noValidate onSubmit={(e) => { e.preventDefault(); f.submit(async (v) => after(await api.post<Me>("/api/auth/register", v))); }}>
-        {f.formError && !Object.keys(f.errors).length && <Notice tone="error">{f.formError}</Notice>}
         <Input label="Full name" autoComplete="name" autoFocus {...f.bind("name")} />
         <Input label="Email" type="email" autoComplete="email" {...f.bind("email")} />
         <div className="field">
@@ -261,7 +259,6 @@ export function ResetPassword() {
           <h1>Choose a new password.</h1>
           <p className="sub">Make it something you don't use anywhere else.</p>
           <form noValidate onSubmit={(e) => { e.preventDefault(); f.submit(async (v) => { await api.post("/api/auth/reset-password", { token, password: v.password }); setDone(true); }); }}>
-            {f.formError && !f.errors.password && <Notice tone="error">{f.formError}</Notice>}
             <div className="field">
               <PasswordInput label="New password" autoFocus autoComplete="new-password" {...f.bind("password")} />
               <PasswordRules value={f.values.password} />

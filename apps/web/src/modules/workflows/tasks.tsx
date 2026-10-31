@@ -294,7 +294,6 @@ export function NewTaskModal({ open, onClose, onCreated }: { open: boolean; onCl
     <Modal open={open} onClose={onClose} title="New task" size="lg"
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={form.busy} onClick={save}>Create task</Button></>}>
       <form className="form-grid" onSubmit={(e) => { e.preventDefault(); save(); }}>
-        {form.formError && !Object.keys(form.errors).length && <div className="span-2"><Notice tone="error">{form.formError}</Notice></div>}
         <Input wrapClassName="span-2" label="Title" autoFocus placeholder="e.g. Send revised price list" {...form.bind("title")} />
         <Textarea wrapClassName="span-2" label="Details" optional rows={3} placeholder="Anything the assignee should know" {...form.bind("description")} />
         <Select label="Assigned to" value={form.values.assigneeUserId} onChange={(e) => form.set("assigneeUserId", e.target.value)} error={form.errors.assigneeUserId}>

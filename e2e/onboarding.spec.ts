@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { PASSWORD, latestMail, signIn } from "./helpers";
+import { APP_URL, PASSWORD, latestMail, signIn } from "./helpers";
 
 test("a new business signs up, sets up and lands on Overview", async ({ page }) => {
   const email = `owner-${Date.now()}@example.com`;
@@ -58,4 +58,11 @@ test("a member can't open admin-only settings", async ({ page }) => {
   await page.goto("/settings/audit");
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByRole("link", { name: "Audit history" })).toHaveCount(0);
+});
+
+test("only WindVeal admins can open the admin panel", async ({ page }) => {
+  await signIn(page, "member@example-trading.test");
+  await page.goto("/admin");
+  await expect(page).toHaveURL(`${APP_URL}/`);
+  await expect(page.locator('nav[aria-label="Main"] a[href="/admin"]')).toHaveCount(0);
 });

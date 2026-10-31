@@ -5,6 +5,8 @@ import { AppShell } from "./layouts/AppShell";
 import { SignIn, CreateAccount, VerifyEmail, ForgotPassword, ResetPassword, AcceptInvite } from "./pages/auth";
 import { SetupRoutes } from "./pages/setup";
 import { SettingsRoutes } from "./pages/settings";
+import { ProfileRoutes } from "./pages/profile";
+import { AdminRoutes } from "./pages/admin";
 import { Overview } from "./pages/overview/Overview";
 import { Help, NotFound, DevMailbox } from "./pages/misc";
 import PeopleModule from "./modules/people";
@@ -63,6 +65,8 @@ const router = createBrowserRouter([
       { path: "/insights/*", element: <InsightsModule /> },
       { path: "/import/*", element: <ImportModule /> },
       { path: "/settings/*", element: <SettingsRoutes /> },
+      { path: "/profile/*", element: <ProfileRoutes /> },
+      { path: "/admin/*", element: <AdminRoutes /> },
       { path: "/help", element: <Help /> },
       { path: "*", element: <NotFound /> },
     ],

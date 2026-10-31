@@ -174,7 +174,6 @@ function DepartmentModal({ dept, onClose }: { dept: Department | null; onClose: 
   return (
     <Modal open onClose={onClose} title={dept ? `Edit ${dept.name}` : "New department"}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>{dept ? "Save" : "Create department"}</Button></>}>
-      {f.formError && <Notice tone="error">{f.formError}</Notice>}
       <form className="stack" onSubmit={(e) => { e.preventDefault(); save(); }}>
         <Input label="Name" autoFocus placeholder="e.g. Operations" {...f.bind("name")} />
         <Select label="Head of department" optional {...f.bind("headEmployeeId")} placeholder="No one yet"

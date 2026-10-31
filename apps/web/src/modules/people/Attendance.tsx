@@ -154,7 +154,6 @@ function CorrectionModal({ row, date, onClose }: { row: Row; date: string; onClo
   return (
     <Modal open onClose={onClose} title={`Correct ${row.employee.name}'s times`} subtitle={new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} onClick={save}>Save correction</Button></>}>
-      {f.formError && <Notice tone="error">{f.formError}</Notice>}
       <div className="stack">
         <div className="form-grid">
           <Input label="Clock in" type="time" {...f.bind("clockIn")} />

@@ -23,6 +23,17 @@ export const verifyEmailInput = z.object({ code: z.string().regex(/^\d{6}$/, "En
 export const forgotPasswordInput = z.object({ email });
 export const resetPasswordInput = z.object({ token: z.string().min(20), password });
 
+/** Personal profile (Profile → Personal). Email and password change through their own confirmed flows. */
+export const profileInput = z.object({
+  name: z.string().trim().min(2, "Enter your full name").max(120),
+  phone: optionalText(40),
+  jobTitle: optionalText(120),
+  avatarFileId: id.nullable().optional(),
+});
+export const emailChangeInput = z.object({ newEmail: email, currentPassword: z.string().min(1, "Enter your password") });
+export const passwordCodeInput = z.object({ currentPassword: z.string().min(1, "Enter your current password") });
+export const passwordChangeInput = z.object({ code: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"), password });
+
 export const orgDetailsInput = z.object({
   legalName: z.string().trim().min(2, "Enter the registered business name").max(200),
   tradingName: optionalText(),

@@ -49,7 +49,7 @@ export function Overview() {
     <>
       {org.verificationStatus !== "verified" && !hideBanner && (
         <Notice tone="warn" icon={<Clock size={20} />} action={
-          <span className="row">{isAdmin && <Link to="/settings" style={{ color: "var(--warn)" }}>Check status</Link>}
+          <span className="row">{isAdmin && <Link to="/profile/company" style={{ color: "var(--warn)" }}>Check status</Link>}
             <IconButton label="Dismiss" onClick={() => { setHideBanner(true); try { sessionStorage.setItem("wv-hide-verify", "1"); } catch { /* ignore */ } }}><X size={16} /></IconButton></span>
         }>
           <b>We're verifying {org.name}.</b> Your careers page goes live once you're verified, usually within 1 to 2 working days.
