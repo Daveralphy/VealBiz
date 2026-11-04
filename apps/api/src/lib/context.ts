@@ -7,6 +7,7 @@ import { db } from "../db/client";
 import { devices, memberships, organisations, sessions, users } from "../db/schema";
 import { sha256 } from "./crypto";
 import { forbidden, unauthorized } from "./http";
+import { ensureRoles, loadRole, type RoleRow } from "./roles";
 
 export const SESSION_COOKIE = "wv_session";
 export const DEVICE_COOKIE = "wv_device";
@@ -22,6 +23,8 @@ export type OrgContext = {
   membership: Membership;
   access: Record<Workspace, AccessLevel>;
   special: SpecialPermission[];
+  /** Their role (null for admins). */
+  role: RoleRow | null;
   deviceLabel: string | null;
 };
 
@@ -60,18 +63,43 @@ export function requireUser(req: FastifyRequest, opts: { verified?: boolean } = 
   return req.auth;
 }
 
-export function computeAccess(org: Org, m: Membership): Record<Workspace, AccessLevel> {
-  const role = m.role as Role;
-  if (role === "admin") return { ...DEFAULT_ACCESS.admin };
-  const base = { ...DEFAULT_ACCESS[role], ...(org.settings.roleAccess?.[role] ?? {}) };
+/** What their role allows (before anything changed for them alone). */
+export function roleAccess(org: Org, m: Membership, role: RoleRow | null): Record<Workspace, AccessLevel> {
+  const tier = m.role as Role;
+  if (tier === "admin") return { ...DEFAULT_ACCESS.admin };
+  if (role) return { ...DEFAULT_ACCESS.member, ...role.access };
+  return { ...DEFAULT_ACCESS[tier], ...(org.settings.roleAccess?.[tier] ?? {}) };
+}
+
+export function roleSpecial(org: Org, m: Membership, role: RoleRow | null): SpecialPermission[] {
+  const tier = m.role as Role;
+  if (tier === "admin") return [...DEFAULT_SPECIAL.admin];
+  if (role) return role.special as SpecialPermission[];
+  return (org.settings.roleSpecial?.[tier] as SpecialPermission[] | undefined) ?? DEFAULT_SPECIAL[tier];
+}
+
+/** Everything someone can open: their role, plus whatever an admin changed for them alone. */
+export function computeAccess(org: Org, m: Membership, role: RoleRow | null): Record<Workspace, AccessLevel> {
+  const base = roleAccess(org, m, role);
+  if (m.role === "admin") return base;
   return Object.fromEntries(WORKSPACES.map((w) => [w, m.workspaceAccess?.[w] ?? base[w]])) as Record<Workspace, AccessLevel>;
 }
 
-export function computeSpecial(org: Org, m: Membership): SpecialPermission[] {
-  const role = m.role as Role;
-  if (role === "admin") return [...DEFAULT_SPECIAL.admin];
-  const base = (org.settings.roleSpecial?.[role] as SpecialPermission[] | undefined) ?? DEFAULT_SPECIAL[role];
+export function computeSpecial(org: Org, m: Membership, role: RoleRow | null): SpecialPermission[] {
+  const base = roleSpecial(org, m, role);
+  if (m.role === "admin") return base;
   return Array.from(new Set([...base, ...((m.specialPermissions ?? []) as SpecialPermission[])]));
+}
+
+/** A membership's role, putting the organisation's roles in place first if it has none yet. */
+export async function roleOf(org: Org, m: Membership): Promise<{ m: Membership; role: RoleRow | null }> {
+  if (m.role === "admin") return { m, role: null };
+  if (!m.roleId) {
+    await ensureRoles(org);
+    const [fresh] = await db.select().from(memberships).where(eq(memberships.id, m.id)).limit(1);
+    m = fresh ?? m;
+  }
+  return { m, role: await loadRole(org.id, m.roleId) };
 }
 
 export type OrgOpts = {
@@ -102,12 +130,14 @@ export async function requireOrg(req: FastifyRequest, opts: OrgOpts = {}): Promi
       ? "This organisation's WindVeal account is closed. Contact WindVeal support if you need it back."
       : "This organisation's WindVeal account is paused. Contact WindVeal support.");
   }
+  const { m, role } = await roleOf(row.o, row.m);
   req.orgCtx = {
     user: auth.user,
     org: row.o,
-    membership: row.m,
-    access: computeAccess(row.o, row.m),
-    special: computeSpecial(row.o, row.m),
+    membership: m,
+    access: computeAccess(row.o, m, role),
+    special: computeSpecial(row.o, m, role),
+    role,
     deviceLabel: auth.deviceLabel,
   };
   assertApproved(req.orgCtx, opts);
@@ -126,6 +156,13 @@ export async function requireAccess(req: FastifyRequest, ws: Workspace, level: A
 export async function requireAdmin(req: FastifyRequest, opts: OrgOpts = {}): Promise<OrgContext> {
   const ctx = await requireOrg(req, opts);
   if (ctx.membership.role !== "admin") throw forbidden("Only admins can do that.");
+  return ctx;
+}
+
+/** Admins, and anyone whose role (or own access) lets them invite and manage members. */
+export async function requireMemberManager(req: FastifyRequest): Promise<OrgContext> {
+  const ctx = await requireOrg(req);
+  if (ctx.membership.role !== "admin" && !ctx.special.includes("manage_members")) throw forbidden("You can't manage members.");
   return ctx;
 }
 

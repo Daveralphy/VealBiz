@@ -9,7 +9,7 @@ import {
 } from "../../db/schema";
 import { requirePlatformAdmin } from "../../lib/platform";
 import { badRequest, notFound, parse } from "../../lib/http";
-import { audit, notify } from "../../lib/audit";
+import { audit } from "../../lib/audit";
 import { sendMail } from "../../lib/mailer";
 import { readObject } from "../../lib/storage";
 import { randomToken, sha256 } from "../../lib/crypto";

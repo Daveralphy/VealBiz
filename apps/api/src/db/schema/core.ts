@@ -113,11 +113,30 @@ export const organisations = pgTable("organisations", {
   ...tracked(),
 }, (t) => [uniqueIndex("organisations_slug_uq").on(t.slug)]);
 
+/**
+ * What a group of people can open. Admin is built in (everything) and isn't stored here. Every organisation
+ * has a Manager role; custom roles come with Growth and up.
+ */
+export const roles = pgTable("roles", {
+  id: pk(),
+  orgId: uuid("org_id").notNull().references(() => organisations.id),
+  name: text("name").notNull(),
+  description: text("description"),
+  kind: text("kind").$type<"manager" | "custom">().notNull().default("custom"),
+  access: jsonb("access").$type<Record<Workspace, AccessLevel>>().notNull(),
+  special: jsonb("special").$type<string[]>().notNull().default([]),
+  createdBy: uuid("created_by"),
+  ...tracked(),
+}, (t) => [index("roles_org_idx").on(t.orgId)]);
+
 export const memberships = pgTable("memberships", {
   id: pk(),
   orgId: uuid("org_id").notNull().references(() => organisations.id),
   userId: uuid("user_id").notNull().references(() => users.id),
+  /** "admin", or the tier of their role: "manager" for the Manager role, "member" for a custom one. */
   role: text("role").$type<"admin" | "manager" | "member">().notNull(),
+  /** Their role (null for admins). */
+  roleId: uuid("role_id"),
   status: text("status").$type<"active" | "suspended">().notNull().default("active"),
   isPrimaryAdmin: boolean("is_primary_admin").notNull().default(false),
   isOwner: boolean("is_owner").notNull().default(false),
@@ -136,6 +155,7 @@ export const invitations = pgTable("invitations", {
   orgId: uuid("org_id").notNull().references(() => organisations.id),
   email: text("email").notNull(),
   role: text("role").$type<"admin" | "manager" | "member">().notNull(),
+  roleId: uuid("role_id"),
   tokenHash: text("token_hash").notNull(),
   invitedBy: uuid("invited_by").notNull().references(() => users.id),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

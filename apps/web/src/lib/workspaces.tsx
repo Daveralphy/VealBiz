@@ -8,7 +8,7 @@ import type { Workspace } from "@windveal/shared";
 import { useSession } from "./session";
 
 /** What decides whether someone can see an area or one of its sections. */
-export type Viewer = { isAdmin: boolean; platformAdmin: boolean; canImport: boolean };
+export type Viewer = { isAdmin: boolean; platformAdmin: boolean; canImport: boolean; canManageMembers: boolean };
 
 /** A page inside a workspace, shown in that workspace's sidebar. */
 export type Section = {
@@ -100,11 +100,12 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
   },
   {
     key: "settings", label: "Settings", base: "/settings", icon: i(Settings), blurb: "Team and permissions", group: "manage",
+    visible: (v) => v.isAdmin || v.canManageMembers,
     sections: [
       { to: "/settings", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
       { to: "/settings/members", label: "Members", icon: <Users size={18} /> },
-      { to: "/settings/invitations", label: "Invitations", icon: <Mail size={18} />, badge: "invitations", visible: (v) => v.isAdmin },
-      { to: "/settings/roles", label: "Roles and permissions", icon: <KeyRound size={18} />, visible: (v) => v.isAdmin },
+      { to: "/settings/invitations", label: "Invitations", icon: <Mail size={18} />, badge: "invitations" },
+      { to: "/settings/roles", label: "Roles", icon: <KeyRound size={18} />, visible: (v) => v.isAdmin },
       { to: "/settings/audit", label: "Audit history", icon: <ScrollText size={18} />, visible: (v) => v.isAdmin },
     ],
   },
@@ -149,12 +150,27 @@ export function sectionActive(ws: WorkspaceDef, s: Section, path: string): boole
 
 /** Who can open which areas and sections (workspace access for workspaces; roles for the rest). */
 export function useAreaAccess() {
-  const { isAdmin, user, can } = useSession();
+  const { isAdmin, user, can, hasSpecial } = useSession();
+  const importer = hasSpecial("import_data");
   const viewer: Viewer = {
-    isAdmin, platformAdmin: !!user.platformAdmin,
-    canImport: isAdmin || can("people", "manage") || can("crm", "manage") || can("recruitment", "manage"),
+    isAdmin, platformAdmin: !!user.platformAdmin, canManageMembers: hasSpecial("manage_members"),
+    canImport: isAdmin || (["people", "crm", "recruitment"] as Workspace[]).some((w) => can(w, "manage") || (importer && can(w, "edit"))),
   };
   const canOpen = (w: WorkspaceDef) => (w.group === "workspace" ? can(w.key as Workspace) : w.visible ? w.visible(viewer) : true);
   const sectionsOf = (w: WorkspaceDef) => w.sections.filter((s) => !s.visible || s.visible(viewer));
-  return { viewer, canOpen, sectionsOf };
+  /**
+   * Whether a page can be opened at all, however it was reached (a link, the address bar, an old bookmark).
+   * The server checks the same rules on every request; this keeps people from landing on a screen they can't use.
+   */
+  const canOpenPath = (path: string) => {
+    const w = workspaceFor(path);
+    if (!w) return true;
+    if (!canOpen(w)) return false;
+    const section = w.sections.find((s) => s.to !== w.base && sectionActive(w, s, path));
+    if (section?.visible && !section.visible(viewer)) return false;
+    // Creating or editing something needs Edit in that workspace.
+    if (w.group === "workspace" && /\/(new|edit)$/.test(path) && !can(w.key as Workspace, "edit")) return false;
+    return true;
+  };
+  return { viewer, canOpen, sectionsOf, canOpenPath };
 }

@@ -29,7 +29,9 @@ const EDITABLE = ["uploaded", "mapping", "reviewing"] as const;
 type Job = typeof importJobs.$inferSelect;
 type RowRec = typeof importRows.$inferSelect;
 
-const canImportTo = (ctx: OrgContext, ws: Workspace) => ctx.membership.role === "admin" || ctx.access[ws] === "manage";
+/** Admins, people who manage that workspace, and people allowed to import who can edit it. */
+const canImportTo = (ctx: OrgContext, ws: Workspace) => ctx.membership.role === "admin" || ctx.access[ws] === "manage"
+  || (ctx.special.includes("import_data") && ["edit", "manage"].includes(ctx.access[ws]));
 const canImportAnywhere = (ctx: OrgContext) => DESTINATIONS.some((d) => canImportTo(ctx, d.workspace));
 
 function requireDestination(ctx: OrgContext, dest: string) {

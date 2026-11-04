@@ -1,28 +1,31 @@
 import { useEffect, useState } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, KeyRound, Lock, MoreHorizontal, Pause, Pencil, Plus, Shield, Trash2, UserCog, X } from "lucide-react";
+import { Download, KeyRound, Lock, MoreHorizontal, Pause, Plus, Trash2, X } from "lucide-react";
 import {
-  Avatar, Button, Card, ConfirmDialog, EmptyState, IconButton, Input, Loading, Menu, Modal, Notice, PageHeader, Pill, Progress,
-  SearchInput, Segmented, Select, Switch, useToast,
+  Avatar, Button, Card, ConfirmDialog, EmptyState, IconButton, Loading, Menu, Modal, PageHeader, Pill, Progress, SearchInput, Segmented, useToast,
 } from "@windveal/ui";
-import {
-  ACCESS_LEVELS, SPECIAL_PERMISSIONS, WORKSPACES, WORKSPACE_LABELS, formatBytes, formatMoney,
-} from "@windveal/shared";
+import { WORKSPACES, WORKSPACE_LABELS, formatBytes, formatMoney } from "@windveal/shared";
 import { api, ApiError } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { DashBars, DashCard, DashColumns, DashKpis, DashRow } from "../../components/dashboard";
 import { CONTACT_EMAIL } from "../../lib/config";
 import { monthlyPrice, usePricing, yearlyTotal, type PricingPlan } from "../../lib/pricing";
 import { fmtDate, timeAgo } from "../../lib/format";
+import { InviteModal, MemberPage, RolePage, RolesList } from "./access";
+
+/** Admins, and people whose role lets them invite and manage members. */
+function useCanManageMembers() {
+  const { isAdmin, hasSpecial } = useSession();
+  return isAdmin || hasSpecial("manage_members");
+}
 
 // ---------------- Dashboard ----------------
-const ROLE_NAMES: Record<string, string> = { admin: "Admins", manager: "Managers", member: "Members" };
-
 function SettingsDashboard() {
   const { isAdmin } = useSession();
+  const canManage = useCanManageMembers();
   const membersQ = useQuery({ queryKey: ["members"], queryFn: () => api.get<any[]>("/api/members") });
-  const invitesQ = useQuery({ queryKey: ["invitations"], queryFn: () => api.get<any[]>("/api/invitations"), enabled: isAdmin });
+  const invitesQ = useQuery({ queryKey: ["invitations"], queryFn: () => api.get<any[]>("/api/invitations"), enabled: canManage });
   const auditQ = useQuery({ queryKey: ["audit", "dashboard"], queryFn: () => api.get<{ items: any[] }>("/api/audit?days=30"), enabled: isAdmin });
   const members = membersQ.data ?? [];
   const active = members.filter((m) => m.status === "active");
@@ -30,14 +33,17 @@ function SettingsDashboard() {
   const joined = members.filter((m) => m.joinedAt && Date.parse(m.joinedAt) > monthAgo).length;
   const waiting = (invitesQ.data ?? []).filter((i) => !i.expired);
   const newest = [...members].sort((a, b) => Date.parse(b.joinedAt ?? 0) - Date.parse(a.joinedAt ?? 0)).slice(0, 5);
-  const byRole = ["admin", "manager", "member"].map((r) => ({ label: ROLE_NAMES[r]!, value: active.filter((m) => m.role === r).length }));
+  const roleNames = [...new Set(active.map((m) => m.roleName as string))].sort((a, b) => (a === "Admin" ? -1 : b === "Admin" ? 1 : a.localeCompare(b)));
+  const byRole = roleNames.map((r) => ({ label: r, value: active.filter((m) => m.roleName === r).length }));
   return (
     <>
       <DashKpis loading={membersQ.isLoading} items={[
         { label: "Team", value: active.length, note: members.length > active.length ? `${members.length - active.length} suspended` : "all active", to: "/settings/members" },
         { label: "Joined in the last 30 days", value: joined, note: joined ? "welcome them in" : "no one new" },
-        ...(isAdmin ? [
+        ...(canManage ? [
           { label: "Invitations waiting", value: waiting.length, note: waiting.length ? "not accepted yet" : "none waiting", to: "/settings/invitations" },
+        ] : []),
+        ...(isAdmin ? [
           { label: "Changes in the last 30 days", value: auditQ.data?.items.length ?? 0, note: "in the audit history", to: "/settings/audit" },
         ] : []),
       ]} />
@@ -62,12 +68,12 @@ function SettingsDashboard() {
           <DashCard title="People by role" sub="Active members">
             <DashBars rows={byRole} />
           </DashCard>
-          {isAdmin && (
+          {canManage && (
             <DashCard title="Waiting to join" sub="Invited but not accepted yet" link={{ to: "/settings/invitations", label: "Invitations" }} loading={invitesQ.isLoading}
               empty={!invitesQ.isLoading && !waiting.length && "Everyone you invited has joined."}>
               {waiting.slice(0, 5).map((i) => (
                 <DashRow key={i.id} title={i.email} detail={`Invited by ${i.invitedBy} · ${timeAgo(i.createdAt)}`}
-                  end={<Pill tone="grey">{i.role[0].toUpperCase() + i.role.slice(1)}</Pill>} />
+                  end={<Pill tone="grey">{i.roleName}</Pill>} />
               ))}
             </DashCard>
           )}
@@ -81,6 +87,8 @@ function SettingsDashboard() {
 /** Members and Invitations are separate pages in the sidebar; they share the same actions and dialogs. */
 function Members({ view }: { view: "members" | "invites" }) {
   const { isAdmin } = useSession();
+  const canManage = useCanManageMembers();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
   const [q, setQ] = useState("");
@@ -88,26 +96,25 @@ function Members({ view }: { view: "members" | "invites" }) {
   const [status, setStatus] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [confirm, setConfirm] = useState<{ kind: "remove" | "suspend"; m: any } | null>(null);
-  const [accessFor, setAccessFor] = useState<any | null>(null);
-  const [roleFor, setRoleFor] = useState<any | null>(null);
   const membersQ = useQuery({ queryKey: ["members"], queryFn: () => api.get<any[]>("/api/members") });
-  const invitesQ = useQuery({ queryKey: ["invitations"], queryFn: () => api.get<any[]>("/api/invitations") });
+  const invitesQ = useQuery({ queryKey: ["invitations"], queryFn: () => api.get<any[]>("/api/invitations"), enabled: canManage });
   const refresh = () => { qc.invalidateQueries({ queryKey: ["members"] }); qc.invalidateQueries({ queryKey: ["invitations"] }); qc.invalidateQueries({ queryKey: ["audit"] }); };
   const act = async (fn: () => Promise<unknown>, ok: string) => {
     try { await fn(); refresh(); toast(ok); } catch (e) { toast(e instanceof ApiError ? e.message : "Something went wrong", "error"); }
   };
   const members = (membersQ.data ?? []).filter((m) =>
-    (!q || `${m.name} ${m.email}`.toLowerCase().includes(q.toLowerCase())) && (!role || m.role === role) && (!status || m.status === status));
+    (!q || `${m.name} ${m.email}`.toLowerCase().includes(q.toLowerCase())) && (!role || m.roleName === role) && (!status || m.status === status));
   return (
     <>
       <div className="toolbar">
         {view === "members" && <>
           <SearchInput value={q} onChange={setQ} placeholder="Search members" />
-          <select className="select chip-select" value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role"><option value="">Role: All</option><option value="admin">Admin</option><option value="manager">Manager</option><option value="member">Member</option></select>
+          <select className="select chip-select" value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role"><option value="">Role: All</option>
+            {[...new Set((membersQ.data ?? []).map((m) => m.roleName as string))].sort().map((r) => <option key={r} value={r}>{r}</option>)}</select>
           <select className="select chip-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status"><option value="">Status: All</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
         </>}
         <span className="grow" />
-        {isAdmin && <Button icon={<Plus size={15} />} onClick={() => setInviteOpen(true)}>Invite people</Button>}
+        {canManage && <Button icon={<Plus size={15} />} onClick={() => setInviteOpen(true)}>Invite people</Button>}
       </div>
       {view === "members" ? (
         membersQ.isLoading ? <Loading /> : (
@@ -116,19 +123,17 @@ function Members({ view }: { view: "members" | "invites" }) {
               <thead><tr><th>Name</th><th>Role</th><th className="hide-sm">Workspace access</th><th>Status</th><th className="hide-sm">Last active</th><th /></tr></thead>
               <tbody>
                 {members.map((m) => (
-                  <tr key={m.id}>
+                  <tr key={m.id} className={canManage ? "clickable" : undefined} onClick={canManage ? () => navigate(`/settings/members/${m.id}`) : undefined}>
                     <td><div className="cell-main"><Avatar name={m.name} /><div style={{ minWidth: 0 }}><b>{m.name} {m.isYou && <Pill>You</Pill>}</b><small>{m.email}</small></div></div></td>
-                    <td><span className="row muted" style={{ gap: 6 }}>{m.isPrimaryAdmin && <Lock size={13} />}{m.role[0].toUpperCase() + m.role.slice(1)}</span></td>
+                    <td><span className="row muted" style={{ gap: 6 }}>{m.isPrimaryAdmin && <Lock size={13} />}{m.roleName}</span></td>
                     <td className="hide-sm"><div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
                       {m.role === "admin" ? <Pill tone="grey">All workspaces</Pill> : WORKSPACES.filter((w) => m.access[w] !== "none").map((w) => <Pill key={w} tone="grey">{WORKSPACE_LABELS[w]}</Pill>)}
                     </div></td>
                     <td><Pill tone={m.status === "active" ? "ok" : "grey"}>{m.status === "active" ? "Active" : "Suspended"}</Pill></td>
                     <td className="hide-sm muted">{m.isYou ? "Now" : m.lastActiveAt ? timeAgo(m.lastActiveAt) : "Not yet"}</td>
-                    <td style={{ width: 40 }}>{isAdmin && !m.isYou && (
+                    <td style={{ width: 40 }} onClick={(e) => e.stopPropagation()}>{canManage && !m.isYou && (isAdmin || m.role !== "admin") && (
                       <Menu trigger={(t) => <IconButton label={`Actions for ${m.name}`} onClick={t}><MoreHorizontal size={18} /></IconButton>}>
                         {(close) => <>
-                          {!m.isPrimaryAdmin && <button onClick={() => { close(); setRoleFor(m); }}><UserCog size={16} />Change role</button>}
-                          <button onClick={() => { close(); setAccessFor(m); }}><Shield size={16} />Edit workspace access</button>
                           <button onClick={() => { close(); act(() => api.post(`/api/members/${m.id}/password-reset`), `Reset link sent to ${m.email}`); }}><KeyRound size={16} />Send password reset</button>
                           <hr />
                           {m.status === "active"
@@ -146,13 +151,13 @@ function Members({ view }: { view: "members" | "invites" }) {
           </div>
         )
       ) : (
-        invitesQ.isLoading ? <Loading /> : (invitesQ.data ?? []).length === 0 ? <Card><EmptyState title="No pending invitations" action={isAdmin && <Button onClick={() => setInviteOpen(true)}>Invite people</Button>} /></Card> : (
+        invitesQ.isLoading ? <Loading /> : (invitesQ.data ?? []).length === 0 ? <Card><EmptyState title="No pending invitations" /></Card> : (
           <table className="table">
             <thead><tr><th>Email</th><th>Role</th><th className="hide-sm">Invited by</th><th>Expires</th><th /></tr></thead>
             <tbody>{(invitesQ.data ?? []).map((i) => (
-              <tr key={i.id}><td><b className="ink">{i.email}</b></td><td>{i.role}</td><td className="hide-sm">{i.invitedBy}</td>
+              <tr key={i.id}><td><b className="ink">{i.email}</b></td><td>{i.roleName}</td><td className="hide-sm">{i.invitedBy}</td>
                 <td>{i.expired ? <Pill tone="red">Expired</Pill> : fmtDate(i.expiresAt)}</td>
-                <td>{isAdmin && <div className="row" style={{ justifyContent: "flex-end" }}>
+                <td>{canManage && <div className="row" style={{ justifyContent: "flex-end" }}>
                   <Button size="sm" variant="secondary" onClick={() => act(() => api.post(`/api/invitations/${i.id}/resend`), "Invitation sent again")}>Resend</Button>
                   <IconButton label="Cancel invitation" onClick={() => act(() => api.del(`/api/invitations/${i.id}`), "Invitation cancelled")}><X size={16} /></IconButton>
                 </div>}</td></tr>
@@ -160,10 +165,8 @@ function Members({ view }: { view: "members" | "invites" }) {
           </table>
         )
       )}
-      {isAdmin && <p className="muted row" style={{ marginTop: 14, fontSize: 13 }}><Lock size={15} />The primary admin can't be demoted or removed. Transfer primary admin in Organisation first.</p>}
+      {isAdmin && view === "members" && <p className="muted row" style={{ marginTop: 14, fontSize: 13 }}><Lock size={15} />The primary admin can't be demoted or removed. Transfer primary admin from Profile, Company.</p>}
       <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} onDone={refresh} />
-      {accessFor && <AccessModal member={accessFor} onClose={() => setAccessFor(null)} onSaved={refresh} />}
-      {roleFor && <RoleModal member={roleFor} onClose={() => setRoleFor(null)} onSave={(role) => act(async () => { await api.patch(`/api/members/${roleFor.id}`, { role }); setRoleFor(null); }, `${roleFor.name} is now ${role === "admin" ? "an admin" : `a ${role}`}`)} />}
       <ConfirmDialog open={!!confirm} onClose={() => setConfirm(null)} danger
         title={confirm?.kind === "remove" ? `Remove ${confirm?.m.name}?` : `Suspend ${confirm?.m.name}?`}
         confirmLabel={confirm?.kind === "remove" ? "Remove" : "Suspend access"}
@@ -175,160 +178,6 @@ function Members({ view }: { view: "members" | "invites" }) {
         {confirm?.kind === "remove" ? "They'll lose access straight away and be signed out on every device. Their work stays in WindVeal." : "They'll be signed out on every device until you restore their access."}
       </ConfirmDialog>
     </>
-  );
-}
-
-function InviteModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
-  const toast = useToast();
-  const [rows, setRows] = useState([{ email: "", role: "member" }]);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const send = async () => {
-    setBusy(true); setErr(null);
-    try {
-      const r = await api.post<{ results: { email: string; status: string }[] }>("/api/invitations", { invites: rows.filter((x) => x.email.trim()) });
-      const sent = r.results.filter((x) => x.status === "sent").length;
-      const skipped = r.results.filter((x) => x.status !== "sent");
-      toast(`${sent} invitation${sent === 1 ? "" : "s"} sent${skipped.length ? `, ${skipped.length} skipped (already a member or invited)` : ""}`);
-      setRows([{ email: "", role: "member" }]); onDone(); onClose();
-    } catch (e) { setErr(e instanceof ApiError ? (e.details ? "Check the email addresses." : e.message) : "Something went wrong"); }
-    finally { setBusy(false); }
-  };
-  return (
-    <Modal open={open} onClose={onClose} title="Invite people" subtitle="They'll get an email to join. Invitations expire after 7 days."
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} onClick={send}>Send invites</Button></>}>
-      {err && <Notice tone="error">{err}</Notice>}
-      <div className="stack" style={{ gap: 10 }}>
-        {rows.map((r, i) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr) 36px", gap: 8 }}>
-            <Input type="email" placeholder="colleague@email.com" aria-label="Email" value={r.email} onChange={(e) => setRows(rows.map((x, k) => k === i ? { ...x, email: e.target.value } : x))} />
-            <Select aria-label="Role" value={r.role} onChange={(e) => setRows(rows.map((x, k) => k === i ? { ...x, role: e.target.value } : x))} options={[{ value: "admin", label: "Admin" }, { value: "manager", label: "Manager" }, { value: "member", label: "Member" }]} />
-            <IconButton label="Remove" onClick={() => setRows(rows.length > 1 ? rows.filter((_, k) => k !== i) : rows)}><X size={16} /></IconButton>
-          </div>
-        ))}
-      </div>
-      <button className="link row" style={{ marginTop: 12 }} onClick={() => setRows([...rows, { email: "", role: "member" }])}><Plus size={15} />Add another</button>
-    </Modal>
-  );
-}
-
-function RoleModal({ member, onClose, onSave }: { member: any; onClose: () => void; onSave: (role: string) => void }) {
-  const [role, setRole] = useState<string>(member.role);
-  return (
-    <Modal open onClose={onClose} title={`Change ${member.name}'s role`} subtitle="Their workspace access follows the new role's defaults."
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={role === member.role} onClick={() => onSave(role)}>Save role</Button></>}>
-      <Select label="Role" value={role} onChange={(e) => setRole(e.target.value)}
-        options={[{ value: "admin", label: "Admin" }, { value: "manager", label: "Manager" }, { value: "member", label: "Member" }]} />
-    </Modal>
-  );
-}
-
-function AccessModal({ member, onClose, onSaved }: { member: any; onClose: () => void; onSaved: () => void }) {
-  const toast = useToast();
-  const [access, setAccess] = useState<Record<string, string>>({ ...member.access });
-  return (
-    <Modal open onClose={onClose} title={`Workspace access: ${member.name}`} subtitle={member.role === "admin" ? "Admins always have full access." : "Overrides the defaults for their role."}
-      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={member.role === "admin"} onClick={async () => {
-        try { await api.patch(`/api/members/${member.id}`, { workspaceAccess: access }); onSaved(); onClose(); toast("Access updated"); }
-        catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save", "error"); }
-      }}>Save</Button></>}>
-      <AccessMatrix value={access} onChange={setAccess} disabled={member.role === "admin"} />
-    </Modal>
-  );
-}
-
-const LEVEL_LABEL: Record<string, string> = { none: "None", view: "View", edit: "Edit", manage: "Manage" };
-function AccessMatrix({ value, onChange, disabled, readOnly }: { value: Record<string, string>; onChange: (v: Record<string, string>) => void; disabled?: boolean; readOnly?: boolean }) {
-  if (readOnly) {
-    return (
-      <div className="table-wrap">
-        <table className="table">
-          <thead><tr><th>Workspace</th><th>Access</th></tr></thead>
-          <tbody>{WORKSPACES.map((w) => (
-            <tr key={w}><td className="ink" style={{ fontWeight: 500 }}>{WORKSPACE_LABELS[w]}</td>
-              <td><Pill tone={value[w] === "none" ? "grey" : value[w] === "manage" ? "violet" : "blue"}>{LEVEL_LABEL[value[w] ?? "none"]}</Pill></td></tr>
-          ))}</tbody>
-        </table>
-      </div>
-    );
-  }
-  return (
-    <div className="table-wrap">
-      <table className="table">
-        <thead><tr><th>Workspace</th>{ACCESS_LEVELS.map((l) => <th key={l} style={{ textAlign: "center" }}>{LEVEL_LABEL[l]}</th>)}</tr></thead>
-        <tbody>{WORKSPACES.map((w) => (
-          <tr key={w}><td className="ink" style={{ fontWeight: 500 }}>{WORKSPACE_LABELS[w]}</td>
-            {ACCESS_LEVELS.map((l) => <td key={l} style={{ textAlign: "center" }}>
-              <input type="radio" name={`acc-${w}`} aria-label={`${WORKSPACE_LABELS[w]}: ${LEVEL_LABEL[l]}`} disabled={disabled} checked={value[w] === l} onChange={() => onChange({ ...value, [w]: l })} style={{ width: 18, height: 18, accentColor: "var(--blue)" }} />
-            </td>)}</tr>
-        ))}</tbody>
-      </table>
-    </div>
-  );
-}
-
-// ---------------- Roles ----------------
-const SPECIAL_LABELS: Record<string, [string, string]> = {
-  approve_leave: ["Approve leave for their team", "Leave requests from people they manage."],
-  see_pay: ["See salaries and pay details", "Sensitive People & HR information."],
-  export_data: ["Export data", "Download reports and lists to Excel or CSV."],
-  manage_billing: ["Manage billing", "Change plan and payment details."],
-};
-function Roles() {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const q = useQuery({ queryKey: ["roles"], queryFn: () => api.get("/api/roles") });
-  const [sel, setSel] = useState("manager");
-  const [access, setAccess] = useState<Record<string, string>>({});
-  const [special, setSpecial] = useState<string[]>([]);
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const role = q.data?.roles.find((r: any) => r.key === sel);
-  const reset = () => { if (role) { setAccess({ ...role.access }); setSpecial([...role.special]); } };
-  useEffect(() => { reset(); setEditing(false); }, [role?.key, q.data]);
-  if (!q.data) return <Loading />;
-  const label = (k: string) => k[0]!.toUpperCase() + k.slice(1);
-  const desc: Record<string, string> = { admin: "Full access to everything", manager: "Runs a team's work", member: "Works in assigned workspaces" };
-  return (
-    <div className="grid-side side-left-260">
-      <Card flush className="">
-        <div style={{ padding: 8 }}>
-          {q.data.roles.map((r: any) => (
-            <button key={r.key} onClick={() => setSel(r.key)} className="between" style={{ width: "100%", padding: "12px 14px", borderRadius: 11, border: 0, cursor: "pointer", background: sel === r.key ? "var(--pale)" : "transparent", textAlign: "left" }}>
-              <span><b className="ink" style={{ display: "block" }}>{label(r.key)}</b><small className="muted">{desc[r.key]}</small></span><Pill tone="grey">{r.count}</Pill>
-            </button>
-          ))}
-          <div className="between" style={{ padding: "12px 14px", borderTop: "1px solid var(--line)", marginTop: 6, color: "var(--muted)", fontSize: 14 }}>
-            <span className="row" style={{ gap: 6 }}><Plus size={15} />Create custom role</span><Pill tone="blue">Growth</Pill>
-          </div>
-        </div>
-      </Card>
-      <div>
-        <Card title={label(sel)} subtitle={sel === "admin" ? "Admins can see and do everything. This role can't be changed." : `What ${sel}s can see and do in each workspace. ${role?.count ?? 0} people have this role.`}
-          actions={role?.editable && !editing && <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={() => setEditing(true)}>Edit</Button>}>
-          <AccessMatrix value={access} onChange={setAccess} readOnly={!editing} />
-        </Card>
-        <Card title="Special permissions" subtitle="Extra abilities on top of workspace access.">
-          {SPECIAL_PERMISSIONS.map((p) => (
-            <div key={p} className="list-row" style={{ justifyContent: "space-between" }}>
-              <div><b className="ink" style={{ display: "block" }}>{SPECIAL_LABELS[p]![0]}</b><small className="muted">{SPECIAL_LABELS[p]![1]}</small></div>
-              {editing
-                ? <Switch label={SPECIAL_LABELS[p]![0]} checked={special.includes(p)} onChange={(v) => setSpecial(v ? [...special, p] : special.filter((x) => x !== p))} />
-                : <Pill tone={special.includes(p) ? "ok" : "grey"}>{special.includes(p) ? "Allowed" : "Not allowed"}</Pill>}
-            </div>
-          ))}
-          {editing && <div className="row" style={{ justifyContent: "flex-end", borderTop: "1px solid var(--line)", paddingTop: 16, marginTop: 8 }}>
-            <Button variant="secondary" onClick={() => { reset(); setEditing(false); }}>Cancel</Button>
-            <Button loading={saving} onClick={async () => {
-              setSaving(true);
-              try { await api.put(`/api/roles/${sel}`, { access, special }); await qc.invalidateQueries(); toast("Role saved"); setEditing(false); }
-              catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't save", "error"); }
-              finally { setSaving(false); }
-            }}>Save changes</Button>
-          </div>}
-        </Card>
-      </div>
-    </div>
   );
 }
 
@@ -451,6 +300,7 @@ function Audit() {
 
 export function SettingsRoutes() {
   const { org, isAdmin } = useSession();
+  const canManage = useCanManageMembers();
   useEffect(() => { document.title = "Settings · WindVeal"; }, []);
   return (
     <>
@@ -458,8 +308,10 @@ export function SettingsRoutes() {
       <Routes>
         <Route index element={<SettingsDashboard />} />
         <Route path="members" element={<Members view="members" />} />
-        <Route path="invitations" element={isAdmin ? <Members view="invites" /> : <Navigate to="/settings" replace />} />
-        <Route path="roles" element={isAdmin ? <Roles /> : <Navigate to="/settings" replace />} />
+        <Route path="members/:id" element={canManage ? <MemberPage /> : <Navigate to="/settings/members" replace />} />
+        <Route path="invitations" element={canManage ? <Members view="invites" /> : <Navigate to="/settings" replace />} />
+        <Route path="roles" element={isAdmin ? <RolesList /> : <Navigate to="/settings" replace />} />
+        <Route path="roles/:id" element={isAdmin ? <RolePage /> : <Navigate to="/settings" replace />} />
         <Route path="billing" element={<Navigate to="/billing" replace />} />
         <Route path="audit" element={isAdmin ? <Audit /> : <Navigate to="/settings" replace />} />
         <Route path="profile" element={<Navigate to="/profile" replace />} />

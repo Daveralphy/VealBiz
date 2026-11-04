@@ -151,13 +151,15 @@ test("the admin sees the demo business and can open each workspace", async ({ pa
 test("a member can't open admin-only settings", async ({ page }) => {
   await signIn(page, "member@example-trading.test");
   await page.goto("/settings/audit");
-  await expect(page).toHaveURL(/\/settings$/);
+  await expect(page.getByRole("heading", { name: "You don't have access to this page" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Audit history" })).toHaveCount(0);
+  await expect(page.locator('.home a[href="/settings"]')).toHaveCount(0);
 });
 
 test("only WindVeal admins can open the admin panel", async ({ page }) => {
   await signIn(page, "member@example-trading.test");
-  await page.goto("/admin");
-  await expect(page).toHaveURL(`${APP_URL}/`);
+  await page.goto("/admin/organisations");
+  await expect(page.getByRole("heading", { name: "You don't have access to this page" })).toBeVisible();
+  await page.getByRole("button", { name: "Go to Home" }).click();
   await expect(page.locator('.home a[href="/admin"]')).toHaveCount(0);
 });

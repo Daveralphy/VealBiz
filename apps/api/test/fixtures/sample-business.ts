@@ -40,7 +40,7 @@ async function sampleBusiness(hash: string) {
     website: "example-trading.test", verificationStatus: "verified", ownerName: "Chinedu Okafor", ownerEmail: "chinedu@example-trading.test",
     createdBy: amaka.id, brandColor: "#1E6B47", tagline: "Fresh food, delivered to the businesses that feed Nigeria.",
     about: "Since 2012 we've supplied fresh produce and pantry staples to restaurants, hotels and shops across Lagos and Abuja.",
-    setupStep: "done", settings: { leadStages: DEFAULT_LEAD_STAGES, dealStages: DEFAULT_DEAL_STAGES, perks: ["Health cover for you and your family", "Paid training and clear paths to promotion", "Staff meals and transport support", "20 days paid leave"] },
+    setupStep: "done", plan: "growth", verificationSubmittedAt: new Date(), settings: { leadStages: DEFAULT_LEAD_STAGES, dealStages: DEFAULT_DEAL_STAGES, perks: ["Health cover for you and your family", "Paid training and clear paths to promotion", "Staff meals and transport support", "20 days paid leave"] },
   }).returning();
   const orgId = org!.id;
   await db.insert(s.memberships).values([

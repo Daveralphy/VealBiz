@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ACCESS_LEVELS, ROLES, WORKSPACES } from "./constants";
+import { SPECIAL_PERMISSIONS } from "./permissions";
 
 export const id = z.string().uuid();
 export const email = z.string().trim().toLowerCase().email("Enter a valid email address").max(200);
@@ -67,13 +68,24 @@ export const orgBrandingInput = z.object({
   perks: z.array(z.string().trim().max(120)).max(10).optional(),
 });
 export const orgPlanInput = z.object({ plan: z.enum(["free", "growth", "pro"]), billing: z.enum(["monthly", "yearly"]) });
+/** `roleId` is a role's id, or "admin". (`role` is the older built-in name and still works.) */
 export const inviteInput = z.object({
-  invites: z.array(z.object({ email, role: z.enum(ROLES) })).min(1).max(50),
+  invites: z.array(z.object({ email, roleId: z.string().optional(), role: z.enum(ROLES).optional() })
+    .refine((v) => !!(v.roleId || v.role), { message: "Choose a role", path: ["roleId"] })).min(1).max(50),
 });
 export const memberUpdateInput = z.object({
+  roleId: z.string().optional(),
   role: z.enum(ROLES).optional(),
   status: z.enum(["active", "suspended"]).optional(),
+  /** Changes for this one person on top of their role (a workspace left out follows the role). */
   workspaceAccess: z.record(z.enum(WORKSPACES), z.enum(ACCESS_LEVELS)).optional(),
+  specialPermissions: z.array(z.enum(SPECIAL_PERMISSIONS)).optional(),
+});
+export const roleInput = z.object({
+  name: z.string().trim().min(1, "Give the role a name").max(60),
+  description: z.string().trim().max(160).optional().or(z.literal("")),
+  access: z.record(z.enum(WORKSPACES), z.enum(ACCESS_LEVELS)),
+  special: z.array(z.enum(SPECIAL_PERMISSIONS)),
 });
 
 export type ApiError = { error: { code: string; message: string; details?: Record<string, string> } };

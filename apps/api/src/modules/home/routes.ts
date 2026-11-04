@@ -162,7 +162,8 @@ export default async function homeRoutes(app: FastifyInstance) {
     badges.invitations = inv?.n ?? 0;
 
     // Import data: what's come in this month.
-    const canImport = ctx.membership.role === "admin" || ["people", "crm", "recruitment"].some((w) => hasAccess(ctx.access[w as Workspace], "manage"));
+    const canImport = ctx.membership.role === "admin" || ["people", "crm", "recruitment"].some((w) => hasAccess(ctx.access[w as Workspace], "manage")
+      || (ctx.special.includes("import_data") && hasAccess(ctx.access[w as Workspace], "edit")));
     if (canImport) {
       const jobsThisMonth = await db.select({ status: importJobs.status, summary: importJobs.summary }).from(importJobs)
         .where(and(eq(importJobs.orgId, orgId), gte(importJobs.createdAt, startOfMonth()), isNull(importJobs.deletedAt)));

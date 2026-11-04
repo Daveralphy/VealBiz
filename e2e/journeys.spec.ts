@@ -16,7 +16,7 @@ const SCREENS = [
   "/workflows", "/workflows/mine", "/workflows/approvals", "/workflows/all", "/workflows/templates",
   "/documents", "/documents/library", "/documents/recent", "/documents/shared", "/documents/archive",
   "/insights", "/insights/sales", "/insights/people", "/insights/hiring", "/insights/work",
-  "/import", "/import/new", "/import/history", "/settings", "/settings/members", "/settings/invitations", "/settings/roles", "/billing", "/settings/audit", "/help",
+  "/import", "/import/new", "/import/history", "/settings", "/settings/members", "/settings/invitations", "/settings/roles", "/settings/roles/new", "/billing", "/settings/audit", "/help",
   "/profile", "/profile/edit", "/profile/company", "/profile/company/edit", "/admin", "/admin/organisations", "/admin/people",
 ];
 
@@ -265,4 +265,53 @@ test("one New button holds every kind of record, and a template opens on its own
   await expect(page).toHaveURL(/\/workflows\/templates\/[^/]+$/);
   await expect(page.locator(".wf-tpl-card-editor")).toBeVisible();
   await expect(page.locator(".wf-tpl-grid")).toHaveCount(0);
+});
+
+test("roles decide what people open; an admin can add more for one person, and typed addresses are blocked too", async ({ page, browser }) => {
+  const errors = watchErrors(page);
+  await signIn(page);
+  // A new role, made on its own page.
+  await page.goto(`${APP_URL}/settings/roles`);
+  await page.getByRole("button", { name: "New role" }).click();
+  const stamp = Date.now() % 100000;
+  await page.getByLabel("Role name").fill(`Sales rep ${stamp}`);
+  await page.locator(".ac-row", { hasText: "CRM" }).getByRole("radio", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Create role" }).click();
+  await expect(page.getByRole("heading", { name: `Sales rep ${stamp}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit role" })).toBeVisible();
+  await page.getByRole("link", { name: "All roles" }).click();
+  await expect(page.getByRole("row", { name: new RegExp(`Sales rep ${stamp}`) })).toBeVisible();
+
+  // Invitations offer the new role.
+  await page.goto(`${APP_URL}/settings/members`);
+  await page.getByRole("button", { name: "Invite people" }).click();
+  await expect(page.getByRole("dialog", { name: "Invite people" }).getByLabel("Role").locator("option", { hasText: `Sales rep ${stamp}` })).toHaveCount(1);
+  await page.keyboard.press("Escape");
+
+  // Efua's role has no Recruitment: the address bar can't get round it.
+  const efua = await (await browser.newContext()).newPage();
+  await signIn(efua, "member@example-trading.test");
+  await efua.goto(`${APP_URL}/recruitment/jobs`);
+  await expect(efua.getByRole("heading", { name: "You don't have access to this page" })).toBeVisible();
+  await efua.goto(`${APP_URL}/settings/roles`);
+  await expect(efua.getByRole("heading", { name: "You don't have access to this page" })).toBeVisible();
+  expect((await efua.request.get(`${APP_URL}/api/recruitment/jobs`)).status()).toBe(403);
+
+  // The admin adds Recruitment (view) for Efua alone.
+  await page.getByRole("row", { name: /Efua Nyarko/ }).click();
+  await expect(page.getByRole("heading", { name: "Role: Member" })).toBeVisible();
+  await page.getByRole("button", { name: "Edit access" }).click();
+  await page.locator(".ac-row", { hasText: "Recruitment" }).getByRole("radio", { name: "View" }).click();
+  await page.getByRole("button", { name: "Save access" }).click();
+  await expect(page.locator(".ac-row", { hasText: "Recruitment" }).getByText("Added for Efua")).toBeVisible();
+  await efua.goto(`${APP_URL}/recruitment/jobs`);
+  await expect(efua.getByRole("heading", { level: 1, name: "Recruitment" })).toBeVisible();
+  await expect(efua.getByRole("button", { name: "New job" })).toHaveCount(0);
+
+  // And takes it away again.
+  await page.getByRole("button", { name: "Edit access" }).click();
+  await page.locator(".ac-row", { hasText: "Recruitment" }).getByRole("radio", { name: "No access" }).click();
+  await page.getByRole("button", { name: "Save access" }).click();
+  await expect(page.locator(".ac-row", { hasText: "Recruitment" }).getByText("From Member")).toBeVisible();
+  expect(errors).toEqual([]);
 });

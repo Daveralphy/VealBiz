@@ -2,10 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { useIsFetching, useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Bell, Building2, ChevronDown, CircleHelp, CreditCard, LayoutGrid, LogOut, Menu as MenuIcon, Moon, PanelLeftClose, PanelLeftOpen, Search,
+  Bell, Building2, ChevronDown, CircleHelp, CreditCard, LayoutGrid, Lock, LogOut, Menu as MenuIcon, Moon, PanelLeftClose, PanelLeftOpen, Search,
   ShieldCheck, User, X,
 } from "lucide-react";
-import { Avatar, BrandLogo, Menu, PageSkeleton, Switch, IconButton, TopProgress, useFirstVisitHold, usePageTransition } from "@windveal/ui";
+import { Avatar, BrandLogo, Button, Menu, PageSkeleton, Switch, IconButton, TopProgress, useFirstVisitHold, usePageTransition } from "@windveal/ui";
 import { api, publicFileUrl } from "../lib/api";
 import { useSession } from "../lib/session";
 import { timeAgo } from "../lib/format";
@@ -197,12 +197,33 @@ function AccountMenu() {
   );
 }
 
+/** Shown instead of any page the person's access doesn't cover, however they got there. */
+function NoAccess({ area, whole }: { area?: string; whole: boolean }) {
+  const navigate = useNavigate();
+  const { org, membership } = useSession();
+  useEffect(() => { document.title = "No access · WindVeal"; }, []);
+  const role = membership.roleName ?? membership.role;
+  return (
+    <div className="card no-access">
+      <div className="empty">
+        <span className="ic"><Lock size={22} /></span>
+        <h2>You don't have access to this page</h2>
+        <p>{area ? `Your role (${role}) doesn't include ${whole ? area : `this part of ${area}`}.` : `Your role (${role}) doesn't include this page.`} Ask an admin at {org.name} if you need it.</p>
+        <Button onClick={() => navigate("/")}>Go to Home</Button>
+      </div>
+    </div>
+  );
+}
+
 export function AppShell() {
   const [mini, setMini] = useState(() => { try { return localStorage.getItem("wv-sidebar") === "mini"; } catch { return false; } });
   const [drawer, setDrawer] = useState(false);
   const { org } = useSession();
   const location = useLocation();
-  const ws = workspaceFor(location.pathname);
+  const { canOpen, canOpenPath } = useAreaAccess();
+  const area = workspaceFor(location.pathname);
+  // An area someone can't open gets no sidebar of its own, just the "no access" page.
+  const ws = area && canOpen(area) ? area : null;
   const palette = usePalette();
   const accent = ws ? palette[ws.key] : null;
   const toggle = () => setMini((m) => {
@@ -229,11 +250,12 @@ export function AppShell() {
   }, [held, location.pathname]);
   const busy = useIsFetching() + useIsMutating() > 0;
   const style = accent ? ({ "--ws-c": accent.c, "--ws-t": accent.t } as CSSProperties) : undefined;
+  const allowed = canOpenPath(location.pathname.replace(/\/+$/, "") || "/");
   const page = (
     <main className="content">
       {/* Rendered while held, so the screen's data loads during the pause. */}
       <div ref={content} className={`page-enter page-stage${held ? " holding" : ""}`}>
-        <Outlet />
+        {allowed ? <Outlet /> : <NoAccess area={area?.label} whole={!!area && !ws} />}
         {held && <PageSkeleton title={skelTop === null} style={{ position: "absolute", left: 0, right: 0, top: skelTop ?? 0 }} />}
       </div>
     </main>

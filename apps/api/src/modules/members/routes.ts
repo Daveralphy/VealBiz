@@ -1,13 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq, gt, isNull, sql as dsql } from "drizzle-orm";
-import { z } from "zod";
-import {
-  ACCESS_LEVELS, DEFAULT_ACCESS, DEFAULT_SPECIAL, SPECIAL_PERMISSIONS, WORKSPACES, invitedCompleteInput, invitedStartInput, invitedVerifyInput,
-  inviteInput, memberUpdateInput,
-} from "@windveal/shared";
+import { invitedCompleteInput, invitedStartInput, invitedVerifyInput, inviteInput, memberUpdateInput } from "@windveal/shared";
 import { db } from "../../db/client";
 import { invitations, memberships, organisations, sessions, users } from "../../db/schema";
-import { computeAccess, requireAdmin, requireOrg, requireUser } from "../../lib/context";
+import { computeAccess, computeSpecial, requireAdmin, requireMemberManager, requireOrg, requireUser, roleAccess, roleSpecial } from "../../lib/context";
+import { ensureRoles, resolveRole, rolesById } from "../../lib/roles";
 import { hashPassword, randomToken, sha256, sixDigitCode } from "../../lib/crypto";
 import { badRequest, conflict, forbidden, notFound, parse } from "../../lib/http";
 import { audit, notify } from "../../lib/audit";
@@ -65,37 +62,70 @@ async function sendInvite(orgName: string, inviterName: string, email: string, r
 export default async function memberRoutes(app: FastifyInstance) {
   app.get("/api/members", async (req) => {
     const ctx = await requireOrg(req);
+    await ensureRoles(ctx.org);
+    const roleMap = await rolesById(ctx.org.id);
     const rows = await db.select({ m: memberships, u: users }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
       .where(and(eq(memberships.orgId, ctx.org.id), isNull(memberships.deletedAt))).orderBy(users.name);
-    return rows.map(({ m, u }) => ({
-      id: m.id, userId: u.id, name: u.name, email: u.email, role: m.role, status: m.status, isPrimaryAdmin: m.isPrimaryAdmin,
-      isOwner: m.isOwner, jobTitle: m.jobTitle, access: computeAccess(ctx.org, m), workspaceAccess: m.workspaceAccess,
-      lastActiveAt: u.lastLoginAt, isYou: u.id === ctx.user.id, joinedAt: m.createdAt,
-    }));
+    return rows.map(({ m, u }) => {
+      const role = m.roleId ? roleMap.get(m.roleId) ?? null : null;
+      return {
+        id: m.id, userId: u.id, name: u.name, email: u.email, role: m.role, roleId: m.roleId, roleName: m.role === "admin" ? "Admin" : role?.name ?? m.role,
+        status: m.status, isPrimaryAdmin: m.isPrimaryAdmin, isOwner: m.isOwner, jobTitle: m.jobTitle,
+        access: computeAccess(ctx.org, m, role), workspaceAccess: m.workspaceAccess, specialPermissions: m.specialPermissions,
+        lastActiveAt: u.lastLoginAt, isYou: u.id === ctx.user.id, joinedAt: m.createdAt,
+      };
+    });
+  });
+
+  /** One person's page in Settings: their role, and what's been changed for them alone. */
+  app.get<{ Params: { id: string } }>("/api/members/:id", async (req) => {
+    const ctx = await requireMemberManager(req);
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.id)) throw notFound("That member");
+    await ensureRoles(ctx.org);
+    const [row] = await db.select({ m: memberships, u: users }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
+      .where(and(eq(memberships.id, req.params.id), eq(memberships.orgId, ctx.org.id), isNull(memberships.deletedAt))).limit(1);
+    if (!row) throw notFound("That member");
+    const { m, u } = row;
+    const role = m.roleId ? (await rolesById(ctx.org.id)).get(m.roleId) ?? null : null;
+    return {
+      id: m.id, userId: u.id, name: u.name, email: u.email, avatarFileId: u.avatarFileId, jobTitle: m.jobTitle, status: m.status,
+      isPrimaryAdmin: m.isPrimaryAdmin, isYou: u.id === ctx.user.id, joinedAt: m.createdAt, lastActiveAt: u.lastLoginAt,
+      role: m.role === "admin" ? { id: "admin", name: "Admin", kind: "admin" } : role && { id: role.id, name: role.name, kind: role.kind },
+      fromRole: { access: roleAccess(ctx.org, m, role), special: roleSpecial(ctx.org, m, role) },
+      own: { access: m.workspaceAccess, special: m.specialPermissions },
+      access: computeAccess(ctx.org, m, role), special: computeSpecial(ctx.org, m, role),
+      canEditAccess: ctx.membership.role === "admin" && m.role !== "admin",
+    };
   });
 
   app.patch<{ Params: { id: string } }>("/api/members/:id", async (req) => {
-    const ctx = await requireAdmin(req);
+    const ctx = await requireMemberManager(req);
+    const isAdmin = ctx.membership.role === "admin";
     const input = parse(memberUpdateInput, req.body);
     const [target] = await db.select({ m: memberships, u: users }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
       .where(and(eq(memberships.id, req.params.id), eq(memberships.orgId, ctx.org.id), isNull(memberships.deletedAt))).limit(1);
     if (!target) throw notFound("That member");
-    if (target.m.isPrimaryAdmin && (input.role && input.role !== "admin" || input.status === "suspended")) {
+    const next = input.roleId || input.role ? await resolveRole(ctx.org, { roleId: input.roleId, role: input.role }) : null;
+    // Only admins make (or unmake) admins, or change what one person can open.
+    if (!isAdmin && (target.m.role === "admin" || next?.tier === "admin")) throw forbidden("Only admins can change an admin's role.");
+    if (!isAdmin && (input.workspaceAccess || input.specialPermissions)) throw forbidden("Only admins can change what one person can open.");
+    if (target.m.isPrimaryAdmin && ((next && next.tier !== "admin") || input.status === "suspended")) {
       throw forbidden("The primary admin can't be demoted or suspended. Transfer primary admin first.");
     }
-    const losingAdmin = target.m.role === "admin" && ((input.role && input.role !== "admin") || input.status === "suspended");
+    const losingAdmin = target.m.role === "admin" && ((next && next.tier !== "admin") || input.status === "suspended");
     if (losingAdmin && (await activeAdminCount(ctx.org.id)) <= 1) throw forbidden("You can't remove the last admin.");
     const [m] = await db.update(memberships).set({
-      role: input.role ?? target.m.role, status: input.status ?? target.m.status,
-      workspaceAccess: input.workspaceAccess ?? target.m.workspaceAccess, version: dsql`${memberships.version} + 1`,
+      role: next?.tier ?? target.m.role, roleId: next ? next.role?.id ?? null : target.m.roleId, status: input.status ?? target.m.status,
+      workspaceAccess: input.workspaceAccess ?? target.m.workspaceAccess, specialPermissions: input.specialPermissions ?? target.m.specialPermissions,
+      version: dsql`${memberships.version} + 1`,
     }).where(eq(memberships.id, target.m.id)).returning();
     if (input.status === "suspended") {
       await db.update(sessions).set({ revokedAt: new Date() }).where(and(eq(sessions.userId, target.u.id), isNull(sessions.revokedAt)));
     }
     const changes: string[] = [];
-    if (input.role && input.role !== target.m.role) changes.push(`role from ${target.m.role} to ${input.role}`);
+    if (next && (next.tier !== target.m.role || (next.role?.id ?? null) !== target.m.roleId)) changes.push(`role to ${next.role?.name ?? "Admin"}`);
     if (input.status && input.status !== target.m.status) changes.push(input.status === "suspended" ? "suspended access" : "restored access");
-    if (input.workspaceAccess) changes.push("workspace access");
+    if (input.workspaceAccess || input.specialPermissions) changes.push("access");
     await audit(ctx, {
       action: "member.updated", category: "access", entityType: "membership", entityId: m!.id,
       summary: `${ctx.user.name} changed ${target.u.name}'s ${changes.join(", ") || "settings"}`, meta: { ...input },
@@ -105,11 +135,12 @@ export default async function memberRoutes(app: FastifyInstance) {
 
   /** Remove from organisation: ends membership and signs them out everywhere. */
   app.delete<{ Params: { id: string } }>("/api/members/:id", async (req) => {
-    const ctx = await requireAdmin(req);
+    const ctx = await requireMemberManager(req);
     const [target] = await db.select({ m: memberships, u: users }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
       .where(and(eq(memberships.id, req.params.id), eq(memberships.orgId, ctx.org.id), isNull(memberships.deletedAt))).limit(1);
     if (!target) throw notFound("That member");
     if (target.m.isPrimaryAdmin) throw forbidden("The primary admin can't be removed. Transfer primary admin first.");
+    if (target.m.role === "admin" && ctx.membership.role !== "admin") throw forbidden("Only admins can remove an admin.");
     if (target.m.role === "admin" && (await activeAdminCount(ctx.org.id)) <= 1) throw forbidden("You can't remove the last admin.");
     await db.transaction(async (tx) => {
       // Hard-delete the membership row so the person can join another organisation later (one-org rule).
@@ -131,15 +162,20 @@ export default async function memberRoutes(app: FastifyInstance) {
 
   // ---------------- invitations ----------------
   app.get("/api/invitations", async (req) => {
-    const ctx = await requireOrg(req);
+    const ctx = await requireMemberManager(req);
+    await ensureRoles(ctx.org);
+    const roleMap = await rolesById(ctx.org.id);
     const rows = await db.select({ i: invitations, by: users }).from(invitations).innerJoin(users, eq(users.id, invitations.invitedBy))
       .where(and(eq(invitations.orgId, ctx.org.id), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)))
       .orderBy(desc(invitations.createdAt));
-    return rows.map(({ i, by }) => ({ id: i.id, email: i.email, role: i.role, invitedBy: by.name, expiresAt: i.expiresAt, expired: i.expiresAt < new Date(), createdAt: i.createdAt }));
+    return rows.map(({ i, by }) => ({
+      id: i.id, email: i.email, role: i.role, roleId: i.roleId, roleName: i.role === "admin" ? "Admin" : (i.roleId && roleMap.get(i.roleId)?.name) || i.role,
+      invitedBy: by.name, expiresAt: i.expiresAt, expired: i.expiresAt < new Date(), createdAt: i.createdAt,
+    }));
   });
 
   app.post("/api/invitations", async (req) => {
-    const ctx = await requireAdmin(req);
+    const ctx = await requireMemberManager(req);
     const { invites } = parse(inviteInput, req.body);
     const results: { email: string; status: "sent" | "already_member" | "already_invited" }[] = [];
     for (const inv of invites) {
@@ -151,20 +187,23 @@ export default async function memberRoutes(app: FastifyInstance) {
       const [pending] = await db.select().from(invitations).where(and(eq(invitations.orgId, ctx.org.id), eq(invitations.email, inv.email),
         isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gt(invitations.expiresAt, new Date()))).limit(1);
       if (pending) { results.push({ email: inv.email, status: "already_invited" }); continue; }
+      const picked = await resolveRole(ctx.org, { roleId: inv.roleId, role: inv.role });
+      if (picked.tier === "admin" && ctx.membership.role !== "admin") throw forbidden("Only admins can invite another admin.");
+      const roleName = picked.role?.name ?? "Admin";
       const token = randomToken();
       await db.insert(invitations).values({
-        orgId: ctx.org.id, email: inv.email, role: inv.role, tokenHash: sha256(token), invitedBy: ctx.user.id,
+        orgId: ctx.org.id, email: inv.email, role: picked.tier, roleId: picked.role?.id ?? null, tokenHash: sha256(token), invitedBy: ctx.user.id,
         expiresAt: new Date(Date.now() + INVITE_DAYS * 86_400_000),
       });
-      await sendInvite(ctx.org.tradingName || ctx.org.legalName, ctx.user.name, inv.email, inv.role, token);
-      await audit(ctx, { action: "member.invited", category: "access", summary: `${ctx.user.name} invited ${inv.email} as ${inv.role}` });
+      await sendInvite(ctx.org.tradingName || ctx.org.legalName, ctx.user.name, inv.email, roleName, token);
+      await audit(ctx, { action: "member.invited", category: "access", summary: `${ctx.user.name} invited ${inv.email} as ${roleName}` });
       results.push({ email: inv.email, status: "sent" });
     }
     return { results };
   });
 
   app.post<{ Params: { id: string } }>("/api/invitations/:id/resend", async (req) => {
-    const ctx = await requireAdmin(req);
+    const ctx = await requireMemberManager(req);
     const [inv] = await db.select().from(invitations).where(and(eq(invitations.id, req.params.id), eq(invitations.orgId, ctx.org.id))).limit(1);
     if (!inv || inv.acceptedAt || inv.revokedAt) throw notFound("That invitation");
     const token = randomToken();
@@ -174,7 +213,7 @@ export default async function memberRoutes(app: FastifyInstance) {
   });
 
   app.delete<{ Params: { id: string } }>("/api/invitations/:id", async (req) => {
-    const ctx = await requireAdmin(req);
+    const ctx = await requireMemberManager(req);
     await db.update(invitations).set({ revokedAt: new Date() }).where(and(eq(invitations.id, req.params.id), eq(invitations.orgId, ctx.org.id)));
     await audit(ctx, { action: "member.invite_cancelled", category: "access", summary: `${ctx.user.name} cancelled an invitation` });
     return { ok: true };
@@ -237,7 +276,7 @@ export default async function memberRoutes(app: FastifyInstance) {
       const [u] = await tx.insert(users).values({
         email: input.email, name: input.name, passwordHash: await hashPassword(input.password), emailVerifiedAt: new Date(),
       }).returning();
-      await tx.insert(memberships).values({ orgId: inv.orgId, userId: u!.id, role: inv.role });
+      await tx.insert(memberships).values({ orgId: inv.orgId, userId: u!.id, role: inv.role, roleId: inv.role === "admin" ? null : inv.roleId });
       await tx.update(invitations).set({ acceptedAt: new Date(), claimCodeHash: null, claimExpiresAt: null }).where(eq(invitations.id, inv.id));
       await audit({ org: row.o, user: u!, deviceLabel: null }, {
         action: "member.joined", category: "access", summary: `${u!.name} accepted the invitation and joined as ${inv.role}`,
@@ -260,7 +299,7 @@ export default async function memberRoutes(app: FastifyInstance) {
     if (m) throw conflict("You already belong to an organisation. You can only be in one organisation at a time.");
     const [org] = await db.select().from(organisations).where(eq(organisations.id, inv.orgId)).limit(1);
     await db.transaction(async (tx) => {
-      await tx.insert(memberships).values({ orgId: inv.orgId, userId: auth.user.id, role: inv.role });
+      await tx.insert(memberships).values({ orgId: inv.orgId, userId: auth.user.id, role: inv.role, roleId: inv.role === "admin" ? null : inv.roleId });
       await tx.update(invitations).set({ acceptedAt: new Date() }).where(eq(invitations.id, inv.id));
       await audit({ org: org!, user: auth.user, deviceLabel: auth.deviceLabel }, {
         action: "member.joined", category: "access", summary: `${auth.user.name} accepted the invitation and joined as ${inv.role}`,
@@ -268,40 +307,6 @@ export default async function memberRoutes(app: FastifyInstance) {
       await notify(inv.orgId, inv.invitedBy, `${auth.user.name} joined ${org!.tradingName || org!.legalName}`, undefined, "/settings/members", tx);
     });
     return mePayload(auth.user.id);
-  });
-
-  // ---------------- roles ----------------
-  app.get("/api/roles", async (req) => {
-    const ctx = await requireOrg(req);
-    const counts = await db.select({ role: memberships.role, n: dsql<number>`count(*)::int` }).from(memberships)
-      .where(and(eq(memberships.orgId, ctx.org.id), isNull(memberships.deletedAt))).groupBy(memberships.role);
-    const n = (r: string) => counts.find((c) => c.role === r)?.n ?? 0;
-    return {
-      roles: (["admin", "manager", "member"] as const).map((r) => ({
-        key: r, count: n(r),
-        access: r === "admin" ? DEFAULT_ACCESS.admin : { ...DEFAULT_ACCESS[r], ...(ctx.org.settings.roleAccess?.[r] ?? {}) },
-        special: r === "admin" ? DEFAULT_SPECIAL.admin : (ctx.org.settings.roleSpecial?.[r] ?? DEFAULT_SPECIAL[r]),
-        editable: r !== "admin",
-      })),
-      customRolesAvailable: ctx.org.plan !== "free",
-    };
-  });
-
-  app.put<{ Params: { role: "manager" | "member" } }>("/api/roles/:role", async (req) => {
-    const ctx = await requireAdmin(req);
-    if (!["manager", "member"].includes(req.params.role)) throw badRequest("Only the Manager and Member roles can be edited.");
-    const input = parse(z.object({
-      access: z.record(z.enum(WORKSPACES), z.enum(ACCESS_LEVELS)),
-      special: z.array(z.enum(SPECIAL_PERMISSIONS)),
-    }), req.body);
-    const settings = {
-      ...ctx.org.settings,
-      roleAccess: { ...(ctx.org.settings.roleAccess ?? {}), [req.params.role]: input.access },
-      roleSpecial: { ...(ctx.org.settings.roleSpecial ?? {}), [req.params.role]: input.special },
-    };
-    await db.update(organisations).set({ settings }).where(eq(organisations.id, ctx.org.id));
-    await audit(ctx, { action: "role.updated", category: "access", summary: `${ctx.user.name} changed what the ${req.params.role} role can do`, meta: input });
-    return { ok: true };
   });
 
   app.get("/api/members/assignable", async (req) => {

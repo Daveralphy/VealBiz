@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../src/db/client";
 import { users } from "../src/db/schema";
 import { recentMail } from "../src/lib/mailer";
-import { Client, PASSWORD, addMember, getApp, signUp, signUpWithOrg } from "./helpers";
+import { Client, PASSWORD, getApp, signUp, signUpWithOrg } from "./helpers";
 
 const NEW_PASSWORD = "Another#2026pass";
 

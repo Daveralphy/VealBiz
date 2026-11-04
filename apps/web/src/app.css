@@ -486,7 +486,7 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
 .rv > .loading { grid-column: 1 / -1; align-self: center; max-width: 520px; width: 100%; margin: 0 auto; }
 .rv-l { position: relative; background: var(--night); color: #fff; padding: 48px clamp(28px, 5vw, 72px); display: flex; flex-direction: column; justify-content: space-between; gap: 40px; overflow: hidden; }
 .rv-photo { position: absolute; inset: 0; background: linear-gradient(160deg, rgba(14,28,69,.96) 0%, rgba(14,28,69,.86) 55%, rgba(14,28,69,.55) 100%), url(/images/team.jpg) center/cover; }
-.rv-l > * { position: relative; }
+.rv-l > :not(.rv-photo) { position: relative; }
 .rv-copy h1 { color: #fff; font-size: clamp(30px, 3.2vw, 42px); line-height: 1.12; font-weight: 800; letter-spacing: -0.03em; margin: 14px 0; }
 .rv-copy p { color: #c9d3ee; font-size: 16px; line-height: 1.6; max-width: 440px; margin: 0; }
 .rv-org { display: inline-flex; align-items: center; gap: 12px; font-weight: 700; font-size: 15px; }
@@ -574,4 +574,51 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
   .ad-decide-btns .btn { flex: 1; justify-content: center; }
   .ad-chk { grid-template-columns: 22px minmax(0, 1fr); }
   .ad-chk > :last-child { grid-column: 2; }
+}
+
+/* ---------- Settings: roles and one person's access ---------- */
+.ac-lead { margin: 0; font-size: 14px; max-width: 560px; }
+.ac-upsell { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--muted); flex-wrap: wrap; }
+.ac-upsell .link { font-weight: 600; }
+.ac-role b { display: flex; gap: 6px; align-items: center; color: var(--ink); }
+.ac-role small { color: var(--muted); font-size: 12.5px; }
+.ac-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.ac-chips span { font-size: 12px; font-weight: 600; color: var(--text); background: var(--soft); border: 1px solid var(--line); border-radius: 7px; padding: 3px 8px; white-space: nowrap; }
+.ac-chips em { font-style: normal; color: var(--muted); font-weight: 500; }
+.ac-page { display: grid; gap: 20px; }
+.ac-page .card { margin: 0; }
+.ac-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.ac-head h2 { font-size: 26px; font-weight: 800; display: flex; gap: 10px; align-items: center; }
+.ac-head p { margin: 2px 0 0; font-size: 14px; }
+.ac-head-fields { display: grid; gap: 8px; flex: 1; max-width: 460px; }
+.ac-head-fields .ac-name { font-size: 20px; font-weight: 700; }
+.ac-actions { display: flex; gap: 10px; align-items: center; }
+.ac-person-head { display: flex; gap: 16px; align-items: center; min-width: 0; }
+.ac-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line); }
+.ac-row:first-of-type { border-top: 0; padding-top: 0; }
+.ac-row b { display: block; color: var(--ink); font-size: 14.5px; }
+.ac-row small { color: var(--muted); font-size: 13px; }
+.ac-right { text-align: right; }
+.ac-right .switch { display: inline-block; vertical-align: middle; }
+.ac-from { display: block; font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.ac-tag { font-size: 11.5px; font-weight: 600; color: var(--violet); background: var(--violet-bg); border-radius: 6px; padding: 2px 7px; margin-left: 8px; vertical-align: 1px; }
+.ac-rolebar { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.ac-rolebar .grow { flex: 1; min-width: 220px; }
+.ac-rolebar h3 { font-size: 17px; }
+.ac-rolebar p { margin: 2px 0 0; font-size: 13.5px; }
+.ac-person { display: flex; gap: 12px; align-items: center; color: inherit; text-decoration: none; }
+.ac-person div { display: flex; flex-direction: column; }
+.ac-hint { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+.ac-invite-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) 36px; gap: 8px; }
+.no-access { max-width: 640px; margin: 40px auto 0; }
+.no-access h2 { font-size: 17px; color: var(--ink); margin: 0 0 6px; }
+.no-access p { margin: 0 auto; max-width: 460px; }
+@media (max-width: 640px) {
+  .ac-row { grid-template-columns: 1fr; gap: 8px; }
+  .ac-right { text-align: left; }
+  .ac-right .seg { display: flex; flex-wrap: wrap; }
+  .ac-actions { width: 100%; }
+  .ac-actions .btn { flex: 1; justify-content: center; }
+  .ac-invite-row { grid-template-columns: minmax(0, 1fr) 36px; }
+  .ac-invite-row .field:nth-child(2), .ac-invite-row > :nth-child(2) { grid-column: 1; }
 }

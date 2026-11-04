@@ -15,6 +15,7 @@ export type Me = {
   } | null;
   membership: {
     id: string; role: "admin" | "manager" | "member"; status: string; isPrimaryAdmin: boolean; jobTitle: string | null;
+    roleId: string | null; roleName: string | null;
     access: Record<Workspace, AccessLevel>; special: string[];
   } | null;
   pendingInvitation: { orgName: string; role: string } | null;

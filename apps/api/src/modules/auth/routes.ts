@@ -6,7 +6,7 @@ import {
 } from "@windveal/shared";
 import { db } from "../../db/client";
 import { authTokens, devices, employees, files, invitations, memberships, organisations, sessions, users } from "../../db/schema";
-import { DEVICE_COOKIE, SESSION_COOKIE, computeAccess, computeSpecial, requireOrg, requireUser, setSessionCookie } from "../../lib/context";
+import { DEVICE_COOKIE, SESSION_COOKIE, computeAccess, computeSpecial, requireOrg, requireUser, roleOf, setSessionCookie } from "../../lib/context";
 import { hashPassword, randomToken, sha256, sixDigitCode, verifyPassword } from "../../lib/crypto";
 import { AppError, badRequest, conflict, parse } from "../../lib/http";
 import { sendMail } from "../../lib/mailer";
@@ -82,6 +82,7 @@ export async function mePayload(userId: string) {
     .innerJoin(organisations, eq(organisations.id, invitations.orgId))
     .where(and(eq(invitations.email, u.email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gt(invitations.expiresAt, new Date())))
     .orderBy(desc(invitations.createdAt)).limit(1);
+  const mine = row ? await roleOf(row.o, row.m) : null;
   return {
     user: {
       id: u.id, name: u.name, email: u.email, emailVerified: !!u.emailVerifiedAt, phone: u.phone, avatarFileId: u.avatarFileId,
@@ -95,7 +96,8 @@ export async function mePayload(userId: string) {
     } : null,
     membership: row ? {
       id: row.m.id, role: row.m.role, status: row.m.status, isPrimaryAdmin: row.m.isPrimaryAdmin, jobTitle: row.m.jobTitle,
-      access: computeAccess(row.o, row.m), special: computeSpecial(row.o, row.m),
+      roleId: mine!.m.roleId, roleName: mine!.role?.name ?? (row.m.role === "admin" ? "Admin" : null),
+      access: computeAccess(row.o, mine!.m, mine!.role), special: computeSpecial(row.o, mine!.m, mine!.role),
     } : null,
     pendingInvitation: invite ? { orgName: invite.o.tradingName || invite.o.legalName, role: invite.i.role } : null,
   };
