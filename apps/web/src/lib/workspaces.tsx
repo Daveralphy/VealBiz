@@ -40,7 +40,7 @@ const UUID = "[0-9a-f-]{36}";
 /** The six workspaces, in the order they appear on Home. Each has its own dashboard and sidebar. */
 export const WORKSPACE_DEFS: WorkspaceDef[] = [
   {
-    key: "people", label: "People & HR", base: "/people", icon: i(Users), blurb: "Team, attendance and leave", group: "workspace", search: true,
+    key: "people", label: "People & HR", base: "/people", icon: i(Users), blurb: "Your team, attendance, leave and onboarding.", group: "workspace", search: true,
     sections: [
       { to: "/people", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
       { to: "/people/attendance", label: "Attendance", icon: <Clock size={18} /> },
@@ -51,7 +51,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "recruitment", label: "Recruitment", base: "/recruitment", icon: i(UserPlus), blurb: "Jobs, candidates and interviews", group: "workspace", search: true,
+    key: "recruitment", label: "Recruitment", base: "/recruitment", icon: i(UserPlus), blurb: "Post jobs, follow candidates and book interviews.", group: "workspace", search: true,
     sections: [
       { to: "/recruitment", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
       { to: "/recruitment/jobs", label: "Jobs", icon: <Briefcase size={18} /> },
@@ -61,7 +61,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "crm", label: "CRM", base: "/crm", icon: i(Briefcase), blurb: "Leads, deals and clients", group: "workspace", search: true,
+    key: "crm", label: "CRM", base: "/crm", icon: i(Briefcase), blurb: "Leads, deals and the clients you work with.", group: "workspace", search: true,
     sections: [
       { to: "/crm", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
       { to: "/crm/pipeline", label: "Pipeline", icon: <Kanban size={18} /> },
@@ -71,7 +71,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "workflows", label: "Workflows", base: "/workflows", icon: i(SquareCheck), blurb: "Tasks, approvals and checklists", group: "workspace", search: true,
+    key: "workflows", label: "Workflows", base: "/workflows", icon: i(SquareCheck), blurb: "Tasks, approvals and checklists that keep work moving.", group: "workspace", search: true,
     sections: [
       { to: "/workflows", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
       { to: "/workflows/mine", label: "My tasks", icon: <CheckSquare size={18} />, badge: "myTasks" },
@@ -81,7 +81,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "documents", label: "Documents", base: "/documents", bases: ["/import"], icon: i(FileText), blurb: "Files, and importing your spreadsheets", group: "workspace", search: true,
+    key: "documents", label: "Documents", base: "/documents", bases: ["/import"], icon: i(FileText), blurb: "Every business file, and bringing in your spreadsheets.", group: "workspace", search: true,
     sections: [
       { to: "/documents", label: "Dashboard", icon: <LayoutDashboard size={18} />, visible: (v) => v.canDocuments },
       { to: "/documents/library", label: "All files", icon: <FolderOpen size={18} />, also: /^\/documents\/(folder|file|files)\//, visible: (v) => v.canDocuments },
@@ -93,7 +93,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "insights", label: "Insights", base: "/insights", icon: i(LineChart), blurb: "Reports on how the business is doing", group: "workspace", search: true,
+    key: "insights", label: "Insights", base: "/insights", icon: i(LineChart), blurb: "Reports on how the business is doing.", group: "workspace", search: true,
     sections: [
       { to: "/insights", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
       { to: "/insights/sales", label: "Sales", icon: <BarChart3 size={18} /> },
@@ -103,7 +103,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "settings", label: "Settings", base: "/settings", icon: i(Settings), blurb: "Team and permissions", group: "manage",
+    key: "settings", label: "Settings", base: "/settings", icon: i(Settings), blurb: "Your team, roles and who can see what.", group: "manage",
     visible: (v) => v.isAdmin || v.canManageMembers,
     sections: [
       { to: "/settings", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
@@ -114,7 +114,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "admin", label: "WindVeal admin", base: "/admin", icon: i(ShieldCheck), blurb: "Organisations and accounts", group: "manage",
+    key: "admin", label: "WindVeal admin", base: "/admin", icon: i(ShieldCheck), blurb: "Approve new businesses and look after accounts.", group: "manage",
     visible: (v) => v.platformAdmin,
     sections: [
       { to: "/admin", label: "Dashboard", icon: <LayoutDashboard size={18} /> },

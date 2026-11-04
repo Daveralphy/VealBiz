@@ -1,7 +1,6 @@
 import { useEffect, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
-import { Skeleton } from "@windveal/ui";
+import { Bell } from "lucide-react";
 import { useSession } from "../lib/session";
 import { usePalette } from "../lib/palette";
 import { WORKSPACE_DEFS, useAreaAccess, type WorkspaceDef } from "../lib/workspaces";
@@ -12,27 +11,30 @@ function greeting(d: Date) {
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
-/** A grid of tiles, each with three live lines from the area it opens. */
+/**
+ * A grid of tiles: a photo of the area, what it's for, and a bell when something there is waiting for you
+ * (the same counts as the sidebar badges).
+ */
 function Tiles({ areas }: { areas: WorkspaceDef[] }) {
   const palette = usePalette();
-  const { data, isLoading } = useHomeData();
+  const { data } = useHomeData();
   const { sectionsOf } = useAreaAccess();
+  const waiting = (w: WorkspaceDef) => sectionsOf(w).some((s) => {
+    if (!s.badge || !data) return false;
+    return (data.badges[s.badge] ?? (s.badge === "adminWaiting" ? data.adminWaiting : 0) ?? 0) > 0;
+  });
   return (
     <div className="home-tiles">
       {areas.map((w) => {
-        const lines = data?.tiles[w.key];
         const accent = palette[w.key];
+        const bell = waiting(w);
         return (
-          <Link key={w.key} to={sectionsOf(w)[0]?.to ?? w.base} className="home-tile" style={{ "--ws-c": accent.c, "--ws-t": accent.t } as CSSProperties}>
-            <ArrowRight size={18} className="home-go" />
-            <span className="home-ic">{w.icon(26)}</span>
-            <h2>{w.label}</h2>
-            <div className="home-live">
-              {isLoading || !lines
-                ? [0, 1, 2].map((i) => <Skeleton key={i} width={["72%", "84%", "60%"][i]} height={13} />)
-                : lines.map((l, i) => (
-                  <span key={i} className={i > 0 ? "more-line" : undefined}><em />{l.before && <>{l.before} </>}<b>{l.value}</b> {l.text}</span>
-                ))}
+          <Link key={w.key} to={sectionsOf(w)[0]?.to ?? w.base} className="home-tile" style={{ "--ws-c": accent.c, "--ws-t": accent.t } as CSSProperties}
+            aria-label={bell ? `${w.label}, something to check` : w.label}>
+            <span className="home-photo" style={{ backgroundImage: `url(/images/home/${w.key}.jpg)` }} aria-hidden />
+            <div className="home-body">
+              <div><h2>{w.label}</h2><p>{w.blurb}</p></div>
+              {bell && <span className="home-bell" title="Something to check"><Bell size={18} /><i /></span>}
             </div>
           </Link>
         );
@@ -53,7 +55,7 @@ export function Home() {
     <div className="home">
       <div className="home-hello">
         <h1>{greeting(today)}, {user.name.split(" ")[0]}</h1>
-        <p>{today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} · Here's where things stand. Pick a workspace to get started.</p>
+        <p>{today.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })} · Pick a workspace to get started.</p>
       </div>
       {workspaces.length ? <Tiles areas={workspaces} /> : <p className="muted">You don't have access to any workspaces yet. Ask an admin to give you access.</p>}
       {!!manage.length && <>
