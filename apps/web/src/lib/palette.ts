@@ -4,7 +4,7 @@ import { publicFileUrl } from "./api";
 import { useMe } from "./session";
 
 export type Accent = { c: string; t: string };
-export type Palette = Record<Workspace | "settings" | "import" | "admin" | "profile", Accent>;
+export type Palette = Record<Workspace | "me" | "settings" | "import" | "admin" | "profile", Accent>;
 
 const DEFAULT_SEED = "#486FE4";
 type Rgb = [number, number, number];
@@ -42,6 +42,7 @@ export function paletteFrom(seedHex: string): Palette {
     return { c: toHex(c), t: toHex(c.map((v) => 255 - (255 - v) * 0.12) as Rgb) };
   };
   return {
+    me: make(14, 0.44, 0.9),
     people: make(0, 0.5, 1),
     recruitment: make(-18, 0.45, 0.97),
     crm: make(22, 0.52, 0.86),

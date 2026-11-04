@@ -2,13 +2,15 @@ import type { ReactNode } from "react";
 import {
   Briefcase, Building2, CalendarDays, CheckSquare, Clock, FileText, Flag, FolderOpen, Globe, History, LayoutDashboard, LineChart, ListChecks,
   ListTodo, Network, Phone, Rows3, Share2, Archive, SquareCheck, Stamp, UserPlus, UserSearch, Users, Workflow, BarChart3, Kanban,
-  Settings, ShieldCheck, Mail, Bell, KeyRound, ScrollText, Upload, User, Building, Building2 as Org,
+  Settings, ShieldCheck, Mail, Bell, Wallet, KeyRound, ScrollText, Upload, User, Building, Building2 as Org,
 } from "lucide-react";
 import type { Workspace } from "@windveal/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useSession } from "./session";
+import { api } from "./api";
 
 /** What decides whether someone can see an area or one of its sections. */
-export type Viewer = { isAdmin: boolean; platformAdmin: boolean; canImport: boolean; canManageMembers: boolean; canDocuments: boolean };
+export type Viewer = { isAdmin: boolean; platformAdmin: boolean; canImport: boolean; canManageMembers: boolean; canDocuments: boolean; hasOnboarding: boolean; hasApplication: boolean };
 
 /** A page inside a workspace, shown in that workspace's sidebar. */
 export type Section = {
@@ -22,7 +24,7 @@ export type Section = {
   /** Extra paths that also count as this section (e.g. a record page under a list). */
   also?: RegExp;
 };
-export type AreaKey = Workspace | "settings" | "admin" | "profile";
+export type AreaKey = Workspace | "me" | "settings" | "admin" | "profile";
 export type WorkspaceDef = {
   key: AreaKey; label: string; base: string; icon: (size?: number) => ReactNode; blurb: string; sections: Section[];
   /** Other paths that belong to this area (e.g. Import data inside Documents). */
@@ -39,6 +41,18 @@ const UUID = "[0-9a-f-]{36}";
 
 /** The six workspaces, in the order they appear on Home. Each has its own dashboard and sidebar. */
 export const WORKSPACE_DEFS: WorkspaceDef[] = [
+  {
+    // Everyone's own things, whatever their role.
+    key: "me", label: "My space", base: "/me", icon: i(User), blurb: "Your attendance, leave, pay and onboarding.", group: "workspace",
+    sections: [
+      { to: "/me", label: "Overview", icon: <LayoutDashboard size={18} /> },
+      { to: "/me/attendance", label: "Attendance", icon: <Clock size={18} /> },
+      { to: "/me/leave", label: "Leave", icon: <CalendarDays size={18} /> },
+      { to: "/me/pay", label: "Pay", icon: <Wallet size={18} /> },
+      { to: "/me/onboarding", label: "Onboarding", icon: <Flag size={18} />, visible: (v) => v.hasOnboarding },
+      { to: "/me/application", label: "My application", icon: <FileText size={18} />, visible: (v) => v.hasApplication },
+    ],
+  },
   {
     key: "people", label: "People & HR", base: "/people", icon: i(Users), blurb: "Your team, attendance, leave and onboarding.", group: "workspace", search: true,
     sections: [
@@ -126,7 +140,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     key: "profile", label: "Profile", base: "/profile", icon: i(User), blurb: "Your details and your company's", group: "account",
     sections: [
       { to: "/profile", label: "Personal", icon: <User size={18} /> },
-      { to: "/profile/company", label: "Company", icon: <Org size={18} /> },
+      { to: "/profile/company", label: "Company", icon: <Org size={18} />, visible: (v) => v.isAdmin },
       { to: "/profile/notifications", label: "Notifications", icon: <Bell size={18} /> },
     ],
   },
@@ -148,13 +162,15 @@ export function sectionActive(ws: WorkspaceDef, s: Section, path: string): boole
 /** Who can open which areas and sections (workspace access for workspaces; roles for the rest). */
 export function useAreaAccess() {
   const { isAdmin, user, can, hasSpecial } = useSession();
+  const mine = useQuery({ queryKey: ["my", "summary"], queryFn: () => api.get<{ onboarding: boolean; application: boolean }>("/api/my/summary"), staleTime: 60_000 });
   const importer = hasSpecial("import_data");
   const viewer: Viewer = {
     isAdmin, platformAdmin: !!user.platformAdmin, canManageMembers: hasSpecial("manage_members"), canDocuments: can("documents"),
+    hasOnboarding: !!mine.data?.onboarding, hasApplication: !!mine.data?.application,
     canImport: isAdmin || (["people", "crm", "recruitment"] as Workspace[]).some((w) => can(w, "manage") || (importer && can(w, "edit"))),
   };
   // Documents also opens for people who can only import.
-  const canOpen = (w: WorkspaceDef) => (w.group === "workspace" ? can(w.key as Workspace) || (w.key === "documents" && viewer.canImport) : w.visible ? w.visible(viewer) : true);
+  const canOpen = (w: WorkspaceDef) => w.key === "me" || (w.group === "workspace" ? can(w.key as Workspace) || (w.key === "documents" && viewer.canImport) : w.visible ? w.visible(viewer) : true);
   const sectionsOf = (w: WorkspaceDef) => w.sections.filter((s) => !s.visible || s.visible(viewer));
   /**
    * Whether a page can be opened at all, however it was reached (a link, the address bar, an old bookmark).

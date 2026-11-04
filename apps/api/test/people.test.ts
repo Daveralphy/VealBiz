@@ -99,13 +99,14 @@ describe("people: pay details", () => {
     const put = await admin.c.put(`/api/people/employees/${e.id}/pay`, { salaryAmount: 450000, payFrequency: "Monthly", bankName: "GTBank", accountNumber: "0123456789" });
     expect(put.status).toBe(200);
 
+    // A member can't open anyone else's record at all, let alone their pay.
     const denied = await other.c.get(`/api/people/employees/${e.id}/pay`);
     expect(denied.status).toBe(403);
     const deniedPut = await other.c.put(`/api/people/employees/${e.id}/pay`, { salaryAmount: 1 });
     expect(deniedPut.status).toBe(403);
-    const memberProfile = (await other.c.get(`/api/people/employees/${e.id}`)).body;
-    expect(memberProfile.canSeePay).toBe(false);
-    expect(JSON.stringify(memberProfile)).not.toContain("0123456789");
+    const memberProfile = await other.c.get(`/api/people/employees/${e.id}`);
+    expect(memberProfile.status).toBe(403);
+    expect(JSON.stringify(memberProfile.body)).not.toContain("0123456789");
 
     const seen = await admin.c.get(`/api/people/employees/${e.id}/pay`);
     expect(seen.status).toBe(200);

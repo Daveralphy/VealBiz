@@ -5,7 +5,7 @@ import { ChevronLeft, KeyRound, Lock, Pause, Pencil, Plus, Trash2, X, Copy } fro
 import {
   Avatar, Button, Card, ConfirmDialog, EmptyState, IconButton, Input, Loading, Modal, Pill, Segmented, Select, Switch, useToast,
 } from "@windveal/ui";
-import { ACCESS_LEVELS, MIN_ACCESS, SPECIAL_LABELS, SPECIAL_PERMISSIONS, WORKSPACES, WORKSPACE_LABELS, type AccessLevel, type SpecialPermission, type Workspace } from "@windveal/shared";
+import { ACCESS_LEVELS, SPECIAL_LABELS, SPECIAL_PERMISSIONS, WORKSPACES, WORKSPACE_LABELS, type AccessLevel, type SpecialPermission, type Workspace } from "@windveal/shared";
 import { api, ApiError } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { MoreMenu } from "../../components/actions";
@@ -14,7 +14,7 @@ const LEVEL: Record<AccessLevel, { label: string; tone: "grey" | "blue" | "viole
   none: { label: "No access", tone: "grey" }, view: { label: "View", tone: "blue" }, edit: { label: "Edit", tone: "violet" }, manage: { label: "Manage", tone: "ok" },
 };
 const WS_WHAT: Record<Workspace, string> = {
-  people: "Directory, leave, attendance and onboarding", recruitment: "Jobs, candidates and interviews", crm: "Leads, deals and companies",
+  people: "Everyone's records with Manage; their own team's with View or Edit", recruitment: "Jobs, candidates and interviews", crm: "Leads, deals and companies",
   workflows: "Tasks, approvals and templates", documents: "Files and folders", insights: "Reports across the business",
 };
 const rank = (l: AccessLevel) => ACCESS_LEVELS.indexOf(l);
@@ -33,11 +33,10 @@ function LevelRow({ ws, level, editing, onChange, tag, from }: { ws: Workspace; 
   return (
     <div className="ac-row">
       <div><b>{WORKSPACE_LABELS[ws]}{tag && <span className="ac-tag">{tag}</span>}</b>
-        <small>{WS_WHAT[ws]}{MIN_ACCESS[ws] && ". Everyone can at least view it, so they can clock in and ask for leave"}</small></div>
+        <small>{WS_WHAT[ws]}</small></div>
       <div className="ac-right">
         {editing
-          ? <Segmented value={level} onChange={(v) => onChange?.(v as AccessLevel)}
-            options={ACCESS_LEVELS.filter((l) => !MIN_ACCESS[ws] || ACCESS_LEVELS.indexOf(l) >= ACCESS_LEVELS.indexOf(MIN_ACCESS[ws]!)).map((l) => ({ value: l, label: LEVEL[l].label }))} />
+          ? <Segmented value={level} onChange={(v) => onChange?.(v as AccessLevel)} options={ACCESS_LEVELS.map((l) => ({ value: l, label: LEVEL[l].label }))} />
           : <Pill tone={LEVEL[level].tone}>{LEVEL[level].label}</Pill>}
         {from && <span className="ac-from">{from}</span>}
       </div>
@@ -128,7 +127,7 @@ export function RolesList() {
 }
 
 // ---------------- One role ----------------
-const BLANK = { ...Object.fromEntries(WORKSPACES.map((w) => [w, "none"])), ...MIN_ACCESS } as Record<Workspace, AccessLevel>;
+const BLANK = Object.fromEntries(WORKSPACES.map((w) => [w, "none"])) as Record<Workspace, AccessLevel>;
 
 /** Each role (and "new") gets a fresh page, so moving between them never carries over unsaved edits. */
 export function RolePage() {

@@ -147,19 +147,38 @@ describe("search", () => {
   });
 });
 
-describe("everyone is on the team", () => {
-  it("joining puts a person in People & HR, so they can clock in whatever their role", async () => {
+describe("everyone is on the team, and sees only their own things", () => {
+  it("someone with no People & HR access can clock in and sees only their own records in My space", async () => {
     const app = await getApp();
     const { c: admin, org } = await signUpWithOrg(app);
     await growth(org.id);
     const driver = (await admin.post("/api/roles", { name: "Driver", access: NONE, special: [] })).body.role;
-    expect(driver.access.people).toBe("view");
     const { c: person, me } = await join(app, admin, driver.id, "Musa Bello");
-    expect(me.membership.access.people).toBe("view");
-    const mine = await person.get("/api/people/attendance/me");
-    expect(mine.status).toBe(200);
+    expect(me.membership.access.people).toBe("none");
     expect((await person.post("/api/people/attendance/clock-in", {})).status).toBe(200);
-    const team = (await admin.get("/api/people/employees")).body;
-    expect(JSON.stringify(team)).toContain("Musa");
+    expect((await person.get("/api/my/attendance")).body.days).toHaveLength(1);
+    expect((await person.get("/api/my/summary")).body.employee.firstName).toBe("Musa");
+    expect((await person.get("/api/my/pay")).status).toBe(200);
+    // Nobody else's records.
+    expect((await person.get("/api/people/employees")).status).toBe(403);
+    expect((await person.get("/api/people/attendance")).status).toBe(403);
+    expect(JSON.stringify((await admin.get("/api/people/employees")).body)).toContain("Musa");
+  });
+
+  it("a manager with People & HR View sees only the people who report to them", async () => {
+    const app = await getApp();
+    const { c: admin, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    const lead = (await admin.post("/api/roles", { name: "Team lead", access: { ...NONE, people: "view" }, special: [] })).body.role;
+    const { c: boss } = await join(app, admin, lead.id, "Ngozi Eze");
+    await boss.get("/api/my/summary");
+    const bossId = (await admin.get("/api/people/employees?search=Ngozi")).body.items[0].id;
+    const mine = (await admin.post("/api/people/employees", { firstName: "Tobi", lastName: "Ade", managerId: bossId })).body.employee;
+    const other = (await admin.post("/api/people/employees", { firstName: "Kemi", lastName: "Ola" })).body.employee;
+    const names = (await boss.get("/api/people/employees")).body.items.map((e: any) => e.firstName);
+    expect(names.sort()).toEqual(["Ngozi", "Tobi"]);
+    expect((await boss.get(`/api/people/employees/${mine.id}`)).status).toBe(200);
+    expect((await boss.get(`/api/people/employees/${other.id}`)).status).toBe(404);
+    expect((await boss.get("/api/people/attendance")).body.rows.map((r: any) => r.employee.name)).not.toContain("Kemi Ola");
   });
 });

@@ -7,7 +7,7 @@ import { can, requireAccess, requireOrg, type OrgContext } from "../../lib/conte
 import { badRequest, conflict, forbidden, parse } from "../../lib/http";
 import { audit } from "../../lib/audit";
 import { toCsv } from "../../lib/csv";
-import { dateStr, fullName, getEmployee, myEmployee, notDeleted, optDate } from "./shared";
+import { dateStr, fullName, getTeamEmployee, inTeam, myEmployee, notDeleted, optDate, teamScope } from "./shared";
 import { eachDay, localDate, minutesOfDay, parseHm } from "./util";
 
 type Status = "present" | "late" | "not_in" | "on_leave" | "sick";
@@ -49,7 +49,7 @@ async function board(ctx: OrgContext, date: string, opts: { search?: string; loc
   const workdayStart = ctx.org.settings.workdayStart ?? "09:00";
   const startMin = parseHm(workdayStart);
   const people = (await db.select().from(employees)
-    .where(and(notDeleted(ctx.org.id), ne(employees.status, "left"))).orderBy(employees.firstName, employees.lastName))
+    .where(and(notDeleted(ctx.org.id), ne(employees.status, "left"), inTeam(await teamScope(ctx)))).orderBy(employees.firstName, employees.lastName))
     .filter((e) => !e.startDate || e.startDate <= date)
     .filter((e) => !opts.location || e.location === opts.location)
     .filter((e) => {
@@ -197,7 +197,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
       clockOut: z.union([z.string().datetime({ offset: true }), z.null()]),
       note: z.string().trim().min(3, "Say why the times were changed").max(300),
     }), req.body);
-    const e = await getEmployee(ctx.org.id, input.employeeId);
+    const e = await getTeamEmployee(ctx, input.employeeId);
     const clockIn = input.clockIn ? new Date(input.clockIn) : null;
     const clockOut = input.clockOut ? new Date(input.clockOut) : null;
     if (clockOut && !clockIn) throw badRequest("Some details need fixing.", { clockIn: "Add a clock-in time" });

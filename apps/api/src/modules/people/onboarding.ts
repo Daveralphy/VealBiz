@@ -3,17 +3,20 @@ import { and, asc, desc, eq, isNull, sql as dsql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../../db/client";
 import { checklists, employees, memberships, taskTemplates, tasks, users } from "../../db/schema";
-import { requireAccess, type OrgContext } from "../../lib/context";
+import { requireAccess, requireOrg, type OrgContext } from "../../lib/context";
 import { badRequest, forbidden, notFound, parse } from "../../lib/http";
 import { audit } from "../../lib/audit";
 import { createTask } from "../../lib/tasks";
-import { checklistProgress, fullName, hasLevel, optDate, optId, optText } from "./shared";
+import { checklistProgress, fullName, hasLevel, inTeam, optDate, optId, optText, teamScope } from "./shared";
 
 async function getChecklist(ctx: OrgContext, id: string) {
   if (!z.string().uuid().safeParse(id).success) throw notFound("That checklist");
   const [row] = await db.select({ c: checklists, e: employees }).from(checklists).innerJoin(employees, eq(employees.id, checklists.employeeId))
     .where(and(eq(checklists.id, id), eq(checklists.orgId, ctx.org.id), isNull(checklists.deletedAt), isNull(employees.deletedAt))).limit(1);
   if (!row) throw notFound("That checklist");
+  // Someone's own checklist, or one in their team.
+  const team = await teamScope(ctx);
+  if (team && !team.includes(row.e.id) && row.e.userId !== ctx.user.id) throw notFound("That checklist");
   return row;
 }
 
@@ -32,7 +35,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
   app.get<{ Querystring: { status?: string; kind?: string } }>("/api/people/checklists", async (req) => {
     const ctx = await requireAccess(req, "people", "view");
     const status = req.query.status ?? "in_progress";
-    const conds = [eq(checklists.orgId, ctx.org.id), isNull(checklists.deletedAt), isNull(employees.deletedAt)];
+    const conds = [eq(checklists.orgId, ctx.org.id), isNull(checklists.deletedAt), isNull(employees.deletedAt), inTeam(await teamScope(ctx))];
     if (status === "in_progress" || status === "done") conds.push(eq(checklists.status, status));
     if (req.query.kind === "onboarding" || req.query.kind === "offboarding") conds.push(eq(checklists.kind, req.query.kind));
     const rows = await db.select({
@@ -49,7 +52,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
   });
 
   app.get<{ Params: { id: string } }>("/api/people/checklists/:id", async (req) => {
-    const ctx = await requireAccess(req, "people", "view");
+    const ctx = await requireOrg(req);
     const { c, e } = await getChecklist(ctx, req.params.id);
     const [template] = c.templateId ? await db.select().from(taskTemplates).where(eq(taskTemplates.id, c.templateId)).limit(1) : [];
     const rows = await db.select({ t: tasks, assignee: users.name }).from(tasks).leftJoin(users, eq(users.id, tasks.assigneeUserId))
@@ -99,7 +102,7 @@ export default async function onboardingRoutes(app: FastifyInstance) {
   });
 
   app.patch<{ Params: { id: string; taskId: string } }>("/api/people/checklists/:id/tasks/:taskId", async (req) => {
-    const ctx = await requireAccess(req, "people", "view");
+    const ctx = await requireOrg(req);
     const { c } = await getChecklist(ctx, req.params.id);
     const { done } = parse(z.object({ done: z.boolean() }), req.body);
     if (!z.string().uuid().safeParse(req.params.taskId).success) throw notFound("That task");

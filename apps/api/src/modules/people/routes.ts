@@ -16,11 +16,13 @@ import { fileView } from "../files/routes";
 import {
   balancesFor, checklistProgress, dateStr, employeeSummary, fullName, getDepartment, getEmployee, hasLevel, myEmployee, notDeleted, optDate, optId, optText,
   syncLeaveStatuses, type Employee,
+  getTeamEmployee, inTeam, teamScope,
 } from "./shared";
 import { localDate } from "./util";
 import leaveRoutes from "./leave";
 import attendanceRoutes from "./attendance";
 import onboardingRoutes from "./onboarding";
+import mySpaceRoutes from "./me";
 
 const mgr = alias(employees, "mgr");
 const STATUSES = ["onboarding", "active", "on_leave", "leaving", "left"] as const;
@@ -106,8 +108,8 @@ async function pendingForMeCount(ctx: OrgContext) {
   return r?.n ?? 0;
 }
 
-function listFilters(orgId: string, q: { search?: string; departmentId?: string; location?: string; status?: string }) {
-  const conds = [notDeleted(orgId)];
+function listFilters(orgId: string, q: { search?: string; departmentId?: string; location?: string; status?: string }, team: string[] | null = null) {
+  const conds = [notDeleted(orgId), inTeam(team)];
   if (q.search?.trim()) {
     const pat = `%${q.search.trim().replace(/[%_\\]/g, "\\$&")}%`;
     conds.push(or(
@@ -127,20 +129,22 @@ export default async function peopleRoutes(app: FastifyInstance) {
   await app.register(leaveRoutes);
   await app.register(attendanceRoutes);
   await app.register(onboardingRoutes);
+  await app.register(mySpaceRoutes);
 
   // ---------------- overview ----------------
   app.get("/api/people/stats", async (req) => {
     const ctx = await requireAccess(req, "people", "view");
     await syncLeaveStatuses(ctx.org.id);
     const today = localDate();
-    const current = await db.select().from(employees).where(and(notDeleted(ctx.org.id), ne(employees.status, "left")));
+    const team = await teamScope(ctx);
+    const current = await db.select().from(employees).where(and(notDeleted(ctx.org.id), ne(employees.status, "left"), inTeam(team)));
     const [deptCount] = await db.select({ n: count() }).from(departments).where(and(eq(departments.orgId, ctx.org.id), isNull(departments.deletedAt)));
     const m = Number(today.slice(5, 7));
     const quarterStart = `${today.slice(0, 4)}-${String(Math.floor((m - 1) / 3) * 3 + 1).padStart(2, "0")}-01`;
     const onLeaveRows = await db.select({ id: employees.id, firstName: employees.firstName, endDate: leaveRequests.endDate })
       .from(leaveRequests).innerJoin(employees, eq(employees.id, leaveRequests.employeeId))
       .where(and(eq(leaveRequests.orgId, ctx.org.id), eq(leaveRequests.status, "approved"), isNull(leaveRequests.deletedAt),
-        isNull(employees.deletedAt), lte(leaveRequests.startDate, today), gte(leaveRequests.endDate, today)));
+        isNull(employees.deletedAt), lte(leaveRequests.startDate, today), gte(leaveRequests.endDate, today), inTeam(team)));
     const onLeave = [...new Map(onLeaveRows.map((r) => [r.id, r])).values()];
     const in14 = localDate(new Date(Date.now() + 14 * 86_400_000));
     const starting = current.filter((e) => e.status === "onboarding" || (e.startDate && e.startDate > today))
@@ -148,7 +152,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
     const leaving = current.filter((e) => e.status === "leaving").sort((a, b) => (a.endDate ?? "9999").localeCompare(b.endDate ?? "9999"));
     const [onb] = await db.select({ n: count() }).from(checklists)
       .innerJoin(employees, eq(employees.id, checklists.employeeId))
-      .where(and(eq(checklists.orgId, ctx.org.id), eq(checklists.status, "in_progress"), isNull(checklists.deletedAt), isNull(employees.deletedAt)));
+      .where(and(eq(checklists.orgId, ctx.org.id), eq(checklists.status, "in_progress"), isNull(checklists.deletedAt), isNull(employees.deletedAt), inTeam(team)));
     return {
       headcount: current.length,
       joinedThisQuarter: current.filter((e) => e.startDate && e.startDate >= quarterStart && e.startDate <= today).length,
@@ -176,7 +180,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
       await syncLeaveStatuses(ctx.org.id);
       const page = Math.max(1, Number(req.query.page) || 1);
       const pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 20));
-      const where = listFilters(ctx.org.id, req.query);
+      const where = listFilters(ctx.org.id, req.query, await teamScope(ctx));
       const base = () => db.select({ e: employees, dept: departments.name, mFirst: mgr.firstName, mLast: mgr.lastName }).from(employees)
         .leftJoin(departments, eq(departments.id, employees.departmentId))
         .leftJoin(mgr, eq(mgr.id, employees.managerId));
@@ -205,7 +209,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
     if (!can(ctx, "export_data")) throw forbidden("You don't have permission to export data.");
     const rows = await db.select({ e: employees, dept: departments.name, mFirst: mgr.firstName, mLast: mgr.lastName }).from(employees)
       .leftJoin(departments, eq(departments.id, employees.departmentId)).leftJoin(mgr, eq(mgr.id, employees.managerId))
-      .where(listFilters(ctx.org.id, req.query)).orderBy(employees.firstName, employees.lastName);
+      .where(listFilters(ctx.org.id, req.query, await teamScope(ctx))).orderBy(employees.firstName, employees.lastName);
     await audit(ctx, { action: "people.exported", category: "data", summary: `${ctx.user.name} exported ${rows.length} people` });
     reply.header("Content-Type", "text/csv; charset=utf-8");
     reply.header("Content-Disposition", `attachment; filename="people-${localDate()}.csv"`);
@@ -219,7 +223,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>("/api/people/employees/:id", async (req) => {
     const ctx = await requireAccess(req, "people", "view");
     await syncLeaveStatuses(ctx.org.id);
-    const e = await getEmployee(ctx.org.id, req.params.id);
+    const e = await getTeamEmployee(ctx, req.params.id);
     const isSelf = e.userId === ctx.user.id;
     const canEdit = hasLevel(ctx, "edit");
     const department = e.departmentId ? (await db.select().from(departments).where(eq(departments.id, e.departmentId)).limit(1))[0] : null;
@@ -312,7 +316,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
 
   app.patch<{ Params: { id: string } }>("/api/people/employees/:id", async (req) => {
     const ctx = await requireAccess(req, "people", "edit");
-    const e = await getEmployee(ctx.org.id, req.params.id);
+    const e = await getTeamEmployee(ctx, req.params.id);
     const input = parse(updateInput, req.body);
     const patch: Partial<typeof employees.$inferInsert> = {};
     for (const [k, v] of Object.entries(input)) if (v !== undefined) (patch as Record<string, unknown>)[k] = v;
@@ -350,7 +354,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
   /** Mark leaving: sets the last day and starts the offboarding checklist. */
   app.post<{ Params: { id: string } }>("/api/people/employees/:id/leaving", async (req) => {
     const ctx = await requireAccess(req, "people", "edit");
-    const e = await getEmployee(ctx.org.id, req.params.id);
+    const e = await getTeamEmployee(ctx, req.params.id);
     const { endDate, reason } = parse(z.object({ endDate: dateStr, reason: optText(300) }), req.body);
     if (e.status === "left") throw conflict(`${fullName(e)} has already left.`);
     if (e.startDate && endDate < e.startDate) throw badRequest("Some details need fixing.", { endDate: "The last day can't be before the start date" });
@@ -371,7 +375,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
   /** Mark left: offboarding removes access — suspends their membership and signs them out everywhere. */
   app.post<{ Params: { id: string } }>("/api/people/employees/:id/left", async (req) => {
     const ctx = await requireAccess(req, "people", "manage");
-    const e = await getEmployee(ctx.org.id, req.params.id);
+    const e = await getTeamEmployee(ctx, req.params.id);
     const { endDate } = parse(z.object({ endDate: optDate }), req.body);
     if (e.status === "left") throw conflict(`${fullName(e)} has already left.`);
     const last = endDate ?? e.endDate ?? localDate();
@@ -402,7 +406,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string } }>("/api/people/employees/:id", async (req) => {
     const ctx = await requireAccess(req, "people", "manage");
-    const e = await getEmployee(ctx.org.id, req.params.id);
+    const e = await getTeamEmployee(ctx, req.params.id);
     await db.transaction(async (tx) => {
       await tx.update(employees).set({ deletedAt: new Date(), version: dsql`${employees.version} + 1` }).where(eq(employees.id, e.id));
       await tx.update(employees).set({ managerId: null, version: dsql`${employees.version} + 1` }).where(eq(employees.managerId, e.id));
@@ -415,7 +419,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
   /** Starts a checklist by hand (e.g. onboarding wasn't started when the person was added). */
   app.post<{ Params: { id: string } }>("/api/people/employees/:id/checklists", async (req) => {
     const ctx = await requireAccess(req, "people", "edit");
-    const e = await getEmployee(ctx.org.id, req.params.id);
+    const e = await getTeamEmployee(ctx, req.params.id);
     const { kind, templateId } = parse(z.object({ kind: z.enum(["onboarding", "offboarding"]), templateId: optId }), req.body);
     if (templateId) {
       const [t] = await db.select().from(taskTemplates).where(and(eq(taskTemplates.id, templateId), eq(taskTemplates.orgId, ctx.org.id))).limit(1);
@@ -430,7 +434,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
 
   app.delete<{ Params: { id: string; linkId: string } }>("/api/people/employees/:id/documents/:linkId", async (req) => {
     const ctx = await requireAccess(req, "people", "edit");
-    const e = await getEmployee(ctx.org.id, req.params.id);
+    const e = await getTeamEmployee(ctx, req.params.id);
     const [l] = await db.select().from(fileLinks).where(and(eq(fileLinks.id, req.params.linkId), eq(fileLinks.orgId, ctx.org.id),
       eq(fileLinks.linkType, "employee"), eq(fileLinks.linkId, e.id))).limit(1);
     if (!l) throw notFound("That document");
@@ -443,7 +447,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>("/api/people/employees/:id/pay", async (req) => {
     const ctx = await requireAccess(req, "people", "view");
     if (!can(ctx, "see_pay")) throw forbidden("You don't have permission to see pay details.");
-    const e = await getEmployee(ctx.org.id, req.params.id);
+    const e = await getTeamEmployee(ctx, req.params.id);
     const [p] = await db.select().from(employeePay).where(and(eq(employeePay.employeeId, e.id), eq(employeePay.orgId, ctx.org.id))).limit(1);
     await audit(ctx, { action: "pay.viewed", category: "access", entityType: "employee", entityId: e.id, summary: `${ctx.user.name} viewed pay details for ${fullName(e)}` });
     return {
@@ -455,7 +459,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
   app.put<{ Params: { id: string } }>("/api/people/employees/:id/pay", async (req) => {
     const ctx = await requireAccess(req, "people", "edit");
     if (!can(ctx, "see_pay")) throw forbidden("You don't have permission to change pay details.");
-    const e = await getEmployee(ctx.org.id, req.params.id);
+    const e = await getTeamEmployee(ctx, req.params.id);
     const input = parse(payInput, req.body);
     const values = {
       salaryAmount: input.salaryAmount != null ? String(input.salaryAmount) : null, currency: (input.currency ?? ctx.org.currency).toUpperCase(),

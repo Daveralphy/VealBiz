@@ -10,7 +10,8 @@ import { badRequest, conflict, forbidden, notFound, parse } from "../../lib/http
 import { audit, notify } from "../../lib/audit";
 import { createApproval, onApprovalDecided } from "../../lib/approvals";
 import {
-  activeAdminUserId, balancesFor, dateStr, fullName, getEmployee, hasLevel, holidaysFor, myEmployee, notDeleted, optDate, optId, optText,
+  activeAdminUserId, balancesFor, dateStr, fullName, hasLevel, holidaysFor, myEmployee, notDeleted, optDate, optId, optText,
+  getTeamEmployee, inTeam, teamScope,
 } from "./shared";
 import { addDays, fmtDay, localDate, mondayOf, workingDays } from "./util";
 
@@ -52,7 +53,7 @@ async function applyLeaveDecision(orgId: string, leaveId: string, outcome: "appr
   const what = `${type?.name ?? "Leave"} ${fmtDay(lr.startDate)} to ${fmtDay(lr.endDate)}`;
   const title = `Your ${what} was ${outcome}`;
   const recipients = new Set([lr.requestedBy, emp?.userId].filter((x): x is string => !!x && x !== actorUserId));
-  for (const r of recipients) await notify(orgId, r, r === emp?.userId ? title : `${name}'s ${what} was ${outcome}`, note ?? undefined, "/people/leave", tx);
+  for (const r of recipients) await notify(orgId, r, r === emp?.userId ? title : `${name}'s ${what} was ${outcome}`, note ?? undefined, r === emp?.userId ? "/me/leave" : "/people/leave", tx);
   const [org] = await tx.select().from(organisations).where(eq(organisations.id, orgId)).limit(1);
   const [actor] = await tx.select().from(users).where(eq(users.id, actorUserId)).limit(1);
   if (org && actor) {
@@ -206,7 +207,7 @@ export default async function leaveRoutes(app: FastifyInstance) {
     let emp = mine;
     if (req.query.employeeId && req.query.employeeId !== mine?.id) {
       await requireAccess(req, "people", "view");
-      emp = await getEmployee(ctx.org.id, req.query.employeeId);
+      emp = await getTeamEmployee(ctx, req.query.employeeId);
     }
     if (!emp) return { employee: null, balances: [] };
     return { employee: { id: emp.id, name: fullName(emp) }, balances: await balancesFor(ctx.org.id, emp.id) };
@@ -228,7 +229,7 @@ export default async function leaveRoutes(app: FastifyInstance) {
     let emp = mine;
     if (input.employeeId && input.employeeId !== mine?.id) {
       await requireAccess(req, "people", "edit");
-      emp = await getEmployee(ctx.org.id, input.employeeId);
+      emp = await getTeamEmployee(ctx, input.employeeId);
     }
     if (!emp) throw badRequest("You're not on the team list. Ask an admin to add you back in People & HR.");
     if (emp.status === "left") throw badRequest(`${fullName(emp)} has left the organisation.`);
@@ -296,9 +297,9 @@ export default async function leaveRoutes(app: FastifyInstance) {
         .orderBy(desc(leaveRequests.startDate)).limit(100);
     } else {
       await requireAccess(req, "people", "view");
-      const conds = [base];
+      const conds = [base, inTeam(await teamScope(ctx), leaveRequests.employeeId)];
       if (req.query.status && ["pending", "approved", "declined", "cancelled"].includes(req.query.status)) conds.push(eq(leaveRequests.status, req.query.status as LeaveRequest["status"]));
-      if (req.query.employeeId) conds.push(eq(leaveRequests.employeeId, (await getEmployee(ctx.org.id, req.query.employeeId)).id));
+      if (req.query.employeeId) conds.push(eq(leaveRequests.employeeId, (await getTeamEmployee(ctx, req.query.employeeId)).id));
       rows = await db.select().from(leaveRequests).where(and(...conds)).orderBy(desc(leaveRequests.startDate)).limit(200);
     }
     return leaveView(ctx, rows);
@@ -354,7 +355,7 @@ export default async function leaveRoutes(app: FastifyInstance) {
     if (to < from) to = from;
     if (to > addDays(from, 62)) to = addDays(from, 62);
     const conds = [eq(leaveRequests.orgId, ctx.org.id), isNull(leaveRequests.deletedAt), inArray(leaveRequests.status, ["approved", "pending"]),
-      lte(leaveRequests.startDate, to), gte(leaveRequests.endDate, from), notDeleted(ctx.org.id)];
+      lte(leaveRequests.startDate, to), gte(leaveRequests.endDate, from), notDeleted(ctx.org.id), inTeam(await teamScope(ctx))];
     if (q.departmentId) conds.push(eq(employees.departmentId, q.departmentId));
     if (q.team === "mine") {
       const me = await myEmployee(ctx);

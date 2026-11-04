@@ -1,0 +1,8 @@
+/* ---------- My space ---------- */
+.me-balances { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px; }
+.me-balance { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 16px 18px; }
+.me-balance span { font-size: 14px; color: var(--text); }
+.me-file { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; color: var(--deep); margin-bottom: 12px; }
+.me-letter { white-space: pre-line; color: var(--text); font-size: 14px; line-height: 1.55; margin: 0 0 14px; }
+.me-answer { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--ink); }
+.me-note { font-size: 13px; margin-top: 18px; }

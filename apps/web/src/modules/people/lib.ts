@@ -78,8 +78,8 @@ export const peopleKeys = {
   leaveTypes: ["people", "leave-types"] as const,
 };
 
-export function useStats() {
-  return useQuery({ queryKey: peopleKeys.stats, queryFn: () => api.get<Stats>("/api/people/stats") });
+export function useStats(enabled = true) {
+  return useQuery({ queryKey: peopleKeys.stats, queryFn: () => api.get<Stats>("/api/people/stats"), enabled });
 }
 export function useEmployeeOptions(enabled = true) {
   return useQuery({ queryKey: peopleKeys.options, queryFn: () => api.get<EmployeeOption[]>("/api/people/employees/options"), enabled });

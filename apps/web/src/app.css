@@ -412,7 +412,7 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
 .dash-bar u { position: absolute; inset: 0 auto 0 0; background: var(--ws-c, var(--blue)); border-radius: 999px; }
 .dash-bar b { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; min-width: 28px; }
 .pill-ws { background: var(--ws-t, var(--pale)); color: var(--ws-c, var(--blue)); }
-@media (max-width: 1000px) { .dash-cols { grid-template-columns: 1fr; } }
+@media (max-width: 1000px) { .dash-cols { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) { .dash-kpis { grid-template-columns: 1fr 1fr; gap: 10px; } .dash-kpi b { font-size: 26px; } }
 
 /* ---------- Layout without a sidebar (Home, Profile, Settings, Admin, Import, Help) ---------- */

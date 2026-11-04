@@ -12,6 +12,7 @@ import { ProfileRoutes } from "./pages/profile";
 import { AdminRoutes } from "./pages/admin";
 import { Home } from "./pages/home";
 import { Help, NotFound, DevMailbox } from "./pages/misc";
+import MySpace from "./modules/me";
 import PeopleModule from "./modules/people";
 import RecruitmentModule from "./modules/recruitment";
 import CrmModule from "./modules/crm";
@@ -89,6 +90,7 @@ const router = createBrowserRouter([{ element: <Root />, children: [
     element: <Gate need="app" />,
     children: [
       { path: "/", element: <Home /> },
+      { path: "/me/*", element: <MySpace /> },
       { path: "/people/*", element: <PeopleModule /> },
       { path: "/recruitment/*", element: <RecruitmentModule /> },
       { path: "/crm/*", element: <CrmModule /> },

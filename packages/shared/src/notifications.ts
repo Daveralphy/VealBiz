@@ -16,8 +16,8 @@ export const NOTIFICATION_KIND_KEYS = Object.keys(NOTIFICATION_KINDS) as Notific
 /** Which kind a notification is, from where it takes you. */
 export function notificationKind(link: string | null | undefined): NotificationKind {
   const l = link ?? "/";
-  if (l.startsWith("/people/leave")) return "leave";
-  if (l.startsWith("/people")) return "people";
+  if (l.startsWith("/people/leave") || l.startsWith("/me/leave")) return "leave";
+  if (l.startsWith("/people") || l.startsWith("/me")) return "people";
   if (l.startsWith("/recruitment")) return "hiring";
   if (l.startsWith("/crm")) return "crm";
   if (l.startsWith("/workflows")) return "tasks";

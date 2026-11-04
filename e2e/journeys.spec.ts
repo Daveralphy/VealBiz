@@ -10,7 +10,7 @@ function watchErrors(page: Page) {
 }
 
 const SCREENS = [
-  "/", "/people", "/people/directory", "/people/departments", "/people/leave", "/people/attendance", "/people/onboarding",
+  "/", "/me", "/me/attendance", "/me/leave", "/me/pay", "/people", "/people/directory", "/people/departments", "/people/leave", "/people/attendance", "/people/onboarding",
   "/recruitment", "/recruitment/jobs", "/recruitment/candidates", "/recruitment/interviews", "/recruitment/careers", "/recruitment/jobs/new",
   "/crm", "/crm/pipeline", "/crm/companies", "/crm/leads", "/crm/follow-ups",
   "/workflows", "/workflows/mine", "/workflows/approvals", "/workflows/all", "/workflows/templates",
@@ -24,6 +24,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
   test(`every screen loads without errors (${viewport.width}px)`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const errors = watchErrors(page);
+    test.setTimeout(150_000);
     await signIn(page);
     for (const path of SCREENS) {
       await page.goto(path);
@@ -339,4 +340,21 @@ test("notification settings are all on to start and can be turned off", async ({
   await crm.locator(".switch").click();
   await page.getByRole("button", { name: "Save" }).click();
   await expect(crm.getByText("Off", { exact: true })).toBeVisible();
+});
+
+test("a member sees their own things in My space, and nobody else's", async ({ page }) => {
+  await signIn(page, "member@example-trading.test");
+  await page.locator('.home a[href="/me"]').click();
+  await expect(page.getByRole("heading", { level: 1, name: "My space" })).toBeVisible();
+  await page.locator('.in-ws .sb a[href="/me/leave"]').click();
+  await expect(page.getByRole("button", { name: "Ask for leave" })).toBeVisible();
+  await page.locator('.in-ws .sb a[href="/me/pay"]').click();
+  await expect(page.getByRole("heading", { name: "Your pay" })).toBeVisible();
+  // Other people's attendance and the company profile aren't theirs.
+  await page.goto(`${APP_URL}/people/attendance`);
+  await expect(page.getByRole("heading", { name: "You don't have access to this page" })).toBeVisible();
+  await page.goto(`${APP_URL}/profile/company`);
+  await expect(page.getByRole("heading", { name: "You don't have access to this page" })).toBeVisible();
+  await page.getByRole("button", { name: "Account menu" }).first().click();
+  await expect(page.getByRole("button", { name: "Company profile" })).toHaveCount(0);
 });

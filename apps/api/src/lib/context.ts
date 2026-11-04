@@ -1,7 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import {
-  ACCESS_LEVELS, DEFAULT_ACCESS, DEFAULT_SPECIAL, withMinimum, type AccessLevel, type Role, type SpecialPermission, type Workspace, WORKSPACES,
+  ACCESS_LEVELS, DEFAULT_ACCESS, DEFAULT_SPECIAL, type AccessLevel, type Role, type SpecialPermission, type Workspace, WORKSPACES,
 } from "@windveal/shared";
 import { db } from "../db/client";
 import { devices, memberships, organisations, sessions, users } from "../db/schema";
@@ -67,7 +67,7 @@ export function requireUser(req: FastifyRequest, opts: { verified?: boolean } = 
 export function roleAccess(org: Org, m: Membership, role: RoleRow | null): Record<Workspace, AccessLevel> {
   const tier = m.role as Role;
   if (tier === "admin") return { ...DEFAULT_ACCESS.admin };
-  if (role) return withMinimum({ ...DEFAULT_ACCESS.member, ...role.access });
+  if (role) return { ...DEFAULT_ACCESS.member, ...role.access };
   return { ...DEFAULT_ACCESS[tier], ...(org.settings.roleAccess?.[tier] ?? {}) };
 }
 
@@ -82,7 +82,7 @@ export function roleSpecial(org: Org, m: Membership, role: RoleRow | null): Spec
 export function computeAccess(org: Org, m: Membership, role: RoleRow | null): Record<Workspace, AccessLevel> {
   const base = roleAccess(org, m, role);
   if (m.role === "admin") return base;
-  return withMinimum(Object.fromEntries(WORKSPACES.map((w) => [w, m.workspaceAccess?.[w] ?? base[w]])) as Record<Workspace, AccessLevel>);
+  return Object.fromEntries(WORKSPACES.map((w) => [w, m.workspaceAccess?.[w] ?? base[w]])) as Record<Workspace, AccessLevel>;
 }
 
 export function computeSpecial(org: Org, m: Membership, role: RoleRow | null): SpecialPermission[] {

@@ -84,7 +84,7 @@ export function OnboardingPage() {
   );
 }
 
-function ChecklistDetail({ id }: { id: string }) {
+export function ChecklistDetail({ id, mine }: { id: string; mine?: boolean }) {
   const { can } = useSession();
   const toast = useToast();
   const qc = useQueryClient();
@@ -104,16 +104,17 @@ function ChecklistDetail({ id }: { id: string }) {
       return { prev };
     },
     onError: (e: Error, _t, ctx) => { if (ctx?.prev) qc.setQueryData(key, ctx.prev); toast(e.message, "error"); },
-    onSettled: () => { qc.invalidateQueries({ queryKey: ["people", "checklists"] }); qc.invalidateQueries({ queryKey: key }); qc.invalidateQueries({ queryKey: peopleKeys.stats }); },
+    onSettled: () => { qc.invalidateQueries({ queryKey: ["my"] }); qc.invalidateQueries({ queryKey: ["people", "checklists"] }); qc.invalidateQueries({ queryKey: key }); qc.invalidateQueries({ queryKey: peopleKeys.stats }); },
   });
 
   if (q.isLoading) return <Card><Loading /></Card>;
   if (q.isError || !q.data) return <Card><EmptyState title="Couldn't load this checklist">{(q.error as Error)?.message}</EmptyState></Card>;
   const d = q.data;
   return (
-    <Card title={<Link to={`/people/${d.employee.id}`}>{d.employee.name}'s {d.kind}</Link>}
-      subtitle={`${d.done} of ${d.total} done${d.templateName ? ` · from the "${d.templateName}" template` : ""} · tasks also appear in Workflows`}
-      actions={can("people", "edit") && <Button size="sm" variant="secondary" icon={<Plus size={15} />} onClick={() => setAdding(true)}>Add task</Button>}>
+    <Card title={mine ? `Your ${d.kind}` : <Link to={`/people/${d.employee.id}`}>{d.employee.name}'s {d.kind}</Link>}
+      subtitle={mine ? `${d.done} of ${d.total} steps done. Steps given to you can be ticked off here.`
+        : `${d.done} of ${d.total} done${d.templateName ? ` · from the "${d.templateName}" template` : ""} · tasks also appear in Workflows`}
+      actions={!mine && can("people", "edit") && <Button size="sm" variant="secondary" icon={<Plus size={15} />} onClick={() => setAdding(true)}>Add task</Button>}>
       {d.groups.length === 0 ? <p className="muted">No tasks yet.</p> : d.groups.map((g) => (
         <div key={g.name} className="ppl-group">
           <div className="section-label">{g.name}</div>

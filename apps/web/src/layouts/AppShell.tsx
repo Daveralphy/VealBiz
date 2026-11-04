@@ -216,7 +216,7 @@ function AccountMenu() {
           </div>
           {pathname !== "/" && <><button onClick={() => { close(); navigate("/"); }}><LayoutGrid size={16} />Home</button><hr /></>}
           <button onClick={() => { close(); navigate("/profile"); }}><User size={16} />My profile</button>
-          <button onClick={() => { close(); navigate("/profile/company"); }}><Building2 size={16} />Company profile</button>
+          {membership.role === "admin" && <button onClick={() => { close(); navigate("/profile/company"); }}><Building2 size={16} />Company profile</button>}
           {user.platformAdmin && <button onClick={() => { close(); navigate("/admin"); }}><ShieldCheck size={16} />WindVeal admin</button>}
           <button onClick={(e) => { e.preventDefault(); setTheme(theme === "dark" ? "light" : "dark"); }}>
             <Moon size={16} />Dark mode<span style={{ marginLeft: "auto" }}><Switch label="Dark mode" checked={theme === "dark"} onChange={(v) => setTheme(v ? "dark" : "light")} /></span>

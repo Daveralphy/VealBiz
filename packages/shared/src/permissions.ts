@@ -5,25 +5,13 @@ export type WorkspaceAccess = Partial<Record<Workspace, AccessLevel>>;
 export const DEFAULT_ACCESS: Record<Role, Record<Workspace, AccessLevel>> = {
   admin: { recruitment: "manage", people: "manage", crm: "manage", workflows: "manage", documents: "manage", insights: "manage" },
   manager: { recruitment: "edit", people: "view", crm: "edit", workflows: "edit", documents: "edit", insights: "view" },
-  member: { recruitment: "none", people: "view", crm: "edit", workflows: "edit", documents: "view", insights: "none" },
+  // Everyone has My space for their own things, so a member needn't see People & HR.
+  member: { recruitment: "none", people: "none", crm: "edit", workflows: "edit", documents: "view", insights: "none" },
 };
 
 export function accessFor(role: Role, overrides: WorkspaceAccess | null | undefined, ws: Workspace): AccessLevel {
   if (role === "admin") return "manage";
   return overrides?.[ws] ?? DEFAULT_ACCESS[role][ws];
-}
-
-/**
- * The least anyone has. Everyone is on the team, so everyone can at least view People & HR (to clock in,
- * see their own attendance and ask for leave). Pay stays behind "See pay".
- */
-export const MIN_ACCESS: Partial<Record<Workspace, AccessLevel>> = { people: "view" };
-export function withMinimum(access: Record<Workspace, AccessLevel>): Record<Workspace, AccessLevel> {
-  const out = { ...access };
-  for (const [w, min] of Object.entries(MIN_ACCESS) as [Workspace, AccessLevel][]) {
-    if (ACCESS_LEVELS.indexOf(out[w]) < ACCESS_LEVELS.indexOf(min)) out[w] = min;
-  }
-  return out;
 }
 
 export function hasAccess(level: AccessLevel, needed: AccessLevel): boolean {

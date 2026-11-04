@@ -1,6 +1,7 @@
 import { and, eq, gte, inArray, isNull, lte, ne, notInArray, sql as dsql } from "drizzle-orm";
 import { z } from "zod";
 import { ACCESS_LEVELS, type AccessLevel } from "@windveal/shared";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db, type Tx } from "../../db/client";
 import { departments, employees, leaveRequests, leaveTypes, memberships, publicHolidays, tasks } from "../../db/schema";
 import type { OrgContext } from "../../lib/context";
@@ -41,6 +42,35 @@ export async function myEmployee(ctx: OrgContext): Promise<Employee | null> {
   if (e) return e;
   await ensureTeamRecord(ctx.org.id, ctx.user.id, ctx.membership.jobTitle);
   return find();
+}
+
+/**
+ * Whose records someone sees in People & HR. Admins and People "Manage" see everyone (null); anyone else
+ * sees their own team: themselves and everyone who reports to them, at any level.
+ */
+export async function teamScope(ctx: OrgContext): Promise<string[] | null> {
+  if (ctx.membership.role === "admin" || hasLevel(ctx, "manage")) return null;
+  const me = await myEmployee(ctx);
+  if (!me) return [];
+  const all = await db.select({ id: employees.id, managerId: employees.managerId }).from(employees).where(notDeleted(ctx.org.id));
+  const ids = new Set([me.id]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const e of all) if (e.managerId && ids.has(e.managerId) && !ids.has(e.id)) { ids.add(e.id); grew = true; }
+  }
+  return [...ids];
+}
+
+const NOBODY = "00000000-0000-0000-0000-000000000000";
+/** A condition limiting employees to someone's team (nothing when they see everyone). */
+export const inTeam = (ids: string[] | null, col: AnyPgColumn = employees.id) => (ids === null ? undefined : inArray(col, ids.length ? ids : [NOBODY]));
+
+/** One person's record, if it's in the viewer's team (otherwise it's as if it doesn't exist). */
+export async function getTeamEmployee(ctx: OrgContext, id: string): Promise<Employee> {
+  const e = await getEmployee(ctx.org.id, id);
+  const team = await teamScope(ctx);
+  if (team && !team.includes(e.id)) throw notFound("That person");
+  return e;
 }
 
 export async function getDepartment(orgId: string, id: string) {

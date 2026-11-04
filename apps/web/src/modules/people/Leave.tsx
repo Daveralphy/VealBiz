@@ -48,13 +48,18 @@ export function LeaveRequestRow({ r, showStatus, actions }: { r: LeaveRequest; s
   );
 }
 
-export function RequestLeaveModal({ open, onClose, employeeId, employeeName }: { open: boolean; onClose: () => void; employeeId?: string; employeeName?: string }) {
+export function RequestLeaveModal({ open, onClose, employeeId, employeeName, myEmployeeId }: {
+  open: boolean; onClose: () => void; employeeId?: string; employeeName?: string;
+  /** From My space: the person's own record (they may not have People & HR access). */
+  myEmployeeId?: string;
+}) {
   const { can } = useSession();
   const toast = useToast();
   const qc = useQueryClient();
   const types = useLeaveTypes();
-  const stats = useStats();
-  const canForOthers = can("people", "edit");
+  const peopleStats = useStats(myEmployeeId === undefined);
+  const stats = myEmployeeId !== undefined ? { data: { myEmployeeId } } : peopleStats;
+  const canForOthers = can("people", "edit") && myEmployeeId === undefined;
   const options = useEmployeeOptions(open && canForOthers && !employeeId);
   const f = useForm({ employeeId: employeeId ?? "", leaveTypeId: "", startDate: "", endDate: "", reason: "" });
   useEffect(() => {
@@ -83,6 +88,7 @@ export function RequestLeaveModal({ open, onClose, employeeId, employeeName }: {
     await api.post("/api/people/leave/requests", { ...v, employeeId: v.employeeId || undefined, endDate: v.endDate || v.startDate });
     toast("Leave request sent for approval");
     qc.invalidateQueries({ queryKey: peopleKeys.all });
+    qc.invalidateQueries({ queryKey: ["people", "leave", "mine"] });
     onClose();
   });
 
