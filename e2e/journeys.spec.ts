@@ -317,3 +317,26 @@ test("roles decide what people open; an admin can add more for one person, and t
   await expect(page.locator(".ac-row", { hasText: "Recruitment" }).getByText("From Member")).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("Home searches everything; inside an area the search covers only that area", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("textbox", { name: "Search WindVeal" }).fill("Apex");
+  await page.locator(".search-results").getByRole("link", { name: /Apex Bakery/ }).click();
+  await expect(page).toHaveURL(/\/crm\/companies\//);
+  await page.goto(`${APP_URL}/people`);
+  await page.getByRole("textbox", { name: "Search People & HR" }).fill("Apex");
+  await expect(page.locator(".search-results")).toContainText("No matches");
+});
+
+test("notification settings are all on to start and can be turned off", async ({ page }) => {
+  await signIn(page, "manager@example-trading.test");
+  await page.getByRole("button", { name: "Notifications" }).first().click();
+  await page.getByRole("button", { name: "Notification settings" }).click();
+  await expect(page.getByRole("heading", { name: "What you're told about" })).toBeVisible();
+  const crm = page.locator(".ac-row", { hasText: "Follow-ups due" });
+  await expect(crm.getByText("On", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit" }).click();
+  await crm.locator(".switch").click();
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(crm.getByText("Off", { exact: true })).toBeVisible();
+});

@@ -2,9 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { useIsFetching, useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Bell, Building2, ChevronDown, CircleHelp, CreditCard, LayoutGrid, Lock, LogOut, Menu as MenuIcon, Moon, PanelLeftClose, PanelLeftOpen, Search,
-  ShieldCheck, User, X,
+  Bell, BellRing, Building2, ChevronDown, CircleHelp, CreditCard, LayoutGrid, Lock, LogOut, Menu as MenuIcon, Moon, PanelLeftClose, PanelLeftOpen, Search,
+  Settings as SettingsIcon, ShieldCheck, User, X,
 } from "lucide-react";
+import type { NotificationPrefs } from "@windveal/shared";
 import { Avatar, BrandLogo, Button, Menu, PageSkeleton, Switch, IconButton, TopProgress, useFirstVisitHold, usePageTransition } from "@windveal/ui";
 import { api, publicFileUrl } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -94,14 +95,17 @@ function Sidebar({ ws, mini, onToggle, onNavigate }: { ws: WorkspaceDef; mini: b
 
 type SearchHit = { type: string; id: string; title: string; subtitle?: string; href: string };
 
-function GlobalSearch({ ws }: { ws: WorkspaceDef }) {
+/** The search in the top bar: everything from Home, or just the area you're in. */
+function GlobalSearch({ ws, autoFocus }: { ws: WorkspaceDef | null; autoFocus?: boolean }) {
+  const scope = ws?.key ?? "all";
+  const label = ws ? `Search ${ws.label}` : "Search WindVeal";
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { data } = useQuery({
-    queryKey: ["search", q], enabled: q.trim().length >= 2,
-    queryFn: () => api.get<{ results: SearchHit[] }>(`/api/search?q=${encodeURIComponent(q.trim())}`),
+    queryKey: ["search", scope, q], enabled: q.trim().length >= 2,
+    queryFn: () => api.get<{ results: SearchHit[] }>(`/api/search?scope=${scope}&q=${encodeURIComponent(q.trim())}`),
   });
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -110,14 +114,13 @@ function GlobalSearch({ ws }: { ws: WorkspaceDef }) {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, []);
-  // Search covers this workspace only.
-  const results = (data?.results ?? []).filter((r) => r.href === ws.base || r.href.startsWith(`${ws.base}/`) || r.href.startsWith(`${ws.base}?`));
+  const results = data?.results ?? [];
   const groups = Array.from(new Set(results.map((r) => r.type)));
   return (
     <div className="top-search" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setTimeout(() => setOpen(false), 150)}>
       <Search size={17} />
-      <input ref={inputRef} value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-        placeholder="Search this workspace" aria-label="Search this workspace"
+      <input ref={inputRef} value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} autoFocus={autoFocus}
+        placeholder={label} aria-label={label}
         onKeyDown={(e) => { if (e.key === "Enter" && results[0]) { navigate(results[0].href); setOpen(false); setQ(""); } }} />
       <kbd>Ctrl K</kbd>
       {open && q.trim().length >= 2 && (
@@ -139,9 +142,32 @@ function GlobalSearch({ ws }: { ws: WorkspaceDef }) {
   );
 }
 
+type Notice = { id: string; title: string; body: string | null; link: string | null; kind: string; readAt: string | null; createdAt: string };
+
+/**
+ * The bell: what's new for you. New ones also pop up on your computer (if you allow it in
+ * Profile, Notifications). What you turn off there doesn't arrive at all.
+ */
 function Notifications() {
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["notifications"], queryFn: () => api.get<{ items: any[]; unread: number }>("/api/notifications"), refetchInterval: 60_000 });
+  const navigate = useNavigate();
+  const { data } = useQuery({ queryKey: ["notifications"], queryFn: () => api.get<{ items: Notice[]; unread: number }>("/api/notifications"), refetchInterval: 30_000 });
+  const prefs = useNotificationPrefs();
+  const [permission, setPermission] = useState(() => (typeof Notification === "undefined" ? "unsupported" : Notification.permission));
+  const seen = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    // The first load only remembers what's there; anything new after that pops up.
+    if (!seen.current) { seen.current = new Set(data.items.map((n) => n.id)); return; }
+    const fresh = data.items.filter((n) => !seen.current!.has(n.id) && !n.readAt);
+    fresh.forEach((n) => seen.current!.add(n.id));
+    if (!fresh.length || !prefs.data?.prefs.desktop || permission !== "granted") return;
+    for (const n of fresh.slice(0, 3)) {
+      const pop = new Notification(n.title, { body: n.body ?? undefined, icon: "/favicon.svg", tag: n.id });
+      pop.onclick = () => { window.focus(); if (n.link) navigate(n.link); pop.close(); };
+    }
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const allow = async () => { if (typeof Notification !== "undefined") setPermission(await Notification.requestPermission()); };
   return (
     <Menu trigger={(toggle) => <IconButton label="Notifications" badge={!!data?.unread} onClick={() => {
       toggle();
@@ -149,7 +175,13 @@ function Notifications() {
     }}><Bell size={20} /></IconButton>}>
       {(close) => (
         <div className="notif-list">
-          <div className="between" style={{ padding: "6px 10px 8px" }}><b className="ink">Notifications</b></div>
+          <div className="between notif-head">
+            <b className="ink">Notifications</b>
+            <button className="icon-btn" aria-label="Notification settings" title="Notification settings" onClick={() => { close(); navigate("/profile/notifications"); }}><SettingsIcon size={16} /></button>
+          </div>
+          {prefs.data?.prefs.desktop && permission === "default" && (
+            <button className="notif-allow" onClick={allow}><BellRing size={16} />Show new notifications on this computer</button>
+          )}
           {(data?.items ?? []).length === 0 && <p className="muted" style={{ padding: 10 }}>You're all caught up.</p>}
           {(data?.items ?? []).map((n) => (
             <Link key={n.id} to={n.link || "/"} className={`notif ${n.readAt ? "" : "unread"}`} onClick={close}>
@@ -160,6 +192,11 @@ function Notifications() {
       )}
     </Menu>
   );
+}
+
+/** A person's notification choices (shared by the bell and Profile, Notifications). */
+export function useNotificationPrefs() {
+  return useQuery({ queryKey: ["notification-prefs"], queryFn: () => api.get<{ prefs: NotificationPrefs }>("/api/notifications/settings"), staleTime: 60_000 });
 }
 
 function AccountMenu() {
@@ -218,12 +255,16 @@ function NoAccess({ area, whole }: { area?: string; whole: boolean }) {
 export function AppShell() {
   const [mini, setMini] = useState(() => { try { return localStorage.getItem("wv-sidebar") === "mini"; } catch { return false; } });
   const [drawer, setDrawer] = useState(false);
+  const [mSearch, setMSearch] = useState(false);
   const { org } = useSession();
   const location = useLocation();
   const { canOpen, canOpenPath } = useAreaAccess();
   const area = workspaceFor(location.pathname);
   // An area someone can't open gets no sidebar of its own, just the "no access" page.
   const ws = area && canOpen(area) ? area : null;
+  const onHome = location.pathname === "/";
+  // A new page closes the phone search.
+  useEffect(() => { setMSearch(false); }, [location.pathname]);
   const palette = usePalette();
   const accent = ws ? palette[ws.key] : null;
   const toggle = () => setMini((m) => {
@@ -267,14 +308,16 @@ export function AppShell() {
       <div className="shell plain">
         <TopProgress active={busy} />
         <div className="main">
-          <header className="topbar">
+          <header className={`topbar${onHome ? " topbar-home" : ""}`}>
             <span className="tb-brand"><span className="sb-logo"><OrgMark /></span><OrgBlock /></span>
+            {onHome && <GlobalSearch ws={null} />}
             <div className="right"><HeaderClock /><Notifications /><AccountMenu /></div>
           </header>
           <header className="mtop">
             <span className="tb-brand"><span className="sb-logo" style={{ width: 32, height: 32 }}><OrgMark size={32} /></span><b>{org.name}</b></span>
-            <div className="r"><HeaderClock /><Notifications /><AccountMenu /></div>
+            <div className="r">{onHome && <IconButton label="Search" onClick={() => setMSearch((v) => !v)}><Search size={20} /></IconButton>}<HeaderClock /><Notifications /><AccountMenu /></div>
           </header>
+          {onHome && mSearch && <div className="m-search"><GlobalSearch ws={null} autoFocus /></div>}
           {page}
         </div>
       </div>
@@ -292,8 +335,9 @@ export function AppShell() {
         </header>
         <header className="mtop">
           <IconButton label="Open menu" onClick={() => setDrawer(true)}><MenuIcon size={22} /></IconButton>
-          <div className="r"><HeaderClock /><Notifications /><AccountMenu /></div>
+          <div className="r">{ws.search && <IconButton label="Search" onClick={() => setMSearch((v) => !v)}><Search size={20} /></IconButton>}<HeaderClock /><Notifications /><AccountMenu /></div>
         </header>
+        {ws.search && mSearch && <div className="m-search"><GlobalSearch ws={ws} autoFocus /></div>}
         {page}
       </div>
       {drawer && (

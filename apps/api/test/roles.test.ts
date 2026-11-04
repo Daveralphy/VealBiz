@@ -117,3 +117,32 @@ describe("audit history", () => {
     expect(items.some((a: string) => a.startsWith("crm."))).toBe(false);
   });
 });
+
+describe("notifications", () => {
+  it("are all on to start, and a kind someone turns off doesn't reach them", async () => {
+    const app = await getApp();
+    const { c: admin } = await signUpWithOrg(app);
+    expect((await admin.get("/api/notifications/settings")).body.prefs).toEqual({ off: [], desktop: true });
+    expect((await admin.put("/api/notifications/settings", { off: ["team"], desktop: false })).status).toBe(200);
+    // Someone joining is a "team" notification: turned off, so it never arrives.
+    const { c: person, email } = await signUp(app, "New Joiner");
+    await admin.post("/api/invitations", { invites: [{ email, role: "manager" }] });
+    const token = recentMail(email).find((m) => m.link?.includes("/invite/"))!.link!.split("/invite/")[1]!;
+    await person.post(`/api/invite/${token}/accept`);
+    const items = (await admin.get("/api/notifications")).body.items;
+    expect(items.some((n: any) => /joined/.test(n.title))).toBe(false);
+  });
+});
+
+describe("search", () => {
+  it("covers everything from Home and only the area you're in otherwise", async () => {
+    const app = await getApp();
+    const { c: admin } = await signUpWithOrg(app);
+    await admin.post("/api/crm/companies", { name: "Zephyr Bakery" });
+    const everywhere = (await admin.get("/api/search?q=zephyr")).body.results;
+    expect(everywhere.map((r: any) => r.type)).toContain("Companies");
+    expect((await admin.get("/api/search?scope=crm&q=zephyr")).body.results.length).toBe(1);
+    expect((await admin.get("/api/search?scope=people&q=zephyr")).body.results).toEqual([]);
+    expect((await admin.get("/api/search?scope=settings&q=amaka")).body.results.map((r: any) => r.type)).toEqual(["Members"]);
+  });
+});

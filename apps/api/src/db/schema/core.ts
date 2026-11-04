@@ -1,5 +1,5 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, bigint } from "drizzle-orm/pg-core";
-import type { AccessLevel, ReviewRequest, Workspace } from "@windveal/shared";
+import type { AccessLevel, NotificationPrefs, ReviewRequest, Workspace } from "@windveal/shared";
 import { pk, timestamps, tracked } from "./_common";
 
 // ---------------- accounts ----------------
@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   avatarFileId: uuid("avatar_file_id"),
   /** WindVeal staff: can open the WindVeal admin panel and review every organisation. */
   platformAdmin: boolean("platform_admin").notNull().default(false),
+  /** Which notifications they get (all of them unless they turn some off) and whether they pop up on their computer. */
+  notificationPrefs: jsonb("notification_prefs").$type<NotificationPrefs>().notNull().default({ off: [], desktop: true }),
   /** Set by WindVeal when an account is deactivated: the person can't sign in until reactivated. */
   deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
   deactivatedReason: text("deactivated_reason"),
@@ -189,6 +191,7 @@ export const notifications = pgTable("notifications", {
   title: text("title").notNull(),
   body: text("body"),
   link: text("link"),
+  kind: text("kind").notNull().default("account"),
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("notifications_user_idx").on(t.userId, t.createdAt)]);

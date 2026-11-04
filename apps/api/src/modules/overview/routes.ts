@@ -4,7 +4,7 @@ import { hasAccess } from "@windveal/shared";
 import { db } from "../../db/client";
 import {
   applications, approvalSteps, approvals, auditEvents, candidates, companies, deals, employees, files, importJobs, interviews,
-  invitations, jobs, leads, leaveRequests, memberships, tasks, users,
+  invitations, jobs, leads, leaveRequests, memberships, organisations, tasks, users,
 } from "../../db/schema";
 import { requireOrg } from "../../lib/context";
 
@@ -119,14 +119,18 @@ export default async function overviewRoutes(app: FastifyInstance) {
     };
   });
 
-  /** Global search across everything the person can see. */
-  app.get<{ Querystring: { q?: string } }>("/api/search", async (req) => {
+  /**
+   * Search. From Home it covers everything the person can see; inside an area (`scope`) it covers that area only.
+   */
+  app.get<{ Querystring: { q?: string; scope?: string } }>("/api/search", async (req) => {
     const ctx = await requireOrg(req);
     const q = (req.query.q ?? "").trim();
     if (q.length < 2) return { results: [] };
     const like = `%${q.replace(/[%_]/g, "")}%`;
     const orgId = ctx.org.id;
-    const can = (ws: keyof typeof ctx.access) => hasAccess(ctx.access[ws], "view");
+    const scope = req.query.scope || "all";
+    const here = (area: string) => scope === "all" || scope === area;
+    const can = (ws: keyof typeof ctx.access) => here(ws) && hasAccess(ctx.access[ws], "view");
     const results: { type: string; id: string; title: string; subtitle?: string; href: string }[] = [];
     if (can("people")) {
       const rows = await db.select().from(employees).where(and(eq(employees.orgId, orgId), isNull(employees.deletedAt),
@@ -157,6 +161,20 @@ export default async function overviewRoutes(app: FastifyInstance) {
       const ts = await db.select().from(tasks).where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), ilike(tasks.title, like),
         or(eq(tasks.assigneeUserId, ctx.user.id), eq(tasks.createdBy, ctx.user.id), notInArray(tasks.workspace, ["people"])))).limit(5);
       for (const t of ts) results.push({ type: "Tasks", id: t.id, title: t.title, subtitle: t.linkLabel ?? undefined, href: `/workflows/mine?task=${t.id}` });
+    }
+    // Settings: the team (for people who manage members).
+    if (here("settings") && (ctx.membership.role === "admin" || ctx.special.includes("manage_members"))) {
+      const ms = await db.select({ m: memberships, u: users }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
+        .where(and(eq(memberships.orgId, orgId), isNull(memberships.deletedAt), or(ilike(users.name, like), ilike(users.email, like)))).limit(5);
+      for (const { m, u } of ms) results.push({ type: "Members", id: m.id, title: u.name, subtitle: m.jobTitle ?? u.email, href: `/settings/members/${m.id}` });
+    }
+    // WindVeal admin: businesses and accounts (WindVeal staff only).
+    if (here("admin") && ctx.user.platformAdmin) {
+      const os = await db.select().from(organisations).where(and(isNull(organisations.deletedAt),
+        or(ilike(organisations.legalName, like), ilike(organisations.tradingName, like), ilike(organisations.registrationNumber, like)))).limit(5);
+      for (const o of os) results.push({ type: "Businesses", id: o.id, title: o.tradingName || o.legalName, subtitle: o.registrationNumber ?? undefined, href: `/admin/organisations/${o.id}` });
+      const us = await db.select().from(users).where(or(ilike(users.name, like), ilike(users.email, like))).limit(5);
+      for (const u of us) results.push({ type: "Accounts", id: u.id, title: u.name, subtitle: u.email, href: `/admin/people/${u.id}` });
     }
     return { results };
   });

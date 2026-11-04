@@ -13,6 +13,7 @@ import { SITE_URL } from "../../lib/config";
 import { fmtDate, timeAgo } from "../../lib/format";
 import { FileViewer, type ViewableFile } from "../../components/FileViewer";
 import { useSignOut } from "../../lib/signout";
+import { NotificationSettings } from "./notifications";
 
 
 const ROLE_LABEL: Record<string, string> = { admin: "Admin", manager: "Manager", member: "Member" };
@@ -490,12 +491,13 @@ export function ProfileRoutes() {
   useEffect(() => { document.title = "Profile · WindVeal"; }, []);
   return (
     <>
-      <PageHeader title="Profile" subtitle="Your details and your company's." />
+      <PageHeader title="Profile" subtitle="Your details, your company's, and your notifications." />
       <Routes>
         <Route index element={<Personal />} />
         <Route path="edit" element={<PersonalEdit />} />
         <Route path="company" element={<Company />} />
         <Route path="company/edit" element={isAdmin ? <CompanyEdit /> : <Navigate to="/profile/company" replace />} />
+        <Route path="notifications" element={<NotificationSettings />} />
         <Route path="*" element={<Navigate to="/profile" replace />} />
       </Routes>
     </>

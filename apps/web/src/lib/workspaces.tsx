@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import {
   Briefcase, Building2, CalendarDays, CheckSquare, Clock, FileText, Flag, FolderOpen, Globe, History, LayoutDashboard, LineChart, ListChecks,
   ListTodo, Network, Phone, Rows3, Share2, Archive, SquareCheck, Stamp, UserPlus, UserSearch, Users, Workflow, BarChart3, Kanban,
-  Settings, ShieldCheck, Mail, KeyRound, ScrollText, Upload, User, Building, Building2 as Org,
+  Settings, ShieldCheck, Mail, Bell, KeyRound, ScrollText, Upload, User, Building, Building2 as Org,
 } from "lucide-react";
 import type { Workspace } from "@windveal/shared";
 import { useSession } from "./session";
@@ -103,7 +103,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "settings", label: "Settings", base: "/settings", icon: i(Settings), blurb: "Your team, roles and who can see what.", group: "manage",
+    key: "settings", label: "Settings", base: "/settings", icon: i(Settings), blurb: "Your team, roles and who can see what.", group: "manage", search: true,
     visible: (v) => v.isAdmin || v.canManageMembers,
     sections: [
       { to: "/settings", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
@@ -114,7 +114,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "admin", label: "WindVeal admin", base: "/admin", icon: i(ShieldCheck), blurb: "Approve new businesses and look after accounts.", group: "manage",
+    key: "admin", label: "WindVeal admin", base: "/admin", icon: i(ShieldCheck), blurb: "Approve new businesses and look after accounts.", group: "manage", search: true,
     visible: (v) => v.platformAdmin,
     sections: [
       { to: "/admin", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
@@ -127,6 +127,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     sections: [
       { to: "/profile", label: "Personal", icon: <User size={18} /> },
       { to: "/profile/company", label: "Company", icon: <Org size={18} /> },
+      { to: "/profile/notifications", label: "Notifications", icon: <Bell size={18} /> },
     ],
   },
 ];

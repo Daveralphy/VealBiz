@@ -617,3 +617,23 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
 }
 .ad-private { font-size: 12.5px; margin: 12px 0 0; }
 .ad-decide, .ad-review-grid { margin-bottom: 20px; }
+
+/* ---------- Search on Home, and on phones ---------- */
+@media (min-width: 901px) {
+  .topbar-home { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 560px) minmax(0, 1fr); }
+  .topbar-home .top-search { max-width: none; width: 100%; }
+  .topbar-home .right { justify-self: end; }
+}
+.m-search { display: none; }
+@media (max-width: 900px) {
+  .m-search { display: block; padding: 10px 12px; background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 60px; z-index: 19; }
+  .m-search .top-search { max-width: none; }
+  .m-search kbd { display: none; }
+}
+
+/* ---------- Notifications ---------- */
+.notif-head { padding: 6px 6px 8px 10px; align-items: center; }
+.notif-head .icon-btn { width: 32px; height: 32px; padding: 0; justify-content: center; flex: none; }
+.menu .notif { display: block; }
+.notif > span { display: block; color: var(--text); margin-top: 2px; }
+.notif-allow { display: flex; align-items: center; gap: 8px; width: 100%; margin: 0 0 6px; padding: 10px; border: 1px dashed var(--line); border-radius: 10px; background: var(--soft); color: var(--deep); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; text-align: left; }

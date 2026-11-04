@@ -1,7 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq, gte, ilike, isNull, lt, or, sql as dsql } from "drizzle-orm";
 import { db } from "../../db/client";
+import { z } from "zod";
+import { DEFAULT_NOTIFICATION_PREFS, NOTIFICATION_KIND_KEYS, type NotificationKind } from "@windveal/shared";
 import { auditEvents, notifications, users } from "../../db/schema";
+import { parse } from "../../lib/http";
 import { requireAdmin, requireOrg } from "../../lib/context";
 import { KEPT_ACTIONS } from "../../lib/audit";
 import { toCsv } from "../../lib/csv";
@@ -37,9 +40,23 @@ export default async function auditRoutes(app: FastifyInstance) {
 
   app.get("/api/notifications", async (req) => {
     const ctx = await requireOrg(req);
-    const rows = await db.select().from(notifications).where(and(eq(notifications.userId, ctx.user.id), eq(notifications.orgId, ctx.org.id)))
-      .orderBy(desc(notifications.createdAt)).limit(50);
+    const off = ctx.user.notificationPrefs?.off ?? [];
+    const rows = (await db.select().from(notifications).where(and(eq(notifications.userId, ctx.user.id), eq(notifications.orgId, ctx.org.id)))
+      .orderBy(desc(notifications.createdAt)).limit(50)).filter((n) => !off.includes(n.kind as never));
     return { items: rows, unread: rows.filter((r) => !r.readAt).length };
+  });
+
+  /** A person's notification choices (Profile, Notifications). */
+  app.get("/api/notifications/settings", async (req) => {
+    const ctx = await requireOrg(req);
+    return { prefs: { ...DEFAULT_NOTIFICATION_PREFS, ...ctx.user.notificationPrefs } };
+  });
+
+  app.put("/api/notifications/settings", async (req) => {
+    const ctx = await requireOrg(req);
+    const input = parse(z.object({ off: z.array(z.enum(NOTIFICATION_KIND_KEYS as [NotificationKind, ...NotificationKind[]])), desktop: z.boolean() }), req.body);
+    await db.update(users).set({ notificationPrefs: { off: Array.from(new Set(input.off)), desktop: input.desktop } }).where(eq(users.id, ctx.user.id));
+    return { prefs: input };
   });
 
   app.post("/api/notifications/read-all", async (req) => {

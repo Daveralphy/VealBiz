@@ -1,5 +1,7 @@
 import { db, type Tx } from "../db/client";
-import { auditEvents, notifications } from "../db/schema";
+import { eq } from "drizzle-orm";
+import { notificationKind } from "@windveal/shared";
+import { auditEvents, notifications, users } from "../db/schema";
 import type { OrgContext } from "./context";
 
 type AuditInput = {
@@ -36,6 +38,10 @@ export async function audit(ctx: Pick<OrgContext, "org" | "user" | "deviceLabel"
   });
 }
 
+/** Sends an in-app notification, unless the person has turned that kind off. */
 export async function notify(orgId: string, userId: string, title: string, body?: string, link?: string, tx: Tx = db) {
-  await tx.insert(notifications).values({ orgId, userId, title, body, link });
+  const kind = notificationKind(link);
+  const [u] = await tx.select({ prefs: users.notificationPrefs }).from(users).where(eq(users.id, userId)).limit(1);
+  if (u?.prefs?.off?.includes(kind)) return;
+  await tx.insert(notifications).values({ orgId, userId, title, body, link, kind });
 }
