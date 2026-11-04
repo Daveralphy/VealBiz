@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Building2, ChevronLeft, Globe, MapPin, Pencil, Phone, Mail, Plus, Upload, X } from "lucide-react";
-import { Avatar, Button, Card, EmptyState, Input, Loading, Modal, Notice, PageHeader, Pill, SearchInput, cx, useConfirm, useToast } from "@windveal/ui";
+import { Avatar, Button, Card, EmptyState, Input, Loading, Modal, PageHeader, Pill, SearchInput, cx, useConfirm, useToast } from "@windveal/ui";
 import { formatBytes } from "@windveal/shared";
 import { api, ApiError, fileUrl } from "../../lib/api";
 import { useForm } from "../../lib/form";

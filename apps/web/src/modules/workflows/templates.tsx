@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, Clock, GripVertical, LogOut, MoreHorizontal, Pencil, Play, Plus, Trash2, User, Users, X } from "lucide-react";
-import { Button, Card, ConfirmDialog, EmptyState, Input, Loading, Menu, Modal, Notice, SearchInput, Select, useToast } from "@windveal/ui";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronLeft, Clock, GripVertical, LogOut, Pencil, Play, Plus, Trash2, User, Users, X } from "lucide-react";
+import { Button, Card, ConfirmDialog, EmptyState, Input, Loading, Modal, Notice, SearchInput, Select, useToast } from "@windveal/ui";
 import { ApiError, api, qs } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { fmtDate } from "../../lib/format";
+import { MoreMenu } from "../../components/actions";
 
 type Role = "hr" | "manager" | "employee" | "creator" | "admin";
 type Item = { title: string; group?: string; assigneeRole: Role; offsetDays: number };
@@ -31,19 +33,20 @@ function KindIcon({ t }: { t: Template }) {
   return <span className={cls}>{t.kind === "onboarding" ? <Users size={18} /> : t.kind === "offboarding" ? <LogOut size={18} /> : <CalendarDays size={18} />}</span>;
 }
 
+function useTemplates() {
+  return useQuery({ queryKey: ["wf-templates"], queryFn: () => api.get<Template[]>("/api/workflows/templates") });
+}
+
+/** All templates as a list; each one opens on its own page. */
 export function TemplatesView() {
   const { can } = useSession();
   const canManage = can("workflows", "manage");
   const qc = useQueryClient();
   const toast = useToast();
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
-  const [fresh, setFresh] = useState<string | null>(null);
-  const { data, isLoading, error } = useQuery({ queryKey: ["wf-templates"], queryFn: () => api.get<Template[]>("/api/workflows/templates") });
+  const { data, isLoading, error } = useTemplates();
   const list = useMemo(() => (data ?? []).filter((t) => t.name.toLowerCase().includes(q.trim().toLowerCase())), [data, q]);
-  useEffect(() => {
-    if (!selected && data?.length && window.matchMedia("(min-width: 901px)").matches) setSelected(data[0]!.id);
-  }, [data, selected]);
 
   async function create() {
     try {
@@ -51,34 +54,50 @@ export function TemplatesView() {
         name: "New template", kind: "general", items: [{ title: "First task", group: "Tasks", assigneeRole: "creator", offsetDays: 0 }],
       });
       await qc.invalidateQueries({ queryKey: ["wf-templates"] });
-      setFresh(t.id);
-      setSelected(t.id);
+      navigate(`/workflows/templates/${t.id}?new=1`);
     } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't create the template.", "error"); }
   }
 
   if (isLoading) return <Loading />;
   if (error) return <Notice tone="error">{error instanceof ApiError ? error.message : "Couldn't load templates."}</Notice>;
-  const current = data?.find((t) => t.id === selected) ?? null;
 
   return (
-    <div className={`wf-templates ${current ? "has-selection" : ""}`}>
-      <div className="wf-tpl-list">
+    <>
+      <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Search templates" />
-        {list.map((t) => (
-          <button key={t.id} className={`wf-tpl-card ${selected === t.id ? "on" : ""}`} onClick={() => { setSelected(t.id); if (t.id !== fresh) setFresh(null); }}>
-            <KindIcon t={t} />
-            <span><b>{t.name}</b><small>{t.items.length} task{t.items.length === 1 ? "" : "s"} · used {t.timesUsed} time{t.timesUsed === 1 ? "" : "s"}</small></span>
-          </button>
-        ))}
-        {!list.length && <p className="muted" style={{ padding: "8px 4px" }}>{q ? "No templates match." : "No templates yet."}</p>}
-        {canManage && <Button variant="secondary" block icon={<Plus size={16} />} onClick={create}>New template</Button>}
+        <span className="grow" />
+        {canManage && <Button icon={<Plus size={16} />} onClick={create}>New template</Button>}
       </div>
-      <div className="wf-tpl-editor">
-        {current ? <TemplateEditor key={current.id + current.updatedAt} t={current} canManage={canManage} isNew={fresh === current.id} onSaved={() => setFresh(null)} onBack={() => setSelected(null)} onDeleted={() => setSelected(null)} />
-          : <Card className="hide-sm"><EmptyState title="Choose a template">Templates turn a repeat process into a ready-made list of tasks.</EmptyState></Card>}
-      </div>
-    </div>
+      {!list.length ? (
+        <Card><EmptyState title={q ? "No templates match" : "No templates yet"}>Templates turn a repeat process into a ready-made list of tasks.</EmptyState></Card>
+      ) : (
+        <div className="wf-tpl-grid">
+          {list.map((t) => (
+            <Link key={t.id} to={`/workflows/templates/${t.id}`} className="wf-tpl-card">
+              <KindIcon t={t} />
+              <span><b>{t.name}</b><small>{t.items.length} task{t.items.length === 1 ? "" : "s"} · used {t.timesUsed} time{t.timesUsed === 1 ? "" : "s"}</small></span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </>
   );
+}
+
+/** One template on its own page (opened from the list). */
+export function TemplatePage() {
+  const { id } = useParams();
+  const { can } = useSession();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const { data, isLoading } = useTemplates();
+  if (isLoading) return <Loading />;
+  const t = data?.find((x) => x.id === id);
+  const back = () => navigate("/workflows/templates");
+  if (!t) return <EmptyState title="Template not found" action={<Button onClick={back}>All templates</Button>}>It may have been deleted.</EmptyState>;
+  const isNew = params.get("new") === "1";
+  const clearNew = () => { const p = new URLSearchParams(params); p.delete("new"); setParams(p, { replace: true }); };
+  return <TemplateEditor key={t.id + t.updatedAt} t={t} canManage={can("workflows", "manage")} isNew={isNew} onSaved={clearNew} onBack={back} onDeleted={back} />;
 }
 
 function TemplateEditor({ t, canManage, isNew, onSaved, onBack, onDeleted }: {
@@ -174,14 +193,12 @@ function TemplateEditor({ t, canManage, isNew, onSaved, onBack, onDeleted }: {
             </>
           ) : (
             <>
-              {can("workflows", "edit") && <Button variant="secondary" size="sm" icon={<Play size={14} />} onClick={() => setUseOpen(true)}>Use</Button>}
-              {canManage && <Button variant="secondary" size="sm" icon={<Pencil size={14} />} onClick={() => setEditing(true)}>Edit template</Button>}
+              {can("workflows", "edit") && <Button size="sm" icon={<Play size={14} />} onClick={() => setUseOpen(true)}>Use</Button>}
+              <MoreMenu label="Template actions" items={[
+                canManage && { label: "Edit template", icon: <Pencil size={14} />, onClick: () => setEditing(true) },
+                canManage && { label: "Delete template", icon: <Trash2 size={16} />, danger: true, onClick: () => setConfirmDelete(true) },
+              ]} />
             </>
-          )}
-          {canManage && !editing && (
-            <Menu trigger={(tg) => <button className="icon-btn" aria-label="More" onClick={tg}><MoreHorizontal size={18} /></button>}>
-              {(close) => <button className="danger" onClick={() => { close(); setConfirmDelete(true); }}><Trash2 size={16} />Delete template</button>}
-            </Menu>
           )}
         </div>
       </div>
@@ -200,7 +217,7 @@ function TemplateEditor({ t, canManage, isNew, onSaved, onBack, onDeleted }: {
             <input className="wf-tpl-group-name" defaultValue={g.name} aria-label="Group name" onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== g.name) renameGroup(g.name, v); }} />
           ) : <h4 className="section-label">{g.name}</h4>}
           {g.rows.map(({ item, index }) => (
-            <div key={index} className={`wf-tpl-row ${drag === index ? "dragging" : ""}`}
+            <div key={index} className={`wf-tpl-row ${editing ? "" : "view"} ${drag === index ? "dragging" : ""}`}
               draggable={editing} onDragStart={() => setDrag(index)} onDragEnd={() => setDrag(null)}
               onDragOver={(e) => e.preventDefault()} onDrop={() => { if (drag !== null) move(drag, index); setDrag(null); }}>
               {editing && <span className="wf-grip" aria-hidden><GripVertical size={16} /></span>}

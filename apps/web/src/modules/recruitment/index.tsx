@@ -1,5 +1,5 @@
-import { Route, Routes, useNavigate } from "react-router-dom";
-import { Globe, Plus } from "lucide-react";
+import { Route, Routes, useNavigate, useLocation } from "react-router-dom";
+import { Plus } from "lucide-react";
 import { Button, EmptyState, PageHeader } from "@windveal/ui";
 import { useSession } from "../../lib/session";
 import { useStats } from "./data";
@@ -16,6 +16,7 @@ import "./recruitment.css";
 export default function RecruitmentModule() {
   const { can } = useSession();
   const nav = useNavigate();
+  const path = useLocation().pathname.replace(/\/+$/, "");
   const stats = useStats();
   const s = stats.data;
 
@@ -33,10 +34,7 @@ export default function RecruitmentModule() {
       <PageHeader
         title="Recruitment"
         subtitle={s ? `${s.activeCandidates} active candidate${s.activeCandidates === 1 ? "" : "s"}` : " "}
-        actions={<>
-          <Button variant="secondary" className="hide-sm" icon={<Globe size={16} />} onClick={() => nav("/recruitment/careers")}>Careers page</Button>
-          {can("recruitment", "edit") && <Button className="rc-block-sm" icon={<Plus size={16} />} onClick={() => nav("/recruitment/jobs/new")}>New job</Button>}
-        </>}
+        actions={can("recruitment", "edit") && (path === "/recruitment" || path === "/recruitment/jobs") && <Button className="rc-block-sm" icon={<Plus size={16} />} onClick={() => nav("/recruitment/jobs/new")}>New job</Button>}
       />
       <Routes>
         <Route index element={<RecruitmentDashboard />} />

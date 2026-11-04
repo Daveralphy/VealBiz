@@ -248,3 +248,21 @@ test("WindVeal admins see what needs approval and open a person's details", asyn
   await expect(page.getByRole("heading", { name: /Devices/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test("one New button holds every kind of record, and a template opens on its own page", async ({ page }) => {
+  await signIn(page);
+  await page.goto(`${APP_URL}/crm/companies`);
+  await page.getByRole("button", { name: /^New/ }).click();
+  await page.locator(".menu-float").getByRole("button", { name: "Lead" }).click();
+  await expect(page.getByRole("dialog", { name: "Add lead" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // The templates page is a list; nothing opens until you pick one.
+  await page.goto(`${APP_URL}/workflows/templates`);
+  await expect(page.locator(".wf-tpl-card").first()).toBeVisible();
+  await expect(page.locator(".wf-tpl-card-editor")).toHaveCount(0);
+  await page.locator(".wf-tpl-card").first().click();
+  await expect(page).toHaveURL(/\/workflows\/templates\/[^/]+$/);
+  await expect(page.locator(".wf-tpl-card-editor")).toBeVisible();
+  await expect(page.locator(".wf-tpl-grid")).toHaveCount(0);
+});

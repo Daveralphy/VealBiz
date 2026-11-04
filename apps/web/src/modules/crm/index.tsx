@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Plus } from "lucide-react";
-import { Button, PageHeader } from "@windveal/ui";
+import { PageHeader } from "@windveal/ui";
 import { CompanyModal, DealModal, LeadModal, useCrmAccess } from "./parts";
 import { CompaniesPage, CompanyPage } from "./companies";
 import { FollowUpsPage, OverviewPage, PipelinePage } from "./pages";
 import { LeadsPage } from "./leads";
 import "./crm.css";
+import { NewMenu } from "../../components/actions";
 
 export default function CrmModule() {
   const navigate = useNavigate();
@@ -25,12 +25,11 @@ export default function CrmModule() {
   return (
     <div className="crm">
       <PageHeader title="CRM" subtitle={subtitle}
-        actions={canEdit && (
-          <>
-            <Button variant="secondary" className="hide-sm" icon={<Plus size={16} />} onClick={() => setNewCompany(true)}>New company</Button>
-            <Button icon={<Plus size={16} />} className="crm-cta" onClick={openNewDeal}>New deal</Button>
-          </>
-        )} />
+        actions={canEdit && <NewMenu items={[
+          { label: "Lead", onClick: () => { const p = new URLSearchParams(params); p.set("new", "lead"); setParams(p); } },
+          { label: "Deal", onClick: openNewDeal },
+          { label: "Company", onClick: () => setNewCompany(true) },
+        ]} />} />
       <Routes>
         <Route index element={<OverviewPage />} />
         <Route path="pipeline" element={<PipelinePage />} />

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Navigate, Route, Routes, useMatch, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { FolderPlus, Upload } from "lucide-react";
-import { Button, EmptyState, PageHeader } from "@windveal/ui";
+import { EmptyState, PageHeader } from "@windveal/ui";
 import { formatBytes } from "@windveal/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
@@ -12,6 +12,7 @@ import { DocumentsDashboard } from "./dashboard";
 import { UploadModal } from "./upload";
 import { NewFolderModal, useFolders } from "./shared";
 import "./documents.css";
+import { NewMenu } from "../../components/actions";
 
 function FolderRoute({ view, onUpload, archived }: { view: LibraryView; onUpload: () => void; archived: number }) {
   const m = useMatch("/documents/folder/:id");
@@ -49,10 +50,10 @@ export default function DocumentsModule() {
   return (
     <div className="dc">
       <PageHeader title="Documents" subtitle={subtitle}
-        actions={canEdit ? <>
-          <Button variant="secondary" className="hide-sm" icon={<FolderPlus size={16} />} onClick={() => setNewFolder(true)}>New folder</Button>
-          <Button className="dc-upload-btn" icon={<Upload size={16} />} onClick={() => setUpload(true)}>Upload</Button>
-        </> : undefined} />
+        actions={canEdit ? <NewMenu items={[
+          { label: "Upload file", icon: <Upload size={16} />, onClick: () => setUpload(true) },
+          { label: "New folder", icon: <FolderPlus size={16} />, onClick: () => setNewFolder(true) },
+        ]} /> : undefined} />
       <Routes>
         <Route index element={<DocumentsDashboard />} />
         <Route path="library" element={<FolderRoute view="all" onUpload={() => setUpload(true)} archived={summary?.archived ?? 0} />} />

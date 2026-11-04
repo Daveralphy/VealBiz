@@ -11,6 +11,7 @@ import { fmtDate, fmtTime, timeAgo } from "../../lib/format";
 import { useSession } from "../../lib/session";
 import { MODE_LABEL, keys, recLabel, recTone, useRefresh, type ApplicationDetail } from "./data";
 import { HireModal, RejectModal, ScheduleModal, ScorecardForm, Stars } from "./widgets";
+import { MoreMenu } from "../../components/actions";
 
 function Notes({ d }: { d: ApplicationDetail }) {
   const toast = useToast();
@@ -140,9 +141,11 @@ export function CandidatePage() {
           </div>
           {canEdit && (
             <div className="rc-head-actions">
-              {a.rejectedAt ? <Button variant="secondary" loading={busy} onClick={restore}>Restore</Button>
-                : active && <Button variant="secondary" onClick={() => setModal("reject")}>Reject</Button>}
-              {active && <Button variant="secondary" icon={<Calendar size={15} />} onClick={() => setModal("schedule")}>Schedule interview</Button>}
+              {a.rejectedAt && <Button variant="secondary" loading={busy} onClick={restore}>Restore</Button>}
+              {active && <MoreMenu label="Candidate actions" items={[
+                { label: "Schedule interview", icon: <Calendar size={15} />, onClick: () => setModal("schedule") },
+                { label: "Reject", danger: true, onClick: () => setModal("reject") },
+              ]} />}
               {active && next && (
                 <Button loading={busy} onClick={() => moveTo(next)}>{next === last ? "Hire" : `Move to ${next}`}<ArrowRight size={16} /></Button>
               )}

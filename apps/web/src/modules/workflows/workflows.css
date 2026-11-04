@@ -106,7 +106,10 @@
 .wf-activity-btn { display: inline-flex; gap: 6px; align-items: center; }
 
 /* ---------- approvals ---------- */
-.wf-approvals { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: 20px; align-items: start; }
+/* The list fills the page; opening a request shows it on its own, with a link back. */
+.wf-approvals { display: block; max-width: 980px; }
+.wf-approvals.has-selection .wf-ap-list { display: none; }
+.wf-approvals:not(.has-selection) .wf-ap-detail { display: none; }
 .wf-ap-row { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; padding: 14px 16px; border: 0; border-top: 1px solid var(--line); background: var(--surface); cursor: pointer; position: relative; font: inherit; }
 .wf-ap-row:first-child { border-top: 0; }
 .wf-ap-row:hover { background: var(--soft); }
@@ -118,7 +121,7 @@
 .wf-ap-pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .wf-footnote { color: var(--muted); font-size: 13px; margin-top: 12px; }
 .wf-ap-card { position: sticky; top: 16px; }
-.wf-ap-back { display: none; }
+.wf-ap-back { display: inline-flex; border: 0; background: none; cursor: pointer; padding: 0; margin-bottom: 12px; }
 .wf-ap-title { font-size: 19px; margin-top: 10px; }
 .wf-ap-sub { font-size: 13px; margin-top: 2px; }
 .wf-ap-amount { font-family: var(--display); font-size: 30px; font-weight: 800; color: var(--ink); margin: 14px 0 6px; letter-spacing: -0.02em; }
@@ -147,9 +150,6 @@
 .wf-rule small { color: var(--muted); font-size: 12.5px; }
 
 /* ---------- templates ---------- */
-.wf-templates { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 20px; align-items: start; }
-.wf-tpl-list { display: flex; flex-direction: column; gap: 10px; }
-.wf-tpl-list .search { max-width: none; flex: none; }
 .wf-tpl-card { display: flex; gap: 12px; align-items: center; text-align: left; width: 100%; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; cursor: pointer; font: inherit; }
 .wf-tpl-card:hover { border-color: var(--field); }
 .wf-tpl-card.on { border-color: var(--blue); box-shadow: 0 0 0 3px var(--focus); }
@@ -169,6 +169,7 @@
 .wf-tpl-group-name:focus { outline: none; border-color: var(--blue); text-transform: none; letter-spacing: 0; color: var(--ink); }
 .wf-tpl-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) 160px 210px auto; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding: 10px 0; }
 .wf-tpl-group .wf-tpl-row:first-of-type { margin-top: 8px; }
+.wf-tpl-row.view { grid-template-columns: minmax(0, 1fr) 160px 210px; }
 .wf-tpl-row.dragging { opacity: .5; }
 .wf-grip { color: var(--muted); cursor: grab; display: inline-flex; }
 .wf-tpl-title { border: 1px solid transparent; border-radius: 9px; padding: 6px 8px; font: inherit; font-weight: 600; font-size: 14px; color: var(--ink); background: transparent; min-width: 0; }
@@ -197,12 +198,10 @@
   .wf-tpl-row { grid-template-columns: 18px minmax(0, 1fr) 140px; }
   .wf-tpl-when { grid-column: 2 / 3; }
   .wf-tpl-actions { grid-column: 3 / 4; justify-content: flex-end; }
+  .wf-tpl-row.view { grid-template-columns: minmax(0, 1fr) 140px 180px; }
+  .wf-tpl-row.view .wf-tpl-when { grid-column: auto; }
 }
 @media (max-width: 900px) {
-  .wf-approvals, .wf-templates { grid-template-columns: minmax(0, 1fr); }
-  .wf-approvals.has-selection .wf-ap-list, .wf-templates.has-selection .wf-tpl-list { display: none; }
-  .wf-approvals:not(.has-selection) .wf-ap-detail, .wf-templates:not(.has-selection) .wf-tpl-editor { display: none; }
-  .wf-ap-back { display: inline-flex; border: 0; background: none; cursor: pointer; padding: 0; }
   .wf-ap-card { position: static; }
 }
 @media (max-width: 640px) {
@@ -211,8 +210,14 @@
   .wf-toolbar .chip-select { flex: 0 1 auto; }
   .wf-row { grid-template-columns: 22px minmax(0, 1fr) auto; padding: 14px; }
   .wf-props > div { grid-template-columns: 100px minmax(0, 1fr); }
-  .wf-tpl-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .wf-tpl-row, .wf-tpl-row.view { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .wf-grip { display: none; }
   .wf-tpl-when, .wf-tpl-actions { grid-column: auto; }
   .wf-decide-btns { grid-template-columns: 1fr; }
 }
+
+/* Templates: a list of cards; each opens on its own page. */
+.wf-tpl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.wf-tpl-grid .wf-tpl-card { color: inherit; }
+@media (max-width: 1100px) { .wf-tpl-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .wf-tpl-grid { grid-template-columns: 1fr; } }

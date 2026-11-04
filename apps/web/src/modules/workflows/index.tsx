@@ -7,9 +7,10 @@ import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { NewTaskModal, TaskBoard, TaskDrawer, TaskFilterBar, TaskList, useTaskList, type TaskFilters } from "./tasks";
 import { ApprovalsView } from "./approvals";
-import { TemplatesView } from "./templates";
+import { TemplatePage, TemplatesView } from "./templates";
 import { WorkflowsDashboard } from "./dashboard";
 import "./workflows.css";
+import { MoreMenu } from "../../components/actions";
 
 const EMPTY: TaskFilters = { q: "", workspace: "", priority: "", createdBy: "" };
 
@@ -73,12 +74,10 @@ export default function WorkflowsModule() {
         // The dashboard shows these counts itself, so its header doesn't repeat them.
         subtitle={page === "dashboard" ? "Tasks, approvals and checklists" : summary ? `${my} task${my === 1 ? "" : "s"} for you · ${waiting} approval${waiting === 1 ? "" : "s"} waiting` : " "}
         actions={<>
-          {isTaskPage && (
-            <Button variant="secondary" className="hide-sm" icon={view === "list" ? <Columns3 size={16} /> : <List size={16} />} onClick={toggleView}>
-              {view === "list" ? "Board view" : "List view"}
-            </Button>
-          )}
-          {can("workflows", "edit") && <Button className="wf-new-btn" icon={<Plus size={16} />} onClick={newTask}>New task</Button>}
+          {can("workflows", "edit") && (page === "dashboard" || isTaskPage) && <Button className="wf-new-btn" icon={<Plus size={16} />} onClick={newTask}>New task</Button>}
+          <MoreMenu label="View options" className="hide-sm" items={[
+            isTaskPage && { label: view === "list" ? "Show as board" : "Show as list", icon: view === "list" ? <Columns3 size={16} /> : <List size={16} />, onClick: toggleView },
+          ]} />
         </>}
       />
       <Routes>
@@ -87,6 +86,7 @@ export default function WorkflowsModule() {
         <Route path="all" element={<TasksTab key="all" scope="all" view={view} onOpen={openTask} onNew={newTask} />} />
         <Route path="approvals" element={<ApprovalsView />} />
         <Route path="templates" element={<TemplatesView />} />
+        <Route path="templates/:id" element={<TemplatePage />} />
         <Route path="*" element={<Navigate to="/workflows" replace />} />
       </Routes>
       <NewTaskModal open={newOpen} onClose={() => setParam("new", null)} onCreated={(id) => {

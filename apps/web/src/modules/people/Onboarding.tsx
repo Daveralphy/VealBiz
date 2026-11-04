@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Check, ClipboardList, Plus } from "lucide-react";
+import { Check, ClipboardList, Plus, ChevronLeft } from "lucide-react";
 import { Avatar, Button, Card, EmptyState, Input, Loading, Modal, Notice, Progress, Select, useToast } from "@windveal/ui";
 import { api, qs } from "../../lib/api";
 import { dayLabel, fmtDate, isOverdue } from "../../lib/format";
@@ -35,8 +35,19 @@ export function OnboardingPage() {
   const [params, setParams] = useSearchParams();
   const [status, setStatus] = useState("in_progress");
   const list = useQuery({ queryKey: ["people", "checklists", status], queryFn: () => api.get<ChecklistItem[]>(`/api/people/checklists${qs({ status })}`) });
-  const selected = params.get("id") ?? list.data?.[0]?.id ?? null;
-  const select = (id: string) => setParams((p) => { p.set("id", id); return p; }, { replace: true });
+  const selected = params.get("id");
+  const select = (id: string) => setParams((p) => { p.set("id", id); return p; });
+  const back = () => setParams((p) => { p.delete("id"); return p; });
+
+  // One person's checklist opens on its own, with a link back to everyone.
+  if (selected) {
+    return (
+      <div className="ppl-onb-one">
+        <button className="back-link btn-ghost ppl-onb-back" onClick={back}><ChevronLeft size={16} />Everyone onboarding</button>
+        <ChecklistDetail id={selected} />
+      </div>
+    );
+  }
 
   return (
     <div className="ppl-onb">
@@ -57,7 +68,7 @@ export function OnboardingPage() {
           ) : (
             <div className="stack" style={{ gap: 10 }}>
               {list.data.map((c) => (
-                <button key={c.id} className={`ppl-onb-item ${c.id === selected ? "on" : ""}`} onClick={() => select(c.id)}>
+                <button key={c.id} className="ppl-onb-item" onClick={() => select(c.id)}>
                   <Avatar name={c.employee.name} size={40} />
                   <div>
                     <b>{c.employee.name}</b>
@@ -69,7 +80,6 @@ export function OnboardingPage() {
             </div>
           )}
       </div>
-      <div>{selected && <ChecklistDetail id={selected} />}</div>
     </div>
   );
 }

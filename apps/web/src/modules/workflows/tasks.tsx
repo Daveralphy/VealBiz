@@ -1,17 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Check, CheckCircle2, Flag, History, Link2, MessageSquare, MoreHorizontal, Paperclip, Pencil, Plus, Repeat, Trash2, X, FileText, UserRoundCog,
-} from "lucide-react";
-import {
-  Avatar, Button, ConfirmDialog, Drawer, EmptyState, Input, Loading, Menu, Modal, Notice, Pill, SearchInput, Select, Textarea, useConfirm, useToast,
-} from "@windveal/ui";
+import { Check, CheckCircle2, Flag, History, Link2, MessageSquare, Paperclip, Pencil, Plus, Repeat, Trash2, X, FileText, UserRoundCog } from "lucide-react";
+import { Avatar, Button, ConfirmDialog, Drawer, EmptyState, Input, Loading, Modal, Notice, Pill, SearchInput, Select, Textarea, useConfirm, useToast } from "@windveal/ui";
 import { WORKSPACE_LABELS, formatBytes } from "@windveal/shared";
 import { ApiError, api, fileUrl, qs } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { dayLabel, fmtDate, fmtTime, timeAgo } from "../../lib/format";
 import { useForm } from "../../lib/form";
 import { LinkPicker, type LinkTarget } from "../documents/LinkPicker";
+import { MoreMenu } from "../../components/actions";
 
 // ---------------- types + shared hooks ----------------
 
@@ -409,13 +406,11 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
               <Button loading={saving} onClick={saveEdit}>Save</Button>
             </div>
           ) : <div className="row">
-            {data.canDelete && (
-              <Menu trigger={(tg) => <button className="icon-btn bordered" aria-label="More" onClick={tg}><MoreHorizontal size={18} /></button>}>
-                {(close) => <button className="danger" onClick={() => { close(); setConfirmDelete(true); }}><Trash2 size={16} />Delete task</button>}
-              </Menu>
-            )}
-            {editable && <Button variant="secondary" className="hide-sm" icon={<UserRoundCog size={16} />} onClick={() => startEdit(true)}>Reassign</Button>}
-            {editable && <Button variant="secondary" icon={<Pencil size={16} />} onClick={() => startEdit()}>Edit</Button>}
+            <MoreMenu label="Task actions" items={[
+              editable && { label: "Edit", icon: <Pencil size={16} />, onClick: () => startEdit() },
+              editable && { label: "Reassign", icon: <UserRoundCog size={16} />, onClick: () => startEdit(true) },
+              data.canDelete && { label: "Delete task", icon: <Trash2 size={16} />, danger: true, onClick: () => setConfirmDelete(true) },
+            ]} />
             {editable && (t.status === "done"
               ? <Button variant="secondary" loading={toggle.isPending} onClick={() => toggle.mutate(t)}>Reopen</Button>
               : <Button icon={<Check size={16} />} loading={toggle.isPending} onClick={() => toggle.mutate(t, { onSuccess: onClose })}>Mark complete</Button>)}

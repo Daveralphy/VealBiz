@@ -56,10 +56,6 @@ export function ApprovalsView() {
     if (id) p.set("id", id); else p.delete("id");
     setParams(p, { replace: replace || !id });
   };
-  // Auto-open the first item on wide screens.
-  useEffect(() => {
-    if (!selected && data?.length && window.matchMedia("(min-width: 901px)").matches) select(data[0]!.id, true);
-  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className={`wf-approvals ${selected ? "has-selection" : ""}`}>
@@ -112,9 +108,7 @@ export function ApprovalsView() {
         <p className="wf-footnote">Approvals come from every workspace. Leave goes to the person's manager; purchases follow the rules set by your admins.</p>
       </div>
       <div className="wf-ap-detail">
-        {selected ? <ApprovalDetailCard id={selected} onBack={() => select(null)} /> : (
-          <Card className="hide-sm"><EmptyState title="Choose a request">Pick one from the list to see the details and decide.</EmptyState></Card>
-        )}
+        {selected && <ApprovalDetailCard id={selected} onBack={() => select(null)} />}
       </div>
       <NewRequestModal open={showNew} onClose={() => setShowNew(false)} onCreated={(id) => { setShowNew(false); setScope("mine"); select(id); }} />
       {isAdmin && <RulesModal open={showRules} onClose={() => setShowRules(false)} />}

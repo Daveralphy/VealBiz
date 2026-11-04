@@ -12,6 +12,7 @@ import { PeopleDashboard } from "./Dashboard";
 import { OnboardingPage } from "./Onboarding";
 import { EmployeeDrawer } from "./EmployeeForm";
 import "./people.css";
+import { MoreMenu } from "../../components/actions";
 
 export default function PeopleModule() {
   const { can, hasSpecial } = useSession();
@@ -42,11 +43,11 @@ export default function PeopleModule() {
         title="People & HR"
         subtitle={subtitle}
         actions={<>
-          {/* Exporting the employee list belongs with the Directory (Attendance has its own export). */}
-          {hasSpecial("export_data") && section === "directory" && (
-            <a className="btn btn-secondary hide-sm" href="/api/people/employees/export" download><Download size={16} />Export</a>
-          )}
           {can("people", "edit") && <Button className="ppl-add" icon={<Plus size={16} strokeWidth={2.4} />} onClick={openAdd}>Add employee</Button>}
+          {/* Exporting the employee list belongs with the Directory (Attendance has its own export). */}
+          <MoreMenu items={[
+            hasSpecial("export_data") && section === "directory" && { label: "Export employees", icon: <Download size={16} />, onClick: () => { window.location.href = "/api/people/employees/export"; } },
+          ]} />
         </>}
       />
       <Routes>

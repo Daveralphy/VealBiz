@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Drawer, Input, Notice, Select, Textarea, useToast } from "@windveal/ui";
+import { Button, Drawer, Input, Select, Textarea, useToast } from "@windveal/ui";
 import { api } from "../../lib/api";
 import { useForm } from "../../lib/form";
 import { useSession } from "../../lib/session";

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Archive, ArchiveRestore, ChevronLeft, Download, FileQuestion, Link2, MoreHorizontal, MoveRight, Pencil, Plus, Share2, Tag, Trash2, Upload, X } from "lucide-react";
-import { Avatar, Button, Card, ConfirmDialog, EmptyState, Loading, Menu, Modal, Notice, Pill, useConfirm, useToast } from "@windveal/ui";
+import { Avatar, Button, Card, ConfirmDialog, EmptyState, Loading, Menu, Modal, Pill, useConfirm, useToast } from "@windveal/ui";
 import { formatBytes } from "@windveal/shared";
 import { ApiError, api, fileUrl } from "../../lib/api";
 import { fmtDate, timeAgo } from "../../lib/format";

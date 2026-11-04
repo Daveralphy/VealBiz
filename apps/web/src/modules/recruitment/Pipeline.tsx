@@ -10,6 +10,7 @@ import { keys, useRefresh, type Card, type Pipeline } from "./data";
 import { copyText, statusPill } from "./JobsPage";
 import { AddCandidateModal, Stars } from "./widgets";
 import { ExtraDetailsCard } from "../../components/ExtraDetails";
+import { MoreMenu } from "../../components/actions";
 
 function BoardCard({ card, stages, canEdit, onMove, onOpen }: {
   card: Card; stages: string[]; canEdit: boolean; onMove: (c: Card, s: string) => void; onOpen: () => void;
@@ -104,11 +105,13 @@ export function PipelinePage() {
         title={<span className="row" style={{ gap: 12, flexWrap: "wrap" }}>{job.title}{statusPill(job.status)}</span>}
         subtitle={meta || undefined}
         actions={<>
-          {canEdit && <Button variant="secondary" icon={<Pencil size={15} />} onClick={() => nav(`/recruitment/jobs/${job.id}/edit`)}>Edit job</Button>}
-          <Button variant="secondary" icon={<Copy size={15} />} disabled={!job.isLive}
-            title={job.isLive ? job.publicUrl : org.verificationStatus !== "verified" ? "Available once your organisation is verified" : "Show this job on the careers page to share a link"}
-            onClick={async () => toast((await copyText(job.publicUrl)) ? "Link copied" : job.publicUrl)}>Copy link</Button>
           {canEdit && job.status !== "closed" && <Button className="rc-block-sm" icon={<Plus size={16} />} onClick={() => setAdding(true)}>Add candidate</Button>}
+          <MoreMenu label="Job actions" items={[
+            canEdit && { label: "Edit job", icon: <Pencil size={15} />, onClick: () => nav(`/recruitment/jobs/${job.id}/edit`) },
+            { label: "Copy link", icon: <Copy size={15} />, disabled: !job.isLive,
+              title: job.isLive ? job.publicUrl : org.verificationStatus !== "verified" ? "Available once your organisation is verified" : "Show this job on the careers page to share a link",
+              onClick: async () => toast((await copyText(job.publicUrl)) ? "Link copied" : job.publicUrl) },
+          ]} />
         </>} />
       {job.status === "draft" && <Notice tone="info">This job is a draft. Open it to start taking applications.</Notice>}
       <div className="toolbar rc-mt">
