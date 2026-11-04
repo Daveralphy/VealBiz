@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq, gte, ilike, isNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, isNull, lt, or, sql as dsql } from "drizzle-orm";
 import { db } from "../../db/client";
 import { auditEvents, notifications, users } from "../../db/schema";
 import { requireAdmin, requireOrg } from "../../lib/context";
+import { KEPT_ACTIONS } from "../../lib/audit";
 import { toCsv } from "../../lib/csv";
 
 type AuditQuery = { q?: string; actor?: string; category?: string; days?: string; before?: string; format?: string };
@@ -13,7 +14,8 @@ export default async function auditRoutes(app: FastifyInstance) {
     const ctx = await requireAdmin(req);
     const q = req.query;
     const since = new Date(Date.now() - Number(q.days ?? 30) * 86_400_000);
-    const conds = [eq(auditEvents.orgId, ctx.org.id), gte(auditEvents.createdAt, since)];
+    // Older everyday entries (from before only important changes were kept) stay hidden.
+    const conds = [eq(auditEvents.orgId, ctx.org.id), gte(auditEvents.createdAt, since), dsql`${auditEvents.action} ~ ${KEPT_ACTIONS}`];
     if (q.actor) conds.push(eq(auditEvents.actorUserId, q.actor));
     if (q.category) conds.push(eq(auditEvents.category, q.category));
     if (q.before) conds.push(lt(auditEvents.createdAt, new Date(q.before)));

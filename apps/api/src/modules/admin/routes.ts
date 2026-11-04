@@ -1,11 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { and, desc, eq, getTableColumns, gt, ilike, inArray, isNotNull, isNull, or, sql as dsql, type SQL } from "drizzle-orm";
-import type { PgTable } from "drizzle-orm/pg-core";
+import { and, desc, eq, gt, ilike, inArray, isNotNull, isNull, or, sql as dsql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { PLANS, REVIEW_CHECKS, REVIEW_REQUEST_KEYS, type ReviewRequest, type ReviewRequestKey } from "@windveal/shared";
 import { db } from "../../db/client";
 import {
-  applications, auditEvents, authTokens, companies, deals, devices, employees, files, folders, invitations, jobs, leads, memberships, organisations, sessions, tasks, users,
+  auditEvents, authTokens, devices, files, memberships, organisations, sessions, users,
 } from "../../db/schema";
 import { requirePlatformAdmin } from "../../lib/platform";
 import { badRequest, notFound, parse } from "../../lib/http";
@@ -16,16 +15,7 @@ import { randomToken, sha256 } from "../../lib/crypto";
 import { env } from "../../env";
 import { orgView } from "../org/routes";
 import { listOf, orgName, requestLabel, tellBusinessAdmins } from "../../lib/review";
-import { fileView, storageUsed } from "../files/routes";
-
-/** Live (not deleted) rows of an org-scoped table. */
-async function countFor(table: PgTable, orgId: string): Promise<number> {
-  const cols = getTableColumns(table) as Record<string, any>;
-  const where: SQL[] = [eq(cols.orgId, orgId)];
-  if (cols.deletedAt) where.push(isNull(cols.deletedAt));
-  const [r] = await db.select({ n: dsql<number>`count(*)::int` }).from(table).where(and(...where));
-  return r?.n ?? 0;
-}
+import { fileView } from "../files/routes";
 
 async function loadOrg(id: string) {
   if (!z.string().uuid().safeParse(id).success) throw notFound("That organisation");
@@ -75,7 +65,8 @@ export default async function adminRoutes(app: FastifyInstance) {
       // The review queue is oldest first, so nobody waits longest; other lists are newest first.
       .where(and(...where)).orderBy(status === "pending" ? organisations.verificationSubmittedAt : desc(organisations.createdAt)).limit(500);
     const ids = rows.map((r) => r.o.id);
-    const memberCounts = ids.length ? await db.select({ orgId: memberships.orgId, n: dsql<number>`count(*)::int` }).from(memberships)
+    const memberCounts = ids.length ? await db.select({ orgId: memberships.orgId, n: dsql<number>`count(*)::int`, last: dsql<string | null>`max(${users.lastLoginAt})` })
+      .from(memberships).innerJoin(users, eq(users.id, memberships.userId))
       .where(and(inArray(memberships.orgId, ids), isNull(memberships.deletedAt))).groupBy(memberships.orgId) : [];
     return rows.map((r) => ({
       id: r.o.id, name: r.o.tradingName || r.o.legalName, legalName: r.o.legalName, slug: r.o.slug, country: r.o.country, industry: r.o.industry,
@@ -83,6 +74,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       logoFileId: r.o.logoFileId, documents: r.o.verificationDocumentIds.length, createdAt: r.o.createdAt, creator: r.creator,
       submittedAt: r.o.verificationSubmittedAt, secondLook: !!r.o.verificationRequest && r.o.verificationStatus === "pending",
       members: memberCounts.find((m) => m.orgId === r.o.id)?.n ?? 0,
+      lastActiveAt: memberCounts.find((m) => m.orgId === r.o.id)?.last ?? null,
     }));
   });
 
@@ -93,26 +85,22 @@ export default async function adminRoutes(app: FastifyInstance) {
     const [creator] = await db.select().from(users).where(eq(users.id, o.createdBy)).limit(1);
     const reviewer = o.verificationReviewedBy
       ? (await db.select({ name: users.name }).from(users).where(eq(users.id, o.verificationReviewedBy)).limit(1))[0] : null;
-    const members = await db.select({ m: memberships, u: users }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
-      .where(and(eq(memberships.orgId, o.id), isNull(memberships.deletedAt))).orderBy(memberships.createdAt);
-    const invites = await db.select().from(invitations)
-      .where(and(eq(invitations.orgId, o.id), isNull(invitations.acceptedAt), isNull(invitations.revokedAt))).orderBy(desc(invitations.createdAt));
+    // WindVeal sees what the business sent when it registered, never what it keeps in WindVeal.
+    const [creatorRole] = await db.select({ jobTitle: memberships.jobTitle }).from(memberships)
+      .where(and(eq(memberships.orgId, o.id), eq(memberships.userId, o.createdBy))).limit(1);
+    const [seen] = await db.select({ last: dsql<string | null>`max(${users.lastLoginAt})`, n: dsql<number>`count(*)::int` }).from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId)).where(and(eq(memberships.orgId, o.id), isNull(memberships.deletedAt)));
     const docIds = o.verificationDocumentIds;
     const docs = docIds.length ? await db.select().from(files).where(inArray(files.id, docIds)) : [];
     const history = await db.select({ e: auditEvents, actor: users.name }).from(auditEvents).leftJoin(users, eq(users.id, auditEvents.actorUserId))
-      .where(eq(auditEvents.orgId, o.id)).orderBy(desc(auditEvents.createdAt)).limit(100);
-    const [nEmployees, nJobs, nApplications, nCompanies, nLeads, nDeals, nTasks, nFiles] = await Promise.all(
-      [employees, jobs, applications, companies, leads, deals, tasks, files].map((t) => countFor(t, o.id)),
-    );
+      .where(and(eq(auditEvents.orgId, o.id), dsql`${auditEvents.action} like 'org.verification_%'`, dsql`${auditEvents.action} not like 'org.verification_document%'`))
+      .orderBy(desc(auditEvents.createdAt)).limit(50);
     return {
       org: orgView(o),
       creator: creator && { id: creator.id, name: creator.name, email: creator.email, phone: creator.phone, emailVerified: !!creator.emailVerifiedAt, createdAt: creator.createdAt, lastLoginAt: creator.lastLoginAt },
       reviewer,
-      members: members.map(({ m, u }) => ({
-        id: m.id, userId: u.id, name: u.name, email: u.email, phone: u.phone, avatarFileId: u.avatarFileId, role: m.role, status: m.status,
-        jobTitle: m.jobTitle, isOwner: m.isOwner, isPrimaryAdmin: m.isPrimaryAdmin, joinedAt: m.createdAt, lastLoginAt: u.lastLoginAt,
-      })),
-      invitations: invites.map((i) => ({ id: i.id, email: i.email, role: i.role, expiresAt: i.expiresAt, createdAt: i.createdAt })),
+      creatorJobTitle: creatorRole?.jobTitle ?? null,
+      lastActiveAt: seen?.last ?? null, memberCount: seen?.n ?? 0,
       documents: docs.map((f) => ({ ...fileView(f), proof: o.verificationDocumentKinds[f.id] ?? "other" })),
       review: {
         status: o.verificationStatus, submittedAt: o.verificationSubmittedAt, request: o.verificationRequest, checks: o.verificationChecks,
@@ -120,34 +108,22 @@ export default async function adminRoutes(app: FastifyInstance) {
         history: [
           ...(creator ? [{ action: "account.created", summary: "Account created", actor: creator.name, createdAt: creator.createdAt, meta: null as unknown }] : []),
           ...(creator?.emailVerifiedAt ? [{ action: "account.email_verified", summary: "Email verified", actor: creator.name, createdAt: creator.emailVerifiedAt, meta: null as unknown }] : []),
-          ...history.filter(({ e }) => e.action.startsWith("org.verification_") && !e.action.startsWith("org.verification_document"))
-            .map(({ e, actor }) => ({ action: e.action, summary: e.summary, actor, createdAt: e.createdAt, meta: e.meta as unknown })),
+          ...history.map(({ e, actor }) => ({ action: e.action, summary: e.summary, actor, createdAt: e.createdAt, meta: e.meta as unknown })),
         ].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
       },
-      counts: { employees: nEmployees, jobs: nJobs, applications: nApplications, companies: nCompanies, leads: nLeads, deals: nDeals, tasks: nTasks, files: nFiles },
-      storageUsed: await storageUsed(o.id),
-      history: history.map(({ e, actor }) => ({ id: e.id, action: e.action, summary: e.summary, category: e.category, actor, device: e.deviceLabel, createdAt: e.createdAt })),
     };
   });
 
-  /** Every file the organisation has stored (Documents library, attachments, CVs, branding). */
-  app.get<{ Params: { id: string }; Querystring: { q?: string } }>("/api/admin/organisations/:id/files", async (req) => {
-    requirePlatformAdmin(req);
-    const o = await loadOrg(req.params.id);
-    const where: SQL[] = [eq(files.orgId, o.id), isNull(files.deletedAt)];
-    if (req.query.q?.trim()) where.push(ilike(files.name, `%${req.query.q.trim()}%`));
-    const rows = await db.select({ f: files, uploader: users.name, folder: folders.name }).from(files)
-      .leftJoin(users, eq(users.id, files.uploadedBy)).leftJoin(folders, eq(folders.id, files.folderId))
-      .where(and(...where)).orderBy(desc(files.createdAt)).limit(500);
-    return rows.map(({ f, uploader, folder }) => ({ ...fileView(f), uploader, folder }));
-  });
-
-  /** Opens (or downloads) any stored file. */
+  /** Opens (or downloads) a file a business sent for its review, or its logo and cover. Nothing else it stores. */
   app.get<{ Params: { id: string }; Querystring: { download?: string } }>("/api/admin/files/:id/content", async (req, reply) => {
     requirePlatformAdmin(req);
     if (!z.string().uuid().safeParse(req.params.id).success) throw notFound("That file");
     const [f] = await db.select().from(files).where(and(eq(files.id, req.params.id), isNull(files.deletedAt))).limit(1);
-    if (!f) throw notFound("That file");
+    const [o] = f ? await db.select().from(organisations).where(eq(organisations.id, f.orgId)).limit(1) : [];
+    const sentForReview = !!o && (o.verificationDocumentIds.includes(f!.id) || o.logoFileId === f!.id || o.coverFileId === f!.id);
+    // A person's own photo can be shown on their WindVeal account page.
+    const [avatar] = f && !sentForReview ? await db.select({ id: users.id }).from(users).where(eq(users.avatarFileId, f.id)).limit(1) : [];
+    if (!f || (!sentForReview && !avatar)) throw notFound("That file");
     reply.header("Content-Type", f.mime || "application/octet-stream");
     reply.header("Content-Disposition", `${req.query.download ? "attachment" : "inline"}; filename="${encodeURIComponent(f.name)}"`);
     reply.header("X-Content-Type-Options", "nosniff");
@@ -310,7 +286,6 @@ export default async function adminRoutes(app: FastifyInstance) {
     const devs = await db.select().from(devices).where(eq(devices.userId, u.id)).orderBy(desc(devices.lastSeenAt));
     const live = await db.select({ n: dsql<number>`count(*)::int` }).from(sessions)
       .where(and(eq(sessions.userId, u.id), isNull(sessions.revokedAt), gt(sessions.expiresAt, new Date())));
-    const activity = await db.select().from(auditEvents).where(eq(auditEvents.actorUserId, u.id)).orderBy(desc(auditEvents.createdAt)).limit(30);
     return {
       user: {
         id: u.id, name: u.name, email: u.email, phone: u.phone, avatarFileId: u.avatarFileId, emailVerified: !!u.emailVerifiedAt,
@@ -323,7 +298,6 @@ export default async function adminRoutes(app: FastifyInstance) {
       } : null,
       devices: devs.map((d) => ({ id: d.id, label: d.label, ip: d.ip, firstSeenAt: d.firstSeenAt, lastSeenAt: d.lastSeenAt, blocked: !!d.blockedAt })),
       activeSessions: live[0]?.n ?? 0,
-      activity: activity.map((e) => ({ id: e.id, summary: e.summary, action: e.action, device: e.deviceLabel, createdAt: e.createdAt })),
     };
   });
 

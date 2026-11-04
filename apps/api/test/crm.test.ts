@@ -61,7 +61,8 @@ describe("crm: leads", () => {
     expect((await c.get(`/api/crm/companies/${co.body.id}`)).body.deals).toHaveLength(1);
 
     const audit = (await c.get("/api/audit")).body.items;
-    expect(audit.some((e: any) => e.action === "crm.lead_converted")).toBe(true);
+    // Everyday CRM work isn't kept in the audit history.
+    expect(audit.some((e: any) => e.action.startsWith("crm."))).toBe(false);
   });
 
   it("closes a lead as not interested with a reason", async () => {

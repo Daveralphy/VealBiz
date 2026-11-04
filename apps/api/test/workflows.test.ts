@@ -48,7 +48,7 @@ describe("workflows: tasks", () => {
     expect(re.body.status).toBe("todo");
 
     const detail = await admin.get(`/api/workflows/tasks/${id}`);
-    expect(detail.body.activity.map((a: any) => a.action)).toEqual(expect.arrayContaining(["task.created", "task.completed", "task.reopened"]));
+    expect(detail.body.activity).toBeUndefined();
 
     // Checklist items
     const item = await member.post(`/api/workflows/tasks/${id}/items`, { label: "Check prices" });

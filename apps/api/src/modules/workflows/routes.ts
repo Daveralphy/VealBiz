@@ -4,7 +4,7 @@ import { z } from "zod";
 import { hasAccess } from "@windveal/shared";
 import { db, type Tx } from "../../db/client";
 import {
-  approvalRules, approvalSteps, approvals, auditEvents, employees, fileLinks, files, memberships, taskComments, taskItems, taskTemplates, tasks, users,
+  approvalRules, approvalSteps, approvals, employees, fileLinks, files, memberships, taskComments, taskItems, taskTemplates, tasks, users,
 } from "../../db/schema";
 import { requireAccess, requireAdmin, requireOrg, type OrgContext } from "../../lib/context";
 import { badRequest, conflict, forbidden, notFound, parse } from "../../lib/http";
@@ -282,15 +282,12 @@ export default async function workflowsRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>(`${P}/tasks/:id`, async (req) => {
     const ctx = await requireOrg(req);
     const t = await loadTask(ctx, req.params.id);
-    const [items, comments, linked, activity, view] = await Promise.all([
+    const [items, comments, linked, view] = await Promise.all([
       db.select().from(taskItems).where(and(eq(taskItems.taskId, t.id), isNull(taskItems.deletedAt))).orderBy(asc(taskItems.position), asc(taskItems.createdAt)),
       db.select({ c: taskComments, name: users.name }).from(taskComments).innerJoin(users, eq(users.id, taskComments.authorUserId))
         .where(and(eq(taskComments.taskId, t.id), isNull(taskComments.deletedAt))).orderBy(asc(taskComments.createdAt)),
       db.select({ f: files }).from(fileLinks).innerJoin(files, eq(files.id, fileLinks.fileId))
         .where(and(eq(fileLinks.orgId, ctx.org.id), eq(fileLinks.linkType, "task"), eq(fileLinks.linkId, t.id), isNull(files.deletedAt))),
-      db.select({ e: auditEvents, name: users.name }).from(auditEvents).leftJoin(users, eq(users.id, auditEvents.actorUserId))
-        .where(and(eq(auditEvents.orgId, ctx.org.id), eq(auditEvents.entityType, "task"), eq(auditEvents.entityId, t.id)))
-        .orderBy(desc(auditEvents.createdAt)).limit(50),
       taskViews([t]),
     ]);
     return {
@@ -298,7 +295,6 @@ export default async function workflowsRoutes(app: FastifyInstance) {
       items: items.map((i) => ({ id: i.id, label: i.label, done: i.done, position: i.position })),
       comments: comments.map(({ c, name }) => ({ id: c.id, body: c.body, author: { id: c.authorUserId, name }, createdAt: c.createdAt })),
       files: linked.map(({ f }) => ({ id: f.id, name: f.name, size: f.size, mime: f.mime, kind: f.kind, createdAt: f.createdAt })),
-      activity: activity.map(({ e, name }) => ({ id: e.id, summary: e.summary, action: e.action, actor: name, createdAt: e.createdAt })),
       canEdit: canEditTask(ctx, t),
       canDelete: t.createdBy === ctx.user.id || hasAccess(ctx.access.workflows, "manage"),
     };

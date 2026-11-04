@@ -5,6 +5,8 @@ import { api } from "../../lib/api";
 import { fmtDate, timeAgo } from "../../lib/format";
 import { DashBars, DashCard, DashColumns, DashKpis, DashRow } from "../../components/dashboard";
 import { TypeBadge, useFolders, type FileRow } from "./shared";
+import { RecentImportsCard } from "../imports/dashboard";
+import { useAreaAccess } from "../../lib/workspaces";
 
 type DashData = { addedThisWeek: number; expiringCount: number; expiring: FileRow[] };
 
@@ -20,6 +22,7 @@ function expiryText(day: string) {
 
 /** The Documents dashboard: a few numbers and the top five of each list, each linking to the full page. */
 export function DocumentsDashboard() {
+  const { viewer } = useAreaAccess();
   const summary = useQuery({ queryKey: ["dc-summary"], queryFn: () => api.get<{ files: number; archived: number }>("/api/documents/summary") });
   const storage = useQuery({ queryKey: ["storage"], queryFn: () => api.get<{ used: number; limit: number }>("/api/storage"), staleTime: 60_000 });
   const dash = useQuery({ queryKey: ["dc-dashboard"], queryFn: () => api.get<DashData>("/api/documents/dashboard") });
@@ -68,6 +71,7 @@ export function DocumentsDashboard() {
               <DashRow key={f.id} to={`/documents/file/${f.id}`} lead={fileLead(f)} title={f.name} detail={f.uploaderName} end={timeAgo(f.createdAt)} />
             ))}
           </DashCard>
+          {viewer.canImport && <RecentImportsCard />}
         </>}
       />
     </>

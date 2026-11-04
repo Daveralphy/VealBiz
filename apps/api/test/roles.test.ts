@@ -104,3 +104,16 @@ describe("roles", () => {
     expect(roles).toEqual(["Manager", "Member"]);
   });
 });
+
+describe("audit history", () => {
+  it("keeps changes that matter and leaves out everyday adding and deleting", async () => {
+    const app = await getApp();
+    const { c: admin } = await signUpWithOrg(app);
+    await admin.post("/api/crm/companies", { name: "Apex Bakery" });
+    const { email } = await signUp(app, "Invited Person");
+    await admin.post("/api/invitations", { invites: [{ email, role: "manager" }] });
+    const items = (await admin.get("/api/audit?days=1")).body.items.map((i: any) => i.action);
+    expect(items).toContain("member.invited");
+    expect(items.some((a: string) => a.startsWith("crm."))).toBe(false);
+  });
+});

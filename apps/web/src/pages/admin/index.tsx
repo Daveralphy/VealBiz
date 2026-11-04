@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Download, ExternalLink, FileText, Image as ImageIcon, KeyRound, LogOut, MailCheck, Pause, RotateCcw, ShieldCheck } from "lucide-react";
+import { Ban, Check, ExternalLink, FileText, KeyRound, LogOut, MailCheck, Pause, RotateCcw, ShieldCheck } from "lucide-react";
 import { Avatar, Button, Card, EmptyState, Input, Loading, Modal, PageHeader, Pill, SearchInput, Segmented, Select, Textarea, useConfirm, useToast } from "@windveal/ui";
 import { PLANS, REVIEW_CHECKS, REVIEW_REQUESTS, REVIEW_REQUEST_KEYS, VERIFICATION_DOC_KINDS, formatBytes, type ReviewRequestKey } from "@windveal/shared";
 import { api, qs } from "../../lib/api";
@@ -60,7 +60,7 @@ function Organisations() {
       ) : (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Organisation</th><th className="hide-sm">Registered by</th><th className="hide-sm">Country</th><th className="hide-sm">Plan</th><th className="hide-sm">Documents</th><th>{status === "pending" ? "Sent" : "Registered"}</th><th>Status</th></tr></thead>
+            <thead><tr><th>Organisation</th><th className="hide-sm">Registered by</th><th className="hide-sm">Country</th><th className="hide-sm">Plan</th><th className="hide-sm">Documents</th><th>{status === "pending" ? "Sent" : "Registered"}</th><th className="hide-sm">Last active</th><th>Status</th></tr></thead>
             <tbody>
               {(list.data ?? []).map((o) => (
                 <tr key={o.id} className="clickable" onClick={() => navigate(`/admin/organisations/${o.id}`)}>
@@ -70,6 +70,7 @@ function Organisations() {
                   <td className="hide-sm" style={{ textTransform: "capitalize" }}>{o.plan}</td>
                   <td className="hide-sm">{o.documents || <span className="muted">None</span>}</td>
                   <td>{timeAgo(status === "pending" ? o.submittedAt : o.createdAt)}</td>
+                  <td className="hide-sm">{o.lastActiveAt ? timeAgo(o.lastActiveAt) : <span className="muted">Never</span>}</td>
                   <td>{o.accountStatus !== "active" ? <Pill tone={o.accountStatus === "closed" ? "grey" : "red"}>{ACCOUNT[o.accountStatus as "suspended" | "closed"]}</Pill>
                     : o.secondLook ? <Pill tone="warn">Second look</Pill> : <Pill tone={statusOf(o).tone}>{statusOf(o).label}</Pill>}</td>
                 </tr>
@@ -112,7 +113,7 @@ function DecisionBar({ data }: { data: any }) {
   let title = "Your decision", sub = `${checks} of ${total} checks done. They'll get an email and see your decision when they open WindVeal.`;
   if (!r.submittedAt && status === "pending") { title = "Still setting up"; sub = `They're at the "${o.setupStep}" step. You can review once they send themselves in.`; }
   if (status === "needs_info") { title = "Waiting for them"; sub = `You asked for more ${timeAgo(req?.at)}. They've done ${done} of ${req?.items.length ?? 0}.`; }
-  if (status === "verified") { title = "Approved"; sub = `Approved ${fmtDate(r.decidedAt)}${data.reviewer ? ` by ${data.reviewer.name}` : ""}.`; }
+  if (status === "verified") { title = "Approved"; sub = r.decidedAt ? `Approved ${fmtDate(r.decidedAt)}${data.reviewer ? ` by ${data.reviewer.name}` : ""}.` : "This business is approved."; }
   if (status === "rejected") { title = "Not approved"; sub = `Decided ${fmtDate(r.decidedAt)}${data.reviewer ? ` by ${data.reviewer.name}` : ""}. Reason: ${r.note}`; }
   const canDecide = status === "pending" ? !!r.submittedAt : status === "needs_info";
   return (
@@ -187,7 +188,7 @@ function ChecksCard({ data, onOpen }: { data: any; onOpen: (f: ViewableFile) => 
     ["certificate", null, docs("certificate").length ? docs("certificate").map(doc) : <small>Not sent</small>, null],
     ["address", [o.address, o.city].filter(Boolean).join(", ") || <span className="muted">Not given</span>, docs("address").length ? docs("address").map(doc) : <small>No proof of address sent</small>, null],
     ["person", data.creator ? `${data.creator.name} · ${data.creator.email}` : "",
-      data.creator && <small>{[data.creator.emailVerified ? "Email verified" : "Email not verified", data.creator.phone && `phone ${data.creator.phone}`, data.members.find((m: any) => m.userId === data.creator.id)?.jobTitle].filter(Boolean).join(" · ")}</small>, null],
+      data.creator && <small>{[data.creator.emailVerified ? "Email verified" : "Email not verified", data.creator.phone && `phone ${data.creator.phone}`, data.creatorJobTitle].filter(Boolean).join(" · ")}</small>, null],
     ["website", o.website || <span className="muted">Not given</span>, null, website || null],
   ];
   const others = data.documents.filter((f: any) => f.proof !== "certificate" && f.proof !== "address");
@@ -266,31 +267,6 @@ function PlanCard({ org: o }: { org: any }) {
   );
 }
 
-function FilesCard({ orgId, onOpen }: { orgId: string; onOpen: (f: ViewableFile) => void }) {
-  const [q, setQ] = useState("");
-  const files = useQuery({ queryKey: ["admin", "files", orgId, q], queryFn: () => api.get<any[]>(`/api/admin/organisations/${orgId}/files${qs({ q })}`) });
-  return (
-    <Card title="Everything they've uploaded" subtitle="Documents library, attachments, CVs and branding." actions={<SearchInput value={q} onChange={setQ} placeholder="Search files" />}>
-      {files.isLoading ? <Loading /> : !(files.data ?? []).length ? <p className="muted">No files.</p> : (
-        <div className="ad-files">
-          {(files.data ?? []).map((f) => (
-            <div key={f.id} className="list-row">
-              {f.mime.startsWith("image/") ? <ImageIcon size={18} className="muted" /> : <FileText size={18} className="muted" />}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <button className="link pf-file" onClick={() => onOpen(f)}>{f.name}</button>
-                <small className="muted" style={{ display: "block" }}>
-                  {[f.folder ?? (f.kind === "system" ? "Attachment or branding" : "Documents"), formatBytes(f.size), f.uploader, fmtDate(f.createdAt)].filter(Boolean).join(" · ")}
-                </small>
-              </div>
-              <a className="icon-btn" href={adminFileUrl(f.id, true)} download={f.name} aria-label={`Download ${f.name}`} title="Download"><Download size={16} /></a>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
 function OrganisationDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -302,14 +278,13 @@ function OrganisationDetail() {
   const o = d.org;
   const perks: string[] = o.settings?.perks ?? [];
   const image = (fileId: string, name: string) => setViewing({ id: fileId, name, mime: "image/*" });
-  const c = d.counts;
   return (
     <>
       <PageHeader title={o.name} back={{ label: "All organisations", onClick: () => navigate("/admin/organisations") }}
         subtitle={[o.legalName, country(o.country), d.review.submittedAt ? `sent for review ${fmtDate(d.review.submittedAt)}, ${fmtTime(d.review.submittedAt)}` : `registered ${fmtDate(o.createdAt)}`,
           d.review.request && d.review.status === "pending" ? "second look" : null].filter(Boolean).join(" · ")} />
       <DecisionBar data={d} />
-      <div className="grid-side side-360">
+      <div className="grid-side side-360 ad-review-grid">
         <div>
           <ChecksCard data={d} onOpen={setViewing} />
           {d.review.request && d.review.status !== "verified" && <RequestCard request={d.review.request} />}
@@ -355,14 +330,6 @@ function OrganisationDetail() {
             <h4 className="pf-sub">Why work with us</h4>
             {perks.length ? <ul className="pf-perks">{perks.map((p) => <li key={p}>{p}</li>)}</ul> : <p className="muted">Not given</p>}
           </Card>
-          <FilesCard orgId={o.id} onOpen={setViewing} />
-          <Card title="Activity" subtitle="Their audit history, newest first.">
-            {!d.history.length ? <p className="muted">No activity yet.</p> : d.history.map((h: any) => (
-              <div key={h.id} className="list-row" style={{ alignItems: "flex-start" }}>
-                <div style={{ flex: 1, minWidth: 0 }}><span className="ink">{h.summary}</span><small className="muted" style={{ display: "block" }}>{[h.actor, h.device, `${fmtDate(h.createdAt)} · ${timeAgo(h.createdAt)}`].filter(Boolean).join(" · ")}</small></div>
-              </div>
-            ))}
-          </Card>
         </div>
         <div>
           <AccountCard org={o} />
@@ -374,28 +341,12 @@ function OrganisationDetail() {
                 <div><dt>Phone</dt><dd>{d.creator.phone || <span className="muted">Not given</span>}</dd></div>
                 <div><dt>Account created</dt><dd>{fmtDate(d.creator.createdAt)}</dd></div>
                 <div><dt>Last signed in</dt><dd>{d.creator.lastLoginAt ? timeAgo(d.creator.lastLoginAt) : "Never"}</dd></div>
+                <div><dt>Business last active</dt><dd>{d.lastActiveAt ? timeAgo(d.lastActiveAt) : "Never"}</dd></div>
+                <div><dt>People in WindVeal</dt><dd>{d.memberCount}</dd></div>
               </dl>
+              <p className="muted ad-private">WindVeal only sees what the business sent when it registered. Its records, files and activity stay private.</p>
             </Card>
           )}
-          <Card title={`Members (${d.members.length})`}>
-            {d.members.map((m: any) => (
-              <div key={m.id} className="list-row">
-                <Avatar name={m.name} src={m.avatarFileId ? adminFileUrl(m.avatarFileId) : null} />
-                <div style={{ minWidth: 0, flex: 1 }}><b className="ink" style={{ display: "block" }}>{m.name}</b><small className="muted">{m.email}{m.jobTitle ? ` · ${m.jobTitle}` : ""}</small></div>
-                <Pill tone={m.status === "active" ? "blue" : "grey"}>{m.isPrimaryAdmin ? "Primary admin" : m.role}</Pill>
-              </div>
-            ))}
-            {!!d.invitations.length && <>
-              <h4 className="pf-sub">Invited, not joined yet</h4>
-              {d.invitations.map((i: any) => <div key={i.id} className="list-row"><div style={{ flex: 1, minWidth: 0 }}><span className="ink">{i.email}</span><small className="muted" style={{ display: "block" }}>Invited {timeAgo(i.createdAt)}</small></div><Pill tone="grey">{i.role}</Pill></div>)}
-            </>}
-          </Card>
-          <Card title="Usage">
-            <dl className="kv pf-kv">
-              {([["Employees", c.employees], ["Jobs", c.jobs], ["Applications", c.applications], ["Clients and companies", c.companies], ["Leads", c.leads], ["Deals", c.deals], ["Tasks", c.tasks], ["Files", c.files], ["Storage used", formatBytes(d.storageUsed)]] as [string, React.ReactNode][])
-                .map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
-            </dl>
-          </Card>
         </div>
       </div>
       <FileViewer file={viewing} url={adminFileUrl} onClose={() => setViewing(null)} />
@@ -564,7 +515,7 @@ function PersonDetail() {
   });
   if (q.isLoading) return <Loading />;
   if (!q.data) return <EmptyState title="Person not found" action={<Button onClick={() => navigate("/admin/people")}>All people</Button>} />;
-  const { user: u, membership: m, devices, activeSessions, activity } = q.data;
+  const { user: u, membership: m, devices, activeSessions } = q.data;
   const self = u.id === me.id;
   const ask = async (opts: { title: string; message: string; confirmLabel: string; danger?: boolean }, path: string, ok: string, body?: unknown) => {
     if (await confirm(opts)) act.mutate({ path, body, ok });
@@ -608,11 +559,6 @@ function PersonDetail() {
                 <div><dt>Joined the organisation</dt><dd>{fmtDate(m.joinedAt)}</dd></div>
               </dl>
             )}
-          </Card>
-          <Card title="Recent activity">
-            {!activity.length ? <p className="muted">Nothing yet.</p> : activity.map((e: any) => (
-              <div key={e.id} className="list-row"><div style={{ flex: 1, minWidth: 0 }}><span className="ink">{e.summary}</span><small className="muted" style={{ display: "block" }}>{[e.device, `${fmtDate(e.createdAt)} · ${timeAgo(e.createdAt)}`].filter(Boolean).join(" · ")}</small></div></div>
-            ))}
           </Card>
         </div>
         <div>

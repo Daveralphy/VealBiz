@@ -622,3 +622,5 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
   .ac-invite-row { grid-template-columns: minmax(0, 1fr) 36px; }
   .ac-invite-row .field:nth-child(2), .ac-invite-row > :nth-child(2) { grid-column: 1; }
 }
+.ad-private { font-size: 12.5px; margin: 12px 0 0; }
+.ad-decide, .ad-review-grid { margin-bottom: 20px; }

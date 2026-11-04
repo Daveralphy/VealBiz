@@ -119,7 +119,6 @@ export function LeadsPage() {
         </select>
         <span className="grow" />
         {canManage && <button className="crm-link" onClick={() => setStagesOpen(true)}>Edit lead stages</button>}
-        {canEdit && <Button icon={<Plus size={16} />} onClick={addLead}>Add lead</Button>}
       </div>
       {data.isLoading ? <Loading /> : data.error ? <ErrorNotice error={data.error} retry={() => data.refetch()} /> : (
         data.data!.items.length === 0 && !filtered ? (

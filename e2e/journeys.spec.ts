@@ -114,15 +114,17 @@ test("errors are shown as toasts", async ({ page }) => {
   await expect(page.locator(".toast.error")).toHaveText("Email or password is incorrect.");
 });
 
-test("WindVeal admins review an organisation and open what it sent", async ({ page }) => {
+test("WindVeal admins see what a business sent when it registered, and nothing it keeps in WindVeal", async ({ page }) => {
   const errors = watchErrors(page);
   await signIn(page);
   await page.goto("/admin/organisations");
   await page.getByRole("radio", { name: "All" }).click();
   await page.getByRole("row", { name: /Example Trading/ }).click();
   await expect(page.getByRole("heading", { name: "Registration details" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Everything they've uploaded" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Members \(/ })).toBeVisible();
+  await expect(page.getByText("Business last active")).toBeVisible();
+  for (const hidden of ["Everything they've uploaded", "Activity", "Usage", /Members \(/]) {
+    await expect(page.getByRole("heading", { name: hidden })).toHaveCount(0);
+  }
   expect(errors).toEqual([]);
 });
 

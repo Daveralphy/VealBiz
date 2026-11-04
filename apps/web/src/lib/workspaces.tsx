@@ -2,13 +2,13 @@ import type { ReactNode } from "react";
 import {
   Briefcase, Building2, CalendarDays, CheckSquare, Clock, FileText, Flag, FolderOpen, Globe, History, LayoutDashboard, LineChart, ListChecks,
   ListTodo, Network, Phone, Rows3, Share2, Archive, SquareCheck, Stamp, UserPlus, UserSearch, Users, Workflow, BarChart3, Kanban,
-  Settings, Download, ShieldCheck, Mail, KeyRound, ScrollText, Upload, User, Building, Building2 as Org,
+  Settings, ShieldCheck, Mail, KeyRound, ScrollText, Upload, User, Building, Building2 as Org,
 } from "lucide-react";
 import type { Workspace } from "@windveal/shared";
 import { useSession } from "./session";
 
 /** What decides whether someone can see an area or one of its sections. */
-export type Viewer = { isAdmin: boolean; platformAdmin: boolean; canImport: boolean; canManageMembers: boolean };
+export type Viewer = { isAdmin: boolean; platformAdmin: boolean; canImport: boolean; canManageMembers: boolean; canDocuments: boolean };
 
 /** A page inside a workspace, shown in that workspace's sidebar. */
 export type Section = {
@@ -22,9 +22,11 @@ export type Section = {
   /** Extra paths that also count as this section (e.g. a record page under a list). */
   also?: RegExp;
 };
-export type AreaKey = Workspace | "settings" | "import" | "admin" | "profile";
+export type AreaKey = Workspace | "settings" | "admin" | "profile";
 export type WorkspaceDef = {
   key: AreaKey; label: string; base: string; icon: (size?: number) => ReactNode; blurb: string; sections: Section[];
+  /** Other paths that belong to this area (e.g. Import data inside Documents). */
+  bases?: string[];
   /** "workspace" tiles come first on Home; "manage" tiles (Settings, Import, Admin) after; "account" has no tile. */
   group: "workspace" | "manage" | "account";
   visible?: (v: Viewer) => boolean;
@@ -79,13 +81,15 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "documents", label: "Documents", base: "/documents", icon: i(FileText), blurb: "Every business file in one place", group: "workspace", search: true,
+    key: "documents", label: "Documents", base: "/documents", bases: ["/import"], icon: i(FileText), blurb: "Files, and importing your spreadsheets", group: "workspace", search: true,
     sections: [
-      { to: "/documents", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-      { to: "/documents/library", label: "All files", icon: <FolderOpen size={18} />, also: /^\/documents\/(folder|file|files)\// },
-      { to: "/documents/recent", label: "Recent", icon: <History size={18} /> },
-      { to: "/documents/shared", label: "Shared with me", icon: <Share2 size={18} /> },
-      { to: "/documents/archive", label: "Archive", icon: <Archive size={18} /> },
+      { to: "/documents", label: "Dashboard", icon: <LayoutDashboard size={18} />, visible: (v) => v.canDocuments },
+      { to: "/documents/library", label: "All files", icon: <FolderOpen size={18} />, also: /^\/documents\/(folder|file|files)\//, visible: (v) => v.canDocuments },
+      { to: "/documents/recent", label: "Recent", icon: <History size={18} />, visible: (v) => v.canDocuments },
+      { to: "/documents/shared", label: "Shared with me", icon: <Share2 size={18} />, visible: (v) => v.canDocuments },
+      { to: "/documents/archive", label: "Archive", icon: <Archive size={18} />, visible: (v) => v.canDocuments },
+      { to: "/import/new", label: "Import data", icon: <Upload size={18} />, also: new RegExp(`^/import/${UUID}`), visible: (v) => v.canImport },
+      { to: "/import/history", label: "Import history", icon: <ScrollText size={18} />, badge: "importsOpen", visible: (v) => v.canImport },
     ],
   },
   {
@@ -110,15 +114,6 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
   {
-    key: "import", label: "Import data", base: "/import", icon: i(Download), blurb: "Bring in spreadsheets", group: "manage",
-    visible: (v) => v.canImport,
-    sections: [
-      { to: "/import", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-      { to: "/import/new", label: "New import", icon: <Upload size={18} />, also: new RegExp(`^/import/${UUID}`) },
-      { to: "/import/history", label: "History", icon: <History size={18} />, badge: "importsOpen" },
-    ],
-  },
-  {
     key: "admin", label: "WindVeal admin", base: "/admin", icon: i(ShieldCheck), blurb: "Organisations and accounts", group: "manage",
     visible: (v) => v.platformAdmin,
     sections: [
@@ -138,7 +133,8 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
 
 /** The workspace a path belongs to, if any (Home, Profile, Settings and the like aren't in a workspace). */
 export function workspaceFor(path: string): WorkspaceDef | null {
-  return WORKSPACE_DEFS.find((w) => path === w.base || path.startsWith(`${w.base}/`)) ?? null;
+  const under = (base: string) => path === base || path.startsWith(`${base}/`);
+  return WORKSPACE_DEFS.find((w) => under(w.base) || (w.bases ?? []).some(under)) ?? null;
 }
 
 /** Whether a section is the one being shown: its own page, a deeper page under it, or one of its `also` paths. */
@@ -153,10 +149,11 @@ export function useAreaAccess() {
   const { isAdmin, user, can, hasSpecial } = useSession();
   const importer = hasSpecial("import_data");
   const viewer: Viewer = {
-    isAdmin, platformAdmin: !!user.platformAdmin, canManageMembers: hasSpecial("manage_members"),
+    isAdmin, platformAdmin: !!user.platformAdmin, canManageMembers: hasSpecial("manage_members"), canDocuments: can("documents"),
     canImport: isAdmin || (["people", "crm", "recruitment"] as Workspace[]).some((w) => can(w, "manage") || (importer && can(w, "edit"))),
   };
-  const canOpen = (w: WorkspaceDef) => (w.group === "workspace" ? can(w.key as Workspace) : w.visible ? w.visible(viewer) : true);
+  // Documents also opens for people who can only import.
+  const canOpen = (w: WorkspaceDef) => (w.group === "workspace" ? can(w.key as Workspace) || (w.key === "documents" && viewer.canImport) : w.visible ? w.visible(viewer) : true);
   const sectionsOf = (w: WorkspaceDef) => w.sections.filter((s) => !s.visible || s.visible(viewer));
   /**
    * Whether a page can be opened at all, however it was reached (a link, the address bar, an old bookmark).
@@ -166,7 +163,7 @@ export function useAreaAccess() {
     const w = workspaceFor(path);
     if (!w) return true;
     if (!canOpen(w)) return false;
-    const section = w.sections.find((s) => s.to !== w.base && sectionActive(w, s, path));
+    const section = w.sections.find((s) => sectionActive(w, s, path));
     if (section?.visible && !section.visible(viewer)) return false;
     // Creating or editing something needs Edit in that workspace.
     if (w.group === "workspace" && /\/(new|edit)$/.test(path) && !can(w.key as Workspace, "edit")) return false;

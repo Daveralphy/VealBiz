@@ -170,9 +170,15 @@ describe("WindVeal admin panel", () => {
     const list = await platform.get("/api/admin/organisations?status=pending");
     expect(list.body.some((o: any) => o.id === org.id)).toBe(true);
     const detail = await platform.get(`/api/admin/organisations/${org.id}`);
-    expect(detail.body.members.length).toBe(1);
+    // Only what the business sent at registration: no members, records, files or activity.
+    expect(detail.body.members).toBeUndefined();
+    expect(detail.body.counts).toBeUndefined();
+    expect(detail.body.history).toBeUndefined();
+    expect(detail.body.memberCount).toBe(1);
+    expect(detail.body.lastActiveAt).toBeTruthy();
+    expect((await platform.get(`/api/admin/organisations/${org.id}/files`)).status).toBe(404);
     expect(detail.body.creator.name).toBe("Amaka Okafor");
-    expect(detail.body.history.some((h: any) => h.action === "org.created")).toBe(true);
+    expect(detail.body.review.history.some((h: any) => h.action === "org.verification_submitted")).toBe(true);
 
     const r = await platform.post(`/api/admin/organisations/${org.id}/verification`, { status: "verified" });
     expect(r.body.org.verificationStatus).toBe("verified");

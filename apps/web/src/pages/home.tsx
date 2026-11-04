@@ -16,13 +16,14 @@ function greeting(d: Date) {
 function Tiles({ areas }: { areas: WorkspaceDef[] }) {
   const palette = usePalette();
   const { data, isLoading } = useHomeData();
+  const { sectionsOf } = useAreaAccess();
   return (
     <div className="home-tiles">
       {areas.map((w) => {
         const lines = data?.tiles[w.key];
         const accent = palette[w.key];
         return (
-          <Link key={w.key} to={w.base} className="home-tile" style={{ "--ws-c": accent.c, "--ws-t": accent.t } as CSSProperties}>
+          <Link key={w.key} to={sectionsOf(w)[0]?.to ?? w.base} className="home-tile" style={{ "--ws-c": accent.c, "--ws-t": accent.t } as CSSProperties}>
             <ArrowRight size={18} className="home-go" />
             <span className="home-ic">{w.icon(26)}</span>
             <h2>{w.label}</h2>

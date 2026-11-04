@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, CheckCircle2, Flag, History, Link2, MessageSquare, Paperclip, Pencil, Plus, Repeat, Trash2, X, FileText, UserRoundCog } from "lucide-react";
+import { Check, CheckCircle2, Flag, Link2, MessageSquare, Paperclip, Pencil, Plus, Repeat, Trash2, X, FileText, UserRoundCog } from "lucide-react";
 import { Avatar, Button, ConfirmDialog, Drawer, EmptyState, Input, Loading, Modal, Notice, Pill, SearchInput, Select, Textarea, useConfirm, useToast } from "@windveal/ui";
 import { WORKSPACE_LABELS, formatBytes } from "@windveal/shared";
 import { ApiError, api, fileUrl, qs } from "../../lib/api";
 import { useSession } from "../../lib/session";
-import { dayLabel, fmtDate, fmtTime, timeAgo } from "../../lib/format";
+import { dayLabel, fmtTime, timeAgo } from "../../lib/format";
 import { useForm } from "../../lib/form";
 import { LinkPicker, type LinkTarget } from "../documents/LinkPicker";
 import { MoreMenu } from "../../components/actions";
@@ -26,7 +26,6 @@ type TaskDetail = {
   items: { id: string; label: string; done: boolean; position: number }[];
   comments: { id: string; body: string; author: Person; createdAt: string }[];
   files: { id: string; name: string; size: number; mime: string }[];
-  activity: { id: string; summary: string; actor: string | null; createdAt: string }[];
   canEdit: boolean; canDelete: boolean;
 };
 
@@ -327,7 +326,6 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
   });
   const [newItem, setNewItem] = useState("");
   const [comment, setComment] = useState("");
-  const [showActivity, setShowActivity] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -338,7 +336,7 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
   const [draft, setDraft] = useState({ title: "", status: "todo", assignee: "", due: "", priority: "medium" });
   const [saving, setSaving] = useState(false);
   const focusAssignee = useRef(false);
-  useEffect(() => { setShowActivity(false); setComment(""); setNewItem(""); setEditing(false); }, [id]);
+  useEffect(() => { setComment(""); setNewItem(""); setEditing(false); }, [id]);
   useEffect(() => { if (editing && focusAssignee.current) { focusAssignee.current = false; assigneeRef.current?.focus(); } }, [editing]);
 
   const run = async (fn: () => Promise<unknown>, ok?: string) => {
@@ -399,7 +397,6 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
       headerExtra={t && <CircleToggle done={t.status === "done"} disabled={!editable || editing || toggle.isPending} onClick={() => toggle.mutate(t)} label={t.status === "done" ? "Reopen task" : "Mark complete"} />}
       footer={t && (
         <>
-          <button className="link wf-activity-btn" onClick={() => setShowActivity((s) => !s)}><History size={16} />{showActivity ? "Hide activity" : "Activity"}</button>
           {editing ? (
             <div className="row">
               <Button variant="secondary" onClick={() => setEditing(false)} disabled={saving}>Cancel</Button>
@@ -545,15 +542,6 @@ export function TaskDrawer({ id, onClose }: { id: string | null; onClose: () => 
             </div>
           )}
 
-          {showActivity && (
-            <>
-              <h4 className="section-label wf-sec">Activity</h4>
-              <ul className="wf-activity">
-                {data.activity.map((a) => <li key={a.id}><span>{a.summary}</span><small>{fmtDate(a.createdAt)} · {fmtTime(a.createdAt)}</small></li>)}
-                {!data.activity.length && <li className="muted">No activity recorded yet.</li>}
-              </ul>
-            </>
-          )}
         </div>
       )}
       <ConfirmDialog open={confirmDelete} onClose={() => setConfirmDelete(false)} danger confirmLabel="Delete task" title="Delete this task?"
