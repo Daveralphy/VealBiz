@@ -4,7 +4,7 @@ import { publicFileUrl } from "./api";
 import { useMe } from "./session";
 
 export type Accent = { c: string; t: string };
-export type Palette = Record<Workspace, Accent>;
+export type Palette = Record<Workspace | "settings" | "import" | "admin" | "profile", Accent>;
 
 const DEFAULT_SEED = "#486FE4";
 type Rgb = [number, number, number];
@@ -48,6 +48,10 @@ export function paletteFrom(seedHex: string): Palette {
     workflows: make(-32, 0.4, 1),
     documents: make(40, 0.5, 0.76),
     insights: make(6, 0.32, 0.83),
+    settings: make(-10, 0.38, 0.55),
+    import: make(30, 0.44, 0.7),
+    admin: make(52, 0.42, 0.62),
+    profile: make(0, 0.42, 0.6),
   };
 }
 

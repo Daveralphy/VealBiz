@@ -70,7 +70,7 @@ export default async function memberRoutes(app: FastifyInstance) {
     return rows.map(({ m, u }) => ({
       id: m.id, userId: u.id, name: u.name, email: u.email, role: m.role, status: m.status, isPrimaryAdmin: m.isPrimaryAdmin,
       isOwner: m.isOwner, jobTitle: m.jobTitle, access: computeAccess(ctx.org, m), workspaceAccess: m.workspaceAccess,
-      lastActiveAt: u.lastLoginAt, isYou: u.id === ctx.user.id,
+      lastActiveAt: u.lastLoginAt, isYou: u.id === ctx.user.id, joinedAt: m.createdAt,
     }));
   });
 

@@ -108,7 +108,7 @@ export function JobGate({ id, children, allowFinished }: { id: string | undefine
         </EmptyState>
       );
     }
-    return <EmptyState title="This import was cancelled" action={<Button onClick={() => nav("/import")}>Start a new import</Button>} />;
+    return <EmptyState title="This import was cancelled" action={<Button onClick={() => nav("/import/new")}>Start a new import</Button>} />;
   }
   return <>{children(job)}</>;
 }

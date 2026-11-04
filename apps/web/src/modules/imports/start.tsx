@@ -37,7 +37,6 @@ export function StartPage() {
   const [error, setError] = useState<unknown>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const dests = useQuery({ queryKey: ["import-destinations"], queryFn: () => api.get<{ destinations: Destination[]; canImport: boolean }>("/api/imports/destinations") });
-  const history = useQuery({ queryKey: ["import-history"], queryFn: () => api.get<HistoryItem[]>("/api/imports/jobs") });
   const canImport = dests.data?.canImport ?? true;
 
   async function pick(file: File | undefined) {
@@ -99,7 +98,24 @@ export function StartPage() {
         </div>
       </Card>
 
-      <Card title="Past imports">
+    </div>
+  );
+}
+
+export function useImportHistory() {
+  return useQuery({ queryKey: ["import-history"], queryFn: () => api.get<HistoryItem[]>("/api/imports/jobs") });
+}
+export type { HistoryItem };
+export { ResultPill };
+
+/** Every import, newest first, with what was added and a way back into unfinished ones. */
+export function HistoryPage() {
+  const nav = useNavigate();
+  const history = useImportHistory();
+  return (
+    <div className="imp">
+      <PageHeader title="Import data" subtitle="Every file you've imported, and what it added." />
+      <Card>
         {history.isLoading ? <Loading /> : history.error ? <ErrorNotice error={history.error} /> : !history.data?.length ? (
           <EmptyState title="No imports yet">Files you import will be listed here, with what was added.</EmptyState>
         ) : (

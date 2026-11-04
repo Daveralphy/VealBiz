@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, KeyRound, Lock, MoreHorizontal, Pause, Pencil, Plus, Shield, Trash2, UserCog, X } from "lucide-react";
 import {
@@ -11,31 +11,78 @@ import {
 } from "@windveal/shared";
 import { api, ApiError } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { DashBars, DashCard, DashColumns, DashKpis, DashRow } from "../../components/dashboard";
 import { CONTACT_EMAIL } from "../../lib/config";
 import { monthlyPrice, usePricing, yearlyTotal, type PricingPlan } from "../../lib/pricing";
 import { fmtDate, timeAgo } from "../../lib/format";
 
-function SettingsTabs() {
+// ---------------- Dashboard ----------------
+const ROLE_NAMES: Record<string, string> = { admin: "Admins", manager: "Managers", member: "Members" };
+
+function SettingsDashboard() {
   const { isAdmin } = useSession();
-  const tabs = [
-    ["/settings", "Members", true], ["/settings/roles", "Roles and permissions", isAdmin],
-    ["/settings/audit", "Audit history", isAdmin],
-  ] as const;
+  const membersQ = useQuery({ queryKey: ["members"], queryFn: () => api.get<any[]>("/api/members") });
+  const invitesQ = useQuery({ queryKey: ["invitations"], queryFn: () => api.get<any[]>("/api/invitations"), enabled: isAdmin });
+  const auditQ = useQuery({ queryKey: ["audit", "dashboard"], queryFn: () => api.get<{ items: any[] }>("/api/audit?days=30"), enabled: isAdmin });
+  const members = membersQ.data ?? [];
+  const active = members.filter((m) => m.status === "active");
+  const monthAgo = Date.now() - 30 * 86_400_000;
+  const joined = members.filter((m) => m.joinedAt && Date.parse(m.joinedAt) > monthAgo).length;
+  const waiting = (invitesQ.data ?? []).filter((i) => !i.expired);
+  const newest = [...members].sort((a, b) => Date.parse(b.joinedAt ?? 0) - Date.parse(a.joinedAt ?? 0)).slice(0, 5);
+  const byRole = ["admin", "manager", "member"].map((r) => ({ label: ROLE_NAMES[r]!, value: active.filter((m) => m.role === r).length }));
   return (
-    <div className="tabs">
-      {tabs.filter((t) => t[2]).map(([to, label]) => (
-        <NavLink key={to} to={to} end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>{label}</NavLink>
-      ))}
-    </div>
+    <>
+      <DashKpis loading={membersQ.isLoading} items={[
+        { label: "Team", value: active.length, note: members.length > active.length ? `${members.length - active.length} suspended` : "all active", to: "/settings/members" },
+        { label: "Joined in the last 30 days", value: joined, note: joined ? "welcome them in" : "no one new" },
+        ...(isAdmin ? [
+          { label: "Invitations waiting", value: waiting.length, note: waiting.length ? "not accepted yet" : "none waiting", to: "/settings/invitations" },
+          { label: "Changes in the last 30 days", value: auditQ.data?.items.length ?? 0, note: "in the audit history", to: "/settings/audit" },
+        ] : []),
+      ]} />
+      <DashColumns
+        left={<>
+          <DashCard title="Newest members" sub="Who joined most recently" link={{ to: "/settings/members", label: "Members" }} loading={membersQ.isLoading}>
+            {newest.map((m) => (
+              <DashRow key={m.id} lead={<Avatar name={m.name} size={34} />} title={m.name} detail={m.jobTitle || m.email}
+                end={<small className="muted">{m.joinedAt ? timeAgo(m.joinedAt) : ""}</small>} />
+            ))}
+          </DashCard>
+          {isAdmin && (
+            <DashCard title="Recent changes" sub="From the audit history" link={{ to: "/settings/audit", label: "Audit history" }} loading={auditQ.isLoading}
+              empty={!auditQ.isLoading && !(auditQ.data?.items.length) && "Nothing has changed in the last 30 days."}>
+              {(auditQ.data?.items ?? []).slice(0, 5).map((e) => (
+                <DashRow key={e.id} title={e.summary} detail={`${e.actor?.name ?? "WindVeal"} · ${timeAgo(e.createdAt)}`} />
+              ))}
+            </DashCard>
+          )}
+        </>}
+        right={<>
+          <DashCard title="People by role" sub="Active members">
+            <DashBars rows={byRole} />
+          </DashCard>
+          {isAdmin && (
+            <DashCard title="Waiting to join" sub="Invited but not accepted yet" link={{ to: "/settings/invitations", label: "Invitations" }} loading={invitesQ.isLoading}
+              empty={!invitesQ.isLoading && !waiting.length && "Everyone you invited has joined."}>
+              {waiting.slice(0, 5).map((i) => (
+                <DashRow key={i.id} title={i.email} detail={`Invited by ${i.invitedBy} · ${timeAgo(i.createdAt)}`}
+                  end={<Pill tone="grey">{i.role[0].toUpperCase() + i.role.slice(1)}</Pill>} />
+              ))}
+            </DashCard>
+          )}
+        </>}
+      />
+    </>
   );
 }
 
 // ---------------- Members ----------------
-function Members() {
+/** Members and Invitations are separate pages in the sidebar; they share the same actions and dialogs. */
+function Members({ view }: { view: "members" | "invites" }) {
   const { isAdmin } = useSession();
   const qc = useQueryClient();
   const toast = useToast();
-  const [view, setView] = useState<"members" | "invites">("members");
   const [q, setQ] = useState("");
   const [role, setRole] = useState("");
   const [status, setStatus] = useState("");
@@ -54,14 +101,13 @@ function Members() {
   return (
     <>
       <div className="toolbar">
-        <SearchInput value={q} onChange={setQ} placeholder="Search members" />
-        <select className="select chip-select" value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role"><option value="">Role: All</option><option value="admin">Admin</option><option value="manager">Manager</option><option value="member">Member</option></select>
-        <select className="select chip-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status"><option value="">Status: All</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
+        {view === "members" && <>
+          <SearchInput value={q} onChange={setQ} placeholder="Search members" />
+          <select className="select chip-select" value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role"><option value="">Role: All</option><option value="admin">Admin</option><option value="manager">Manager</option><option value="member">Member</option></select>
+          <select className="select chip-select" value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Status"><option value="">Status: All</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
+        </>}
         <span className="grow" />
         {isAdmin && <Button icon={<Plus size={15} />} onClick={() => setInviteOpen(true)}>Invite people</Button>}
-      </div>
-      <div style={{ marginBottom: 14 }}>
-        <Segmented value={view} onChange={setView} options={[{ value: "members", label: `Members · ${membersQ.data?.length ?? 0}` }, { value: "invites", label: `Pending invitations · ${invitesQ.data?.length ?? 0}` }]} />
       </div>
       {view === "members" ? (
         membersQ.isLoading ? <Loading /> : (
@@ -409,10 +455,10 @@ export function SettingsRoutes() {
   return (
     <>
       <PageHeader title="Settings" subtitle={`Manage ${org.name}'s team and permissions. Your details and the company's are in Profile.`} />
-      <SettingsTabs />
       <Routes>
-        <Route index element={<Members />} />
-        <Route path="members" element={<Navigate to="/settings" replace />} />
+        <Route index element={<SettingsDashboard />} />
+        <Route path="members" element={<Members view="members" />} />
+        <Route path="invitations" element={isAdmin ? <Members view="invites" /> : <Navigate to="/settings" replace />} />
         <Route path="roles" element={isAdmin ? <Roles /> : <Navigate to="/settings" replace />} />
         <Route path="billing" element={<Navigate to="/billing" replace />} />
         <Route path="audit" element={isAdmin ? <Audit /> : <Navigate to="/settings" replace />} />

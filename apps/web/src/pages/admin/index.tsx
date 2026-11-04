@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Check, Download, ExternalLink, Eye, FileText, Image as ImageIcon, KeyRound, LogOut, MailCheck, Pause, RotateCcw, ShieldCheck, X } from "lucide-react";
 import {
@@ -8,6 +8,7 @@ import {
 import { PLANS, formatBytes } from "@windveal/shared";
 import { api, qs } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { DashKpis } from "../../components/dashboard";
 import { SITE_URL } from "../../lib/config";
 import { fmtDate, timeAgo } from "../../lib/format";
 import { FileViewer, type ViewableFile } from "../../components/FileViewer";
@@ -31,15 +32,6 @@ function OrgMark({ name, logoFileId, size = 36 }: { name: string; logoFileId: st
   );
 }
 
-function AdminTabs() {
-  return (
-    <div className="tabs">
-      <NavLink to="/admin" end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>Overview</NavLink>
-      <NavLink to="/admin/organisations" end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>Organisations</NavLink>
-      <NavLink to="/admin/people" end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>People</NavLink>
-    </div>
-  );
-}
 
 // ---------------- Organisations ----------------
 function Organisations() {
@@ -330,18 +322,15 @@ function Overview() {
   const s = summary.data;
   return (
     <>
-      {s && (
-        <div className="ad-stats">
-          <button className="ad-stat-link" onClick={() => navigate("/admin/organisations?status=pending")}><Stat label="Waiting for approval" value={s.pending} note={s.pending ? "Review now" : "All caught up"} /></button>
-          <button className="ad-stat-link" onClick={() => navigate("/admin/organisations?status=verified")}><Stat label="Verified organisations" value={s.verified} /></button>
-          <button className="ad-stat-link" onClick={() => navigate("/admin/organisations?status=suspended")}><Stat label="Suspended or closed" value={s.suspended + s.closed} /></button>
-          <button className="ad-stat-link" onClick={() => navigate("/admin/people")}><Stat label="People on WindVeal" value={s.users} note={s.deactivatedUsers ? `${s.deactivatedUsers} deactivated` : undefined} /></button>
-          <Stat label="New this week" value={s.newThisWeek} note="organisations" />
-        </div>
-      )}
+      <DashKpis loading={!s} items={[
+        { label: "Waiting for approval", value: s?.pending ?? 0, note: s?.pending ? "review now" : "all caught up", to: "/admin/organisations?status=pending" },
+        { label: "Verified organisations", value: s?.verified ?? 0, note: `${s?.newThisWeek ?? 0} new this week`, to: "/admin/organisations?status=verified" },
+        { label: "Suspended or closed", value: (s?.suspended ?? 0) + (s?.closed ?? 0), note: "organisations", to: "/admin/organisations?status=suspended" },
+        { label: "People on WindVeal", value: s?.users ?? 0, note: s?.deactivatedUsers ? `${s.deactivatedUsers} deactivated` : "all active", to: "/admin/people" },
+      ]} />
       {o.isLoading ? <Loading /> : o.data && (
         <div className="grid-side side-360">
-          <Card title="Waiting for approval" subtitle="Oldest first. Open one to check what they sent in."
+          <Card title="Review queue" subtitle="Oldest first. Open one to check what they sent in."
             actions={<Button variant="ghost" size="sm" onClick={() => navigate("/admin/organisations?status=pending")}>See all</Button>}>
             {!o.data.waiting.length ? <EmptyState title="Nothing waiting">New organisations appear here as soon as they register.</EmptyState> : o.data.waiting.map((w: any) => (
               <button key={w.id} className="list-row ad-row" onClick={() => navigate(`/admin/organisations/${w.id}`)}>
@@ -548,7 +537,6 @@ export function AdminRoutes() {
       <Route path="people/:id" element={<PersonDetail />} />
       <Route path="*" element={<>
         <PageHeader title="WindVeal admin" subtitle="Approve new organisations, look after accounts and help people on WindVeal." />
-        <AdminTabs />
         <Routes>
           <Route index element={<Overview />} />
           <Route path="organisations" element={<Organisations />} />

@@ -12,7 +12,7 @@ import { timeAgo } from "../lib/format";
 import { useTheme } from "../lib/theme";
 import { useSignOut } from "../lib/signout";
 import { usePalette } from "../lib/palette";
-import { sectionActive, workspaceFor, type WorkspaceDef } from "../lib/workspaces";
+import { sectionActive, useAreaAccess, workspaceFor, type WorkspaceDef } from "../lib/workspaces";
 import { HeaderClock } from "../modules/people/clock";
 
 export type HomeData = {
@@ -63,6 +63,7 @@ function OrgBlock() {
 function Sidebar({ ws, mini, onToggle, onNavigate }: { ws: WorkspaceDef; mini: boolean; onToggle?: () => void; onNavigate?: () => void }) {
   const { pathname } = useLocation();
   const { data } = useHomeData();
+  const { sectionsOf } = useAreaAccess();
   return (
     <aside className="sb">
       <div className="sb-org">
@@ -75,7 +76,7 @@ function Sidebar({ ws, mini, onToggle, onNavigate }: { ws: WorkspaceDef; mini: b
         {onToggle && !mini && <ToggleButton mini={false} onToggle={onToggle} />}
       </div>
       <nav aria-label={ws.label}>
-        {ws.sections.map((s) => {
+        {sectionsOf(ws).map((s) => {
           const badge = s.badge ? data?.badges[s.badge] : undefined;
           const active = sectionActive(ws, s, pathname);
           return (
@@ -264,7 +265,7 @@ export function AppShell() {
       <Sidebar ws={ws} mini={mini} onToggle={toggle} />
       <div className="main">
         <header className="topbar">
-          <GlobalSearch ws={ws} />
+          {ws.search ? <GlobalSearch ws={ws} /> : <span />}
           <div className="right"><HeaderClock /><Notifications /><AccountMenu /></div>
         </header>
         <header className="mtop">

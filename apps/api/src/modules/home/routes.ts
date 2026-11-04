@@ -3,7 +3,8 @@ import { and, eq, gte, isNotNull, isNull, lt, lte, ne, sql as dsql } from "drizz
 import { formatMoney, hasAccess, type Workspace } from "@windveal/shared";
 import { db } from "../../db/client";
 import {
-  applications, approvalSteps, approvals, attendance, checklists, deals, employees, files, interviews, jobs, leaveRequests, organisations, tasks,
+  applications, approvalSteps, approvals, attendance, checklists, deals, employees, files, importJobs, interviews, invitations, jobs, memberships,
+  organisations, tasks, users,
 } from "../../db/schema";
 import { requireOrg } from "../../lib/context";
 import { planStorageBytes } from "../../lib/pricing";
@@ -34,7 +35,7 @@ export default async function homeRoutes(app: FastifyInstance) {
     const weekAgo = new Date(today.getTime() - 7 * DAY);
     const todayStr = localDate();
     const money = (v: number) => formatMoney(v, ctx.org.currency, true);
-    const tiles: Partial<Record<Workspace, Line[]>> = {};
+    const tiles: Partial<Record<Workspace | "settings" | "import" | "admin", Line[]>> = {};
     const badges: Record<string, number> = {};
 
     // Approvals waiting on me (leave requests are approvals too).
@@ -146,11 +147,50 @@ export default async function homeRoutes(app: FastifyInstance) {
       ];
     }
 
+    // Settings: the team.
+    const team = await db.select({ role: memberships.role, n: count }).from(memberships)
+      .where(and(eq(memberships.orgId, orgId), isNull(memberships.deletedAt), eq(memberships.status, "active"))).groupBy(memberships.role);
+    const members = team.reduce((a, r) => a + r.n, 0);
+    const [inv] = await db.select({ n: count }).from(invitations)
+      .where(and(eq(invitations.orgId, orgId), isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gte(invitations.expiresAt, new Date())));
+    const admins = team.find((r) => r.role === "admin")?.n ?? 0;
+    tiles.settings = [
+      { value: String(members), text: `${plural(members, "member")} on the team` },
+      { value: String(inv?.n ?? 0), text: `${plural(inv?.n ?? 0, "invitation")} waiting to be accepted` },
+      { value: String(admins), text: plural(admins, "admin") },
+    ];
+    badges.invitations = inv?.n ?? 0;
+
+    // Import data: what's come in this month.
+    const canImport = ctx.membership.role === "admin" || ["people", "crm", "recruitment"].some((w) => hasAccess(ctx.access[w as Workspace], "manage"));
+    if (canImport) {
+      const jobsThisMonth = await db.select({ status: importJobs.status, summary: importJobs.summary }).from(importJobs)
+        .where(and(eq(importJobs.orgId, orgId), gte(importJobs.createdAt, startOfMonth()), isNull(importJobs.deletedAt)));
+      const done = jobsThisMonth.filter((j) => j.status === "committed");
+      const rows = done.reduce((a, j) => a + (j.summary.added ?? 0) + (j.summary.updated ?? 0), 0);
+      const open = jobsThisMonth.filter((j) => ["uploaded", "mapping", "reviewing"].includes(j.status)).length;
+      tiles.import = [
+        { value: String(done.length), text: `${plural(done.length, "import")} finished this month` },
+        { value: String(rows), text: `${plural(rows, "record")} added or updated` },
+        { value: String(open), text: `${plural(open, "import")} not finished yet` },
+      ];
+      badges.importsOpen = open;
+    }
+
+    // WindVeal admin (WindVeal staff only).
     let adminWaiting: number | null = null;
     if (ctx.user.platformAdmin) {
       const [p] = await db.select({ n: count }).from(organisations)
         .where(and(eq(organisations.verificationStatus, "pending"), eq(organisations.accountStatus, "active"), isNull(organisations.deletedAt)));
+      const [o] = await db.select({ n: count }).from(organisations).where(isNull(organisations.deletedAt));
+      const [u] = await db.select({ n: count }).from(users);
       adminWaiting = p?.n ?? 0;
+      tiles.admin = [
+        { value: String(adminWaiting), text: `${plural(adminWaiting, "organisation")} waiting for approval` },
+        { value: String(o?.n ?? 0), text: `${plural(o?.n ?? 0, "organisation")} on WindVeal` },
+        { value: String(u?.n ?? 0), text: `${plural(u?.n ?? 0, "person", "people")} with an account` },
+      ];
+      badges.adminWaiting = adminWaiting;
     }
     return { tiles, badges, adminWaiting };
   });

@@ -203,7 +203,7 @@ function Result({ job }: { job: Job }) {
               {WORKSPACE_LINKS[k]!.label}{i === destKeys.length - 1 && <ArrowRight size={16} />}
             </Button>
           ))}
-          {undone && <Button onClick={() => nav("/import")}>Start a new import</Button>}
+          {undone && <Button onClick={() => nav("/import/new")}>Start a new import</Button>}
         </div>
       </div>
       <ConfirmDialog open={confirmUndo} onClose={() => setConfirmUndo(false)} onConfirm={() => undo.mutate()} loading={undo.isPending}

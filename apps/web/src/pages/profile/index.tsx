@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, Clock, ExternalLink, FileText, Mail, KeyRound, Pencil, Trash2, Upload } from "lucide-react";
 import {
@@ -14,14 +14,6 @@ import { fmtDate, timeAgo } from "../../lib/format";
 import { FileViewer, type ViewableFile } from "../../components/FileViewer";
 import { useSignOut } from "../../lib/signout";
 
-function ProfileTabs() {
-  return (
-    <div className="tabs">
-      <NavLink to="/profile" end className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>Personal</NavLink>
-      <NavLink to="/profile/company" className={({ isActive }) => `tab ${isActive ? "active" : ""}`}>Company</NavLink>
-    </div>
-  );
-}
 
 const ROLE_LABEL: Record<string, string> = { admin: "Admin", manager: "Manager", member: "Member" };
 
@@ -499,7 +491,6 @@ export function ProfileRoutes() {
   return (
     <>
       <PageHeader title="Profile" subtitle="Your details and your company's." />
-      <ProfileTabs />
       <Routes>
         <Route index element={<Personal />} />
         <Route path="edit" element={<PersonalEdit />} />
