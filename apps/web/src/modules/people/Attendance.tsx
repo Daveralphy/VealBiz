@@ -38,7 +38,7 @@ function MyDay() {
         <h2>{greeting(today)}, {first}</h2>
       </div>
       {c.state === "none" ? (
-        <small className="act">Ask HR to add you to People & HR to clock in.</small>
+        <small className="act">You're not on the team list. Ask an admin to add you back in People & HR.</small>
       ) : (
         <div className="ppl-myday">
           <div className="ppl-myday-times">

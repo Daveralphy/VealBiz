@@ -230,7 +230,7 @@ export default async function leaveRoutes(app: FastifyInstance) {
       await requireAccess(req, "people", "edit");
       emp = await getEmployee(ctx.org.id, input.employeeId);
     }
-    if (!emp) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR first.");
+    if (!emp) throw badRequest("You're not on the team list. Ask an admin to add you back in People & HR.");
     if (emp.status === "left") throw badRequest(`${fullName(emp)} has left the organisation.`);
     const [type] = await db.select().from(leaveTypes)
       .where(and(eq(leaveTypes.id, input.leaveTypeId), eq(leaveTypes.orgId, ctx.org.id), isNull(leaveTypes.deletedAt))).limit(1);

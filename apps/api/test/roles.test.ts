@@ -146,3 +146,20 @@ describe("search", () => {
     expect((await admin.get("/api/search?scope=settings&q=amaka")).body.results.map((r: any) => r.type)).toEqual(["Members"]);
   });
 });
+
+describe("everyone is on the team", () => {
+  it("joining puts a person in People & HR, so they can clock in whatever their role", async () => {
+    const app = await getApp();
+    const { c: admin, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    const driver = (await admin.post("/api/roles", { name: "Driver", access: NONE, special: [] })).body.role;
+    expect(driver.access.people).toBe("view");
+    const { c: person, me } = await join(app, admin, driver.id, "Musa Bello");
+    expect(me.membership.access.people).toBe("view");
+    const mine = await person.get("/api/people/attendance/me");
+    expect(mine.status).toBe(200);
+    expect((await person.post("/api/people/attendance/clock-in", {})).status).toBe(200);
+    const team = (await admin.get("/api/people/employees")).body;
+    expect(JSON.stringify(team)).toContain("Musa");
+  });
+});

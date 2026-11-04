@@ -93,7 +93,7 @@ async function board(ctx: OrgContext, date: string, opts: { search?: string; loc
 /** Today's record for the signed-in person, which must be clocked in and not yet out. */
 async function myOpenRecord(ctx: OrgContext) {
   const me = await myEmployee(ctx);
-  if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+  if (!me) throw badRequest("You're not on the team list. Ask an admin to add you back in People & HR.");
   await closeEndedDays(eq(attendance.employeeId, me.id));
   const [r] = await db.select().from(attendance)
     .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);
@@ -120,7 +120,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
   app.post("/api/people/attendance/clock-in", async (req) => {
     const ctx = await requireOrg(req);
     const me = await myEmployee(ctx);
-    if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+    if (!me) throw badRequest("You're not on the team list. Ask an admin to add you back in People & HR.");
     await closeEndedDays(eq(attendance.employeeId, me.id));
     const today = localDate();
     const [r] = await db.select().from(attendance)
@@ -136,7 +136,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
   app.post("/api/people/attendance/clock-out", async (req) => {
     const ctx = await requireOrg(req);
     const me = await myEmployee(ctx);
-    if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+    if (!me) throw badRequest("You're not on the team list. Ask an admin to add you back in People & HR.");
     await closeEndedDays(eq(attendance.employeeId, me.id));
     const [r] = await db.select().from(attendance)
       .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);
@@ -163,7 +163,7 @@ export default async function attendanceRoutes(app: FastifyInstance) {
   app.post("/api/people/attendance/resume", async (req) => {
     const ctx = await requireOrg(req);
     const me = await myEmployee(ctx);
-    if (!me) throw badRequest("You don't have an employee record yet. Ask HR to add you to People & HR.");
+    if (!me) throw badRequest("You're not on the team list. Ask an admin to add you back in People & HR.");
     await closeEndedDays(eq(attendance.employeeId, me.id));
     const [done] = await db.select().from(attendance)
       .where(and(eq(attendance.employeeId, me.id), eq(attendance.workDate, localDate()), isNull(attendance.deletedAt))).limit(1);

@@ -270,8 +270,15 @@ export default async function peopleRoutes(app: FastifyInstance) {
     });
     await checkManager(ctx.org.id, null, input.managerId);
     if (input.email) {
-      const [dup] = await db.select({ id: employees.id }).from(employees)
-        .where(and(notDeleted(ctx.org.id), eq(employees.email, input.email), ne(employees.status, "left"))).limit(1);
+      const [dup] = await db.select().from(employees)
+        .where(and(notDeleted(ctx.org.id), dsql`lower(${employees.email}) = lower(${input.email})`, ne(employees.status, "left"))).limit(1);
+      // A member who joined is already on the team (their record was made for them): HR's details fill it in.
+      if (dup?.userId) {
+        const { startOnboarding: _ignored, ...details } = input;
+        const fill = Object.fromEntries(Object.entries(details).filter(([, v]) => v !== undefined && v !== null && v !== ""));
+        const [e] = await db.update(employees).set({ ...fill, version: dsql`${employees.version} + 1` }).where(eq(employees.id, dup.id)).returning();
+        return { employee: employeeSummary(e!, { departmentName: dName }), checklistId: null, notice: `${fullName(e!)} was already on the team, so their record was updated.` };
+      }
       if (dup) throw conflict("Someone with this email is already in your directory.", { email: "Already in your directory" });
     }
     const today = localDate();

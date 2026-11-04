@@ -90,7 +90,7 @@ export function RequestLeaveModal({ open, onClose, employeeId, employeeName }: {
     <Modal open={open} onClose={onClose} title={employeeName ? `Request leave for ${employeeName}` : "Request leave"}
       subtitle="Weekends and public holidays aren't counted."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={f.busy} disabled={!!noRecord} onClick={save}>Send request</Button></>}>
-      {noRecord && !canForOthers && <Notice tone="warn">You don't have an employee record yet. Ask HR to add you to People & HR first.</Notice>}
+      {noRecord && !canForOthers && <Notice tone="warn">You're not on the team list. Ask an admin to add you back in People & HR.</Notice>}
       <div className="stack">
         {canForOthers && !employeeId && (
           <Select label="For" {...f.bind("employeeId")} placeholder={stats.data?.myEmployeeId ? "Myself" : "Choose a person"}
@@ -153,7 +153,7 @@ export function LeavePage() {
 
         <Card title="Your leave" actions={<Button size="sm" onClick={() => setRequesting(true)}>Request leave</Button>}>
           {myBal.isLoading ? <Loading /> : !myBal.data?.employee ? (
-            <p className="muted">You don't have an employee record yet, so there's no balance to show. Ask HR to add you to People & HR.</p>
+            <p className="muted">You're not on the team list, so there's no balance to show. Ask an admin to add you back in People & HR.</p>
           ) : (
             <div className="ppl-bal-tiles">
               {myBal.data.balances.map((b) => (

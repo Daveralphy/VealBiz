@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, isNull, ne, sql as dsql } from "drizzle-orm";
-import { DEFAULT_ACCESS, roleInput, type AccessLevel, type Workspace } from "@windveal/shared";
+import { DEFAULT_ACCESS, roleInput, withMinimum, type AccessLevel, type Workspace } from "@windveal/shared";
 import { db } from "../../db/client";
 import { invitations, memberships, roles, users } from "../../db/schema";
 import { requireAdmin, requireMemberManager } from "../../lib/context";
@@ -11,7 +11,7 @@ import { canCustomiseRoles, ensureRoles, loadRole, type RoleRow } from "../../li
 const GROWTH = "Custom roles come with the Growth plan.";
 
 function roleView(r: RoleRow, people: number, invited: number) {
-  return { id: r.id, name: r.name, description: r.description, kind: r.kind, access: { ...DEFAULT_ACCESS.member, ...r.access }, special: r.special, people, invited, updatedAt: r.updatedAt };
+  return { id: r.id, name: r.name, description: r.description, kind: r.kind, access: withMinimum({ ...DEFAULT_ACCESS.member, ...r.access }), special: r.special, people, invited, updatedAt: r.updatedAt };
 }
 
 async function nameTaken(orgId: string, name: string, except?: string) {
@@ -78,7 +78,7 @@ export default async function roleRoutes(app: FastifyInstance) {
     if (await nameTaken(ctx.org.id, input.name)) throw conflict("There's already a role with that name.", { name: "Already used" });
     const [r] = await db.insert(roles).values({
       orgId: ctx.org.id, name: input.name, description: input.description || null, kind: "custom",
-      access: { ...DEFAULT_ACCESS.member, ...input.access } as Record<Workspace, AccessLevel>, special: input.special, createdBy: ctx.user.id,
+      access: withMinimum({ ...DEFAULT_ACCESS.member, ...input.access } as Record<Workspace, AccessLevel>), special: input.special, createdBy: ctx.user.id,
     }).returning();
     await audit(ctx, { action: "role.created", category: "access", entityType: "role", entityId: r!.id, summary: `${ctx.user.name} created the ${r!.name} role`, meta: input });
     return { role: roleView(r!, 0, 0) };
@@ -93,7 +93,7 @@ export default async function roleRoutes(app: FastifyInstance) {
     if (r.kind === "manager" && input.name.trim().toLowerCase() !== "manager") throw badRequest("The Manager role keeps its name.", { name: "Can't be renamed" });
     if (await nameTaken(ctx.org.id, input.name, r.id)) throw conflict("There's already a role with that name.", { name: "Already used" });
     const [u] = await db.update(roles).set({
-      name: input.name, description: input.description || null, access: { ...DEFAULT_ACCESS.member, ...input.access } as Record<Workspace, AccessLevel>,
+      name: input.name, description: input.description || null, access: withMinimum({ ...DEFAULT_ACCESS.member, ...input.access } as Record<Workspace, AccessLevel>),
       special: input.special, version: dsql`${roles.version} + 1`,
     }).where(eq(roles.id, r.id)).returning();
     await audit(ctx, { action: "role.updated", category: "access", entityType: "role", entityId: r.id, summary: `${ctx.user.name} changed what the ${u!.name} role can do`, meta: input });

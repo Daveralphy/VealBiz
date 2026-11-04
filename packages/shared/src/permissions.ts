@@ -13,6 +13,19 @@ export function accessFor(role: Role, overrides: WorkspaceAccess | null | undefi
   return overrides?.[ws] ?? DEFAULT_ACCESS[role][ws];
 }
 
+/**
+ * The least anyone has. Everyone is on the team, so everyone can at least view People & HR (to clock in,
+ * see their own attendance and ask for leave). Pay stays behind "See pay".
+ */
+export const MIN_ACCESS: Partial<Record<Workspace, AccessLevel>> = { people: "view" };
+export function withMinimum(access: Record<Workspace, AccessLevel>): Record<Workspace, AccessLevel> {
+  const out = { ...access };
+  for (const [w, min] of Object.entries(MIN_ACCESS) as [Workspace, AccessLevel][]) {
+    if (ACCESS_LEVELS.indexOf(out[w]) < ACCESS_LEVELS.indexOf(min)) out[w] = min;
+  }
+  return out;
+}
+
 export function hasAccess(level: AccessLevel, needed: AccessLevel): boolean {
   return ACCESS_LEVELS.indexOf(level) >= ACCESS_LEVELS.indexOf(needed);
 }

@@ -5,6 +5,7 @@ import { db, type Tx } from "../../db/client";
 import { departments, employees, leaveRequests, leaveTypes, memberships, publicHolidays, tasks } from "../../db/schema";
 import type { OrgContext } from "../../lib/context";
 import { notFound } from "../../lib/http";
+import { ensureTeamRecord } from "../../lib/team";
 import { DATE_RE, localDate } from "./util";
 
 export type Employee = typeof employees.$inferSelect;
@@ -29,11 +30,17 @@ export async function getEmployee(orgId: string, id: string, tx: Tx = db): Promi
   return e;
 }
 
-/** The signed-in user's own employee record (employees.userId = user). */
+/**
+ * The signed-in person's own record in People & HR. Everyone in the business is on the team, so the first
+ * time they need it (clocking in, their attendance, leave) it's linked or made for them (see ensureTeamRecord).
+ */
 export async function myEmployee(ctx: OrgContext): Promise<Employee | null> {
-  const [e] = await db.select().from(employees)
-    .where(and(notDeleted(ctx.org.id), eq(employees.userId, ctx.user.id), ne(employees.status, "left"))).limit(1);
-  return e ?? null;
+  const find = async () => (await db.select().from(employees)
+    .where(and(notDeleted(ctx.org.id), eq(employees.userId, ctx.user.id), ne(employees.status, "left"))).limit(1))[0] ?? null;
+  const e = await find();
+  if (e) return e;
+  await ensureTeamRecord(ctx.org.id, ctx.user.id, ctx.membership.jobTitle);
+  return find();
 }
 
 export async function getDepartment(orgId: string, id: string) {
