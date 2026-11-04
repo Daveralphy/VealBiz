@@ -137,10 +137,12 @@ export default async function peopleRoutes(app: FastifyInstance) {
     const [deptCount] = await db.select({ n: count() }).from(departments).where(and(eq(departments.orgId, ctx.org.id), isNull(departments.deletedAt)));
     const m = Number(today.slice(5, 7));
     const quarterStart = `${today.slice(0, 4)}-${String(Math.floor((m - 1) / 3) * 3 + 1).padStart(2, "0")}-01`;
-    const onLeave = await db.selectDistinct({ id: employees.id, firstName: employees.firstName, lastName: employees.lastName })
+    const onLeaveRows = await db.select({ id: employees.id, firstName: employees.firstName, endDate: leaveRequests.endDate })
       .from(leaveRequests).innerJoin(employees, eq(employees.id, leaveRequests.employeeId))
       .where(and(eq(leaveRequests.orgId, ctx.org.id), eq(leaveRequests.status, "approved"), isNull(leaveRequests.deletedAt),
         isNull(employees.deletedAt), lte(leaveRequests.startDate, today), gte(leaveRequests.endDate, today)));
+    const onLeave = [...new Map(onLeaveRows.map((r) => [r.id, r])).values()];
+    const in14 = localDate(new Date(Date.now() + 14 * 86_400_000));
     const starting = current.filter((e) => e.status === "onboarding" || (e.startDate && e.startDate > today))
       .sort((a, b) => (a.startDate ?? "9999").localeCompare(b.startDate ?? "9999"));
     const leaving = current.filter((e) => e.status === "leaving").sort((a, b) => (a.endDate ?? "9999").localeCompare(b.endDate ?? "9999"));
@@ -151,8 +153,15 @@ export default async function peopleRoutes(app: FastifyInstance) {
       headcount: current.length,
       joinedThisQuarter: current.filter((e) => e.startDate && e.startDate >= quarterStart && e.startDate <= today).length,
       departments: deptCount?.n ?? 0,
-      onLeaveToday: { count: onLeave.length, names: onLeave.map((e) => e.firstName) },
-      startingSoon: { count: starting.length, nextStart: starting.find((e) => e.startDate && e.startDate >= today)?.startDate ?? null },
+      onLeaveToday: {
+        count: onLeave.length, names: onLeave.map((e) => e.firstName),
+        // The last day anyone is away (when the latest of today's leave ends).
+        until: onLeaveRows.length ? onLeaveRows.reduce((m, r) => (r.endDate > m ? r.endDate : m), today) : null,
+      },
+      startingSoon: {
+        count: starting.length, nextStart: starting.find((e) => e.startDate && e.startDate >= today)?.startDate ?? null,
+        next14Days: current.filter((e) => e.startDate && e.startDate >= today && e.startDate <= in14).length,
+      },
       leaving: { count: leaving.length, next: leaving[0] ? { name: leaving[0].firstName, endDate: leaving[0].endDate } : null },
       pendingForMe: await pendingForMeCount(ctx),
       onboardingInProgress: onb?.n ?? 0,

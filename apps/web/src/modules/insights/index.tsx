@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Calendar, Download, Lock, ShieldCheck } from "lucide-react";
-import { Button, EmptyState, Modal, PageHeader, Tabs } from "@windveal/ui";
+import { Button, EmptyState, Modal, PageHeader } from "@windveal/ui";
 import { qs } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { OverviewPage } from "./overview";
@@ -32,7 +32,6 @@ export default function InsightsModule() {
     next.set(k, v);
     setParams(next, { replace: true });
   };
-  const search = range !== "3m" ? `?range=${range}` : "";
 
   return (
     <div className="ins">
@@ -48,8 +47,6 @@ export default function InsightsModule() {
             <Button variant="secondary" icon={<Download size={16} />} onClick={() => setExporting(true)}>Export</Button>
           )}
         </>} />
-      <Tabs items={REPORT_TABS.map((t) => ({ key: t.key, label: t.label }))} value={section}
-        onChange={(k) => nav(`/insights${k ? `/${k}` : ""}${search}`)} />
       <Routes>
         <Route index element={<OverviewPage range={range} />} />
         {REPORT_TABS.filter((t) => t.key).map((t) => (

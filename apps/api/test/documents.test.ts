@@ -179,4 +179,23 @@ describe("documents", () => {
     const same = await upload(app, b.c, "a.pdf", contentA);
     expect(same.body.duplicateOf).toBeNull();
   });
+
+  it("dashboard counts files added this week and lists the next ones to expire", async () => {
+    const app = await getApp();
+    const { c: admin } = await signUpWithOrg(app);
+    const day = (n: number) => { const d = new Date(Date.now() + n * 86_400_000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+    const a = await upload(app, admin, "insurance.pdf", uniq("insurance"));
+    const b = await upload(app, admin, "licence.pdf", uniq("licence"));
+    const c = await upload(app, admin, "lease.pdf", uniq("lease"));
+    await admin.patch(`/api/documents/files/${a.body.file.id}`, { expiresOn: day(20) });
+    await admin.patch(`/api/documents/files/${b.body.file.id}`, { expiresOn: day(5) });
+    await admin.patch(`/api/documents/files/${c.body.file.id}`, { expiresOn: day(90) });
+    const r = await admin.get("/api/documents/dashboard");
+    expect(r.status).toBe(200);
+    expect(r.body.addedThisWeek).toBe(3);
+    expect(r.body.expiringCount).toBe(2);
+    expect(r.body.expiring.map((f: any) => f.name)).toEqual(["licence.pdf", "insurance.pdf"]);
+    const { c: none } = await addMember(app, admin, "member", "Ama Owusu");
+    expect((await none.get("/api/documents/dashboard")).status).toBe(200);
+  });
 });

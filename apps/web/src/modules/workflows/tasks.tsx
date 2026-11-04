@@ -52,7 +52,7 @@ export function useTaskRefresh() {
   };
 }
 
-function dueText(t: TaskView): { text: string; overdue: boolean } {
+export function dueText(t: TaskView): { text: string; overdue: boolean } {
   if (!t.dueAt) return { text: "", overdue: false };
   const d = new Date(t.dueAt);
   const start = new Date(); start.setHours(0, 0, 0, 0);

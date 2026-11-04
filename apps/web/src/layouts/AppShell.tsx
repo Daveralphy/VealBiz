@@ -1,27 +1,29 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { useIsFetching, useIsMutating, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Bell, Briefcase, ChevronDown, CircleHelp, CreditCard, Download, FileText, Home, LineChart, LogOut, Menu as MenuIcon, Moon,
-  PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, ShieldCheck, SquareCheck, User, UserPlus, Users, X, Building2,
+  Bell, Building2, ChevronDown, CircleHelp, CreditCard, LayoutGrid, LogOut, Menu as MenuIcon, Moon, PanelLeftClose, PanelLeftOpen, Search,
+  ShieldCheck, User, X,
 } from "lucide-react";
-import { Avatar, BrandLogo, Menu, PageSkeleton, Progress, Switch, IconButton, TopProgress, useFirstVisitHold, usePageTransition } from "@windveal/ui";
-import { formatBytes, type Workspace } from "@windveal/shared";
+import { Avatar, BrandLogo, Menu, PageSkeleton, Switch, IconButton, TopProgress, useFirstVisitHold, usePageTransition } from "@windveal/ui";
 import { api, publicFileUrl } from "../lib/api";
 import { useSession } from "../lib/session";
 import { timeAgo } from "../lib/format";
 import { useTheme } from "../lib/theme";
 import { useSignOut } from "../lib/signout";
+import { usePalette } from "../lib/palette";
+import { sectionActive, workspaceFor, type WorkspaceDef } from "../lib/workspaces";
 import { HeaderClock } from "../modules/people/clock";
 
-const NAV: { to: string; label: string; icon: ReactNode; ws?: Workspace; badgeKey?: string }[] = [
-  { to: "/recruitment", label: "Recruitment", icon: <UserPlus size={18} />, ws: "recruitment" },
-  { to: "/people", label: "People & HR", icon: <Users size={18} />, ws: "people" },
-  { to: "/crm", label: "CRM", icon: <Briefcase size={18} />, ws: "crm" },
-  { to: "/workflows", label: "Workflows", icon: <SquareCheck size={18} />, ws: "workflows", badgeKey: "tasks" },
-  { to: "/documents", label: "Documents", icon: <FileText size={18} />, ws: "documents" },
-  { to: "/insights", label: "Insights", icon: <LineChart size={18} />, ws: "insights" },
-];
+export type HomeData = {
+  tiles: Partial<Record<string, { value: string; text: string; before?: string }[]>>;
+  badges: Record<string, number>;
+  adminWaiting: number | null;
+};
+/** Live lines for Home and the counts beside each workspace's sidebar sections. */
+export function useHomeData() {
+  return useQuery({ queryKey: ["home"], queryFn: () => api.get<HomeData>("/api/home"), refetchInterval: 60_000 });
+}
 
 /** Collapse/expand control. Hidden until the organisation block is hovered (or the control is focused). */
 function ToggleButton({ mini, onToggle }: { mini: boolean; onToggle: () => void }) {
@@ -43,17 +45,24 @@ function OrgMark({ size = 40 }: { size?: number }) {
   );
 }
 
-function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () => void; onNavigate?: () => void }) {
-  const { org, user, can, isAdmin } = useSession();
-  const { data: counts } = useQuery({ queryKey: ["shell-counts"], queryFn: () => api.get<{ tasks: number }>("/api/overview/counts"), refetchInterval: 60_000 });
-  const { data: storage } = useQuery({ queryKey: ["storage"], queryFn: () => api.get<{ used: number; limit: number }>("/api/storage"), staleTime: 300_000 });
+function OrgBlock() {
+  const { org } = useSession();
   const statusColor = org.verificationStatus === "verified" ? "var(--ok-dot)" : org.verificationStatus === "rejected" ? "#e5484d" : "#e0a43c";
   const statusText = org.verificationStatus === "verified" ? "Verified" : org.verificationStatus === "rejected" ? "Verification failed" : "Verification pending";
-  const item = (to: string, label: string, icon: ReactNode, badge?: number, end?: boolean) => (
-    <NavLink key={to} to={to} end={end} onClick={onNavigate} className={({ isActive }) => `sb-item ${isActive ? "active" : ""}`} title={mini ? label : undefined}>
-      {icon}<span className="label">{label}</span>{!!badge && <span className="n">{badge}</span>}
-    </NavLink>
+  return (
+    <div className="sb-org-name">
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <b>{org.name}</b>
+        <small style={{ color: org.verificationStatus === "verified" ? "var(--ok)" : "var(--warn)" }}><i style={{ background: statusColor }} />{statusText}</small>
+      </span>
+    </div>
   );
+}
+
+/** A workspace's own sidebar: its sections only (the page title already says which workspace this is). */
+function Sidebar({ ws, mini, onToggle, onNavigate }: { ws: WorkspaceDef; mini: boolean; onToggle?: () => void; onNavigate?: () => void }) {
+  const { pathname } = useLocation();
+  const { data } = useHomeData();
   return (
     <aside className="sb">
       <div className="sb-org">
@@ -62,34 +71,21 @@ function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () 
           {/* Collapsed: hovering the logo reveals the expand control on top of it. */}
           {onToggle && mini && <ToggleButton mini onToggle={onToggle} />}
         </span>
-        {!mini && (
-          <div className="sb-org-name">
-            <span style={{ minWidth: 0, flex: 1 }}>
-              <b>{org.name}</b>
-              <small style={{ color: org.verificationStatus === "verified" ? "var(--ok)" : "var(--warn)" }}><i style={{ background: statusColor }} />{statusText}</small>
-            </span>
-          </div>
-        )}
+        {!mini && <OrgBlock />}
         {onToggle && !mini && <ToggleButton mini={false} onToggle={onToggle} />}
       </div>
-      <nav aria-label="Main">
-        {item("/", "Overview", <Home size={18} />, undefined, true)}
-        <div className="sb-lab">Workspaces</div><div className="sb-sep" />
-        {NAV.filter((n) => !n.ws || can(n.ws)).map((n) => item(n.to, n.label, n.icon, n.badgeKey === "tasks" ? counts?.tasks : undefined))}
-        <div className="sb-lab">Organisation</div><div className="sb-sep" />
-        {(isAdmin || can("people", "manage") || can("crm", "manage") || can("recruitment", "manage")) && item("/import", "Import data", <Download size={18} />)}
-        {item("/settings", "Settings", <Settings size={18} />)}
-        {user.platformAdmin && item("/admin", "WindVeal admin", <ShieldCheck size={18} />)}
-        {item("/help", "Help", <CircleHelp size={18} />)}
+      <nav aria-label={ws.label}>
+        {ws.sections.map((s) => {
+          const badge = s.badge ? data?.badges[s.badge] : undefined;
+          const active = sectionActive(ws, s, pathname);
+          return (
+            <NavLink key={s.to} to={s.to} end onClick={onNavigate} className={`sb-item ${active ? "active" : ""}`} aria-current={active ? "page" : undefined} title={mini ? s.label : undefined}>
+              {s.icon}<span className="label">{s.label}</span>{!!badge && <span className="n">{badge}</span>}
+            </NavLink>
+          );
+        })}
       </nav>
       <div className="sb-grow" />
-      {storage && (
-        <div className="sb-store">
-          <div className="between"><span>Storage</span><b className="ink">{formatBytes(storage.used)} of {formatBytes(storage.limit)}</b></div>
-          <Progress value={(storage.used / storage.limit) * 100} />
-          <Link to="/billing" onClick={onNavigate}>Upgrade for more space →</Link>
-        </div>
-      )}
       <div className="sb-foot"><BrandLogo height={18} /><span>v1.0</span></div>
     </aside>
   );
@@ -97,7 +93,7 @@ function Sidebar({ mini, onToggle, onNavigate }: { mini: boolean; onToggle?: () 
 
 type SearchHit = { type: string; id: string; title: string; subtitle?: string; href: string };
 
-function GlobalSearch() {
+function GlobalSearch({ ws }: { ws: WorkspaceDef }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -113,13 +109,14 @@ function GlobalSearch() {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, []);
-  const results = data?.results ?? [];
+  // Search covers this workspace only.
+  const results = (data?.results ?? []).filter((r) => r.href === ws.base || r.href.startsWith(`${ws.base}/`) || r.href.startsWith(`${ws.base}?`));
   const groups = Array.from(new Set(results.map((r) => r.type)));
   return (
     <div className="top-search" onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node) && setTimeout(() => setOpen(false), 150)}>
       <Search size={17} />
       <input ref={inputRef} value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
-        placeholder="Search people, clients, files and more" aria-label="Search"
+        placeholder="Search this workspace" aria-label="Search this workspace"
         onKeyDown={(e) => { if (e.key === "Enter" && results[0]) { navigate(results[0].href); setOpen(false); setQ(""); } }} />
       <kbd>Ctrl K</kbd>
       {open && q.trim().length >= 2 && (
@@ -138,26 +135,6 @@ function GlobalSearch() {
         </div>
       )}
     </div>
-  );
-}
-
-function NewMenu() {
-  const { can } = useSession();
-  const navigate = useNavigate();
-  const go = (to: string, close: () => void) => { close(); navigate(to); };
-  return (
-    <Menu trigger={(toggle) => <button className="btn btn-primary" onClick={toggle}><Plus size={16} strokeWidth={2.4} />New</button>}>
-      {(close) => (
-        <>
-          {can("workflows", "edit") && <button onClick={() => go("/workflows?new=task", close)}><SquareCheck size={16} />Task</button>}
-          {can("people", "edit") && <button onClick={() => go("/people/directory?new=employee", close)}><Users size={16} />Employee</button>}
-          {can("recruitment", "edit") && <button onClick={() => go("/recruitment/jobs/new", close)}><UserPlus size={16} />Job</button>}
-          {can("crm", "edit") && <button onClick={() => go("/crm/leads?new=lead", close)}><Briefcase size={16} />Lead</button>}
-          {can("crm", "edit") && <button onClick={() => go("/crm/pipeline?new=deal", close)}><Briefcase size={16} />Deal</button>}
-          {can("documents", "edit") && <button onClick={() => go("/documents?upload=1", close)}><FileText size={16} />Upload file</button>}
-        </>
-      )}
-    </Menu>
   );
 }
 
@@ -186,6 +163,7 @@ function Notifications() {
 
 function AccountMenu() {
   const { user, membership } = useSession();
+  const { pathname } = useLocation();
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const signOut = useSignOut();
@@ -198,6 +176,7 @@ function AccountMenu() {
             <Avatar name={user.name} size={36} src={user.avatarFileId ? publicFileUrl(user.avatarFileId) : null} />
             <div style={{ minWidth: 0 }}><b className="ink" style={{ display: "block" }}>{user.name}</b><small className="muted">{user.email} · {membership.role}</small></div>
           </div>
+          {pathname !== "/" && <><button onClick={() => { close(); navigate("/"); }}><LayoutGrid size={16} />Home</button><hr /></>}
           <button onClick={() => { close(); navigate("/profile"); }}><User size={16} />My profile</button>
           <button onClick={() => { close(); navigate("/profile/company"); }}><Building2 size={16} />Company profile</button>
           {user.platformAdmin && <button onClick={() => { close(); navigate("/admin"); }}><ShieldCheck size={16} />WindVeal admin</button>}
@@ -222,7 +201,9 @@ export function AppShell() {
   const [drawer, setDrawer] = useState(false);
   const { org } = useSession();
   const location = useLocation();
-  const navigate = useNavigate();
+  const ws = workspaceFor(location.pathname);
+  const palette = usePalette();
+  const accent = ws ? palette[ws.key] : null;
   const toggle = () => setMini((m) => {
     try { localStorage.setItem("wv-sidebar", m ? "full" : "mini"); } catch { /* ignore */ }
     return !m;
@@ -246,38 +227,55 @@ export function AppShell() {
     setSkelTop(last ? last.offsetTop + last.offsetHeight + 4 : null);
   }, [held, location.pathname]);
   const busy = useIsFetching() + useIsMutating() > 0;
+  const style = accent ? ({ "--ws-c": accent.c, "--ws-t": accent.t } as CSSProperties) : undefined;
+  const page = (
+    <main className="content">
+      {/* Rendered while held, so the screen's data loads during the pause. */}
+      <div ref={content} className={`page-enter page-stage${held ? " holding" : ""}`}>
+        <Outlet />
+        {held && <PageSkeleton title={skelTop === null} style={{ position: "absolute", left: 0, right: 0, top: skelTop ?? 0 }} />}
+      </div>
+    </main>
+  );
+
+  // Home, Profile, Settings and the like: no sidebar, just the organisation and your tools along the top.
+  if (!ws) {
+    return (
+      <div className="shell plain">
+        <TopProgress active={busy} />
+        <div className="main">
+          <header className="topbar">
+            <span className="tb-brand"><span className="sb-logo"><OrgMark /></span><OrgBlock /></span>
+            <div className="right"><HeaderClock /><Notifications /><AccountMenu /></div>
+          </header>
+          <header className="mtop">
+            <span className="tb-brand"><span className="sb-logo" style={{ width: 32, height: 32 }}><OrgMark size={32} /></span><b>{org.name}</b></span>
+            <div className="r"><HeaderClock /><Notifications /><AccountMenu /></div>
+          </header>
+          {page}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`shell ${mini ? "mini" : ""}`}>
+    <div className={`shell in-ws ${mini ? "mini" : ""}`} style={style}>
       <TopProgress active={busy} />
-      <Sidebar mini={mini} onToggle={toggle} />
+      <Sidebar ws={ws} mini={mini} onToggle={toggle} />
       <div className="main">
         <header className="topbar">
-          <GlobalSearch />
-          <div className="right">
-            <HeaderClock />
-            <NewMenu />
-            <Notifications />
-            <AccountMenu />
-          </div>
+          <GlobalSearch ws={ws} />
+          <div className="right"><HeaderClock /><Notifications /><AccountMenu /></div>
         </header>
         <header className="mtop">
           <IconButton label="Open menu" onClick={() => setDrawer(true)}><MenuIcon size={22} /></IconButton>
-          <span className="sb-logo" style={{ width: 32, height: 32 }}><OrgMark size={32} /></span>
-          <b>{org.name}</b>
           <div className="r"><HeaderClock /><Notifications /><AccountMenu /></div>
         </header>
-        <main className="content">
-          {/* Rendered while held, so the screen's data loads during the pause. */}
-          <div ref={content} className={`page-enter page-stage${held ? " holding" : ""}`}>
-            <Outlet />
-            {held && <PageSkeleton title={skelTop === null} style={{ position: "absolute", left: 0, right: 0, top: skelTop ?? 0 }} />}
-          </div>
-        </main>
-        <button className="fab" aria-label="Create" onClick={() => navigate("/workflows?new=task")}><Plus size={24} strokeWidth={2.4} /></button>
+        {page}
       </div>
       {drawer && (
-        <div className="mobile-drawer" onClick={(e) => e.target === e.currentTarget && setDrawer(false)}>
-          <Sidebar mini={false} onNavigate={() => setDrawer(false)} />
+        <div className="mobile-drawer" style={style} onClick={(e) => e.target === e.currentTarget && setDrawer(false)}>
+          <Sidebar ws={ws} mini={false} onNavigate={() => setDrawer(false)} />
           <IconButton label="Close menu" bordered style={{ position: "absolute", left: 300, top: 12, background: "var(--surface)" }} onClick={() => setDrawer(false)}><X size={20} /></IconButton>
         </div>
       )}

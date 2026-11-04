@@ -1,5 +1,4 @@
 /* People & HR — module styles. Uses the shared tokens so light and dark both work. */
-.people .tabs a.tab { text-decoration: none; }
 .people .grow { flex: 1; min-width: 0; }
 
 /* directory */

@@ -373,3 +373,101 @@
 .ad-row { width: 100%; background: none; border: 0; border-top: 1px solid var(--line); font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 0; }
 .ad-row:first-child { border-top: 0; }
 .ad-row:hover b { color: var(--blue); }
+
+/* ---------- Workspace dashboards (colours come from the workspace: --ws-c, --ws-t) ---------- */
+.dash-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0 20px; }
+.dash-kpi { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; color: inherit; }
+a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
+.dash-kpi small { color: var(--muted); font-size: 13px; display: block; }
+.dash-kpi b { display: block; font-family: var(--display); font-size: 30px; color: var(--ink); letter-spacing: -0.03em; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+.dash-kpi span { font-size: 12.5px; color: var(--muted); }
+.dash-kpi.hi { background: var(--ws-c, var(--blue)); border-color: var(--ws-c, var(--blue)); }
+.dash-kpi.hi small, .dash-kpi.hi span { color: rgba(255, 255, 255, .82); }
+.dash-kpi.hi b { color: #fff; }
+.dash-cols { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.dash-card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 22px; margin-bottom: 20px; }
+.dash-card-hd { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.dash-card-hd h3 { font-size: 17px; }
+.dash-card-hd p { color: var(--muted); font-size: 13px; margin: 2px 0 0; }
+.dash-link { color: var(--ws-c, var(--blue)); font-weight: 600; font-size: 13px; white-space: nowrap; }
+.dash-empty { color: var(--muted); font-size: 13.5px; margin: 0; }
+.dash-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); width: 100%; background: none; border-left: 0; border-right: 0; border-bottom: 0; font: inherit; color: inherit; text-align: left; }
+.dash-row:first-of-type { border-top: 0; padding-top: 0; }
+.dash-row.link { cursor: pointer; }
+.dash-row.link:hover b { color: var(--ws-c, var(--blue)); }
+.dash-row-main { flex: 1; min-width: 0; }
+.dash-row-main b { display: block; color: var(--ink); font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-row-main small { color: var(--muted); font-size: 12.5px; }
+.dash-row-end { margin-left: auto; text-align: right; flex: none; font-variant-numeric: tabular-nums; }
+.dash-bars { display: grid; gap: 12px; }
+.dash-bar { display: grid; grid-template-columns: minmax(80px, 120px) 1fr auto; align-items: center; gap: 12px; font-size: 13.5px; }
+.dash-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-bar i { display: block; height: 10px; border-radius: 999px; background: var(--soft); position: relative; overflow: hidden; }
+.dash-bar u { position: absolute; inset: 0 auto 0 0; background: var(--ws-c, var(--blue)); border-radius: 999px; }
+.dash-bar b { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; min-width: 28px; }
+.pill-ws { background: var(--ws-t, var(--pale)); color: var(--ws-c, var(--blue)); }
+@media (max-width: 1000px) { .dash-cols { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .dash-kpis { grid-template-columns: 1fr 1fr; gap: 10px; } .dash-kpi b { font-size: 26px; } }
+
+/* ---------- Layout without a sidebar (Home, Profile, Settings, Admin, Import, Help) ---------- */
+.shell.plain { grid-template-columns: minmax(0, 1fr); }
+.shell.plain .content { max-width: 1240px; margin: 0 auto; }
+.tb-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.tb-brand .sb-org-name b { font-size: 15.5px; }
+.mtop .tb-brand b { font-family: var(--display); color: var(--ink); font-size: 16px; letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Workspace colour (from the logo) ---------- */
+.in-ws .sb-item.active { background: var(--ws-t); color: var(--ink); }
+.in-ws .sb-item.active svg { color: var(--ws-c); }
+.in-ws .sb-item .n, .mobile-drawer .sb-item .n { background: var(--ws-c, var(--navy)); }
+.mobile-drawer .sb-item.active { background: var(--ws-t, var(--pale)); }
+.mobile-drawer .sb-item.active svg { color: var(--ws-c, var(--blue)); }
+.in-ws .btn-primary { background: var(--ws-c); }
+.in-ws .btn-primary:hover:not(:disabled) { background: var(--ws-c); filter: brightness(.9); }
+
+/* ---------- Home ---------- */
+.home { padding: 16px 0 40px; }
+.home-hello h1 { font-size: 40px; line-height: 1.1; font-weight: 800; }
+.home-hello p { color: var(--muted); font-size: 16px; margin: 6px 0 0; }
+.home-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 32px; }
+.home-tile { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 16px; min-height: 230px; padding: 24px 24px 22px; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; color: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.home-tile::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 4px; background: var(--ws-c); }
+.home-tile:hover, .home-tile:focus-visible { border-color: var(--ws-c); box-shadow: 0 28px 48px -32px rgba(15, 26, 58, .35); transform: translateY(-2px); }
+.home-go { position: absolute; right: 22px; top: 26px; color: var(--muted); transition: color .15s, transform .15s; }
+.home-tile:hover .home-go { color: var(--ws-c); transform: translateX(2px); }
+.home-ic { width: 52px; height: 52px; border-radius: 16px; background: var(--ws-t); color: var(--ws-c); display: flex; align-items: center; justify-content: center; }
+.home-tile h2 { font-size: 21px; }
+.home-live { display: grid; gap: 8px; margin-top: auto; }
+.home-live > span { display: block; font-size: 13.5px; line-height: 1.45; color: var(--text); }
+.home-live em { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ws-c); margin: 0 8px 1px 0; vertical-align: middle; }
+.home-live b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.home-more-title { margin: 36px 0 12px; font: 600 12px var(--font); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.home-more { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.home-more-item { display: flex; align-items: center; gap: 12px; padding: 16px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; color: inherit; }
+.home-more-item:hover { border-color: var(--blue); }
+.home-more-item b { display: block; color: var(--ink); font-weight: 600; }
+.home-more-item small { display: block; color: var(--muted); font-size: 12.5px; }
+.home-more-ic { width: 36px; height: 36px; border-radius: 11px; background: var(--soft); color: var(--muted); display: flex; align-items: center; justify-content: center; flex: none; }
+@media (max-width: 1100px) { .home-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } .home-more { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .home { padding-top: 4px; }
+  .home-hello h1 { font-size: 28px; }
+  .home-hello p { font-size: 14.5px; }
+  .home-tiles { grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px; }
+  .home-tile { min-height: 150px; padding: 16px; gap: 12px; border-radius: 18px; }
+  .home-tile::before { height: 3px; }
+  .home-ic { width: 42px; height: 42px; border-radius: 13px; }
+  .home-ic svg { width: 22px; height: 22px; }
+  .home-go { display: none; }
+  .home-tile h2 { font-size: 16px; }
+  .home-live .more-line { display: none; }
+  .home-live > span { font-size: 12.5px; }
+  .home-more { grid-template-columns: 1fr; gap: 10px; }
+}
+
+/* Insights uses its own tiles (with an info tip); give them the same spacing and highlight as other dashboards. */
+.in-ws .ins-stats { margin-top: 24px; }
+.in-ws .ins-stats > .ins-kpi:first-child { background: var(--ws-c); border-color: var(--ws-c); }
+.in-ws .ins-stats > .ins-kpi:first-child small, .in-ws .ins-stats > .ins-kpi:first-child em, .in-ws .ins-stats > .ins-kpi:first-child .ins-tip button { color: rgba(255, 255, 255, .85); }
+.in-ws .ins-stats > .ins-kpi:first-child b { color: #fff; }
+.in-ws { --ws-t-strong: color-mix(in srgb, var(--ws-c) 30%, white); }

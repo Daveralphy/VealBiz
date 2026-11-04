@@ -266,6 +266,7 @@ export default async function recruitmentRoutes(app: FastifyInstance) {
       recent: dsql<number | null>`avg(extract(epoch from (${applications.hiredAt} - ${applications.createdAt})) / 86400) filter (where ${applications.hiredAt} >= now() - interval '90 days')`,
       previous: dsql<number | null>`avg(extract(epoch from (${applications.hiredAt} - ${applications.createdAt})) / 86400) filter (where ${applications.hiredAt} < now() - interval '90 days' and ${applications.hiredAt} >= now() - interval '180 days')`,
       all: dsql<number | null>`avg(extract(epoch from (${applications.hiredAt} - ${applications.createdAt})) / 86400)`,
+      thisMonth: dsql<number>`count(*) filter (where ${applications.hiredAt} >= date_trunc('month', now()))::int`,
     }).from(applications).where(and(eq(applications.orgId, orgId), isNull(applications.deletedAt), isNotNull(applications.hiredAt)));
     const round = (v: number | string | null | undefined) => (v === null || v === undefined ? null : Math.round(Number(v)));
     return {
@@ -273,6 +274,7 @@ export default async function recruitmentRoutes(app: FastifyInstance) {
       newApplicantsThisWeek: apps?.newThisWeek ?? 0, activeCandidates: apps?.active ?? 0,
       interviewsThisWeek: iv?.week ?? 0, interviewsToday: iv?.today ?? 0, myUpcomingInterviews: iv?.mine ?? 0,
       averageDaysToHire: round(hire?.recent ?? hire?.all), previousAverageDaysToHire: round(hire?.previous),
+      hiredThisMonth: hire?.thisMonth ?? 0,
     };
   });
 

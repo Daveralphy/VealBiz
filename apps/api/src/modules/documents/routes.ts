@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, ne, or, sql as dsql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, or, sql as dsql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { DEFAULT_ACCESS, hasAccess, type AccessLevel } from "@windveal/shared";
 import { createHash } from "node:crypto";
@@ -10,6 +10,7 @@ import { badRequest, conflict, forbidden, notFound, parse } from "../../lib/http
 import { audit } from "../../lib/audit";
 import { readObjectBuffer } from "../../lib/storage";
 import { fileView } from "../files/routes";
+import { localDate } from "../people/util";
 import { LINK_TYPES, resolveTarget, resolveTargets, searchTargets } from "./targets";
 
 const P = "/api/documents";
@@ -130,6 +131,24 @@ export default async function documentsRoutes(app: FastifyInstance) {
       archived: dsql<number>`count(*) filter (where ${files.archivedAt} is not null)::int`,
     }).from(files).where(libraryCond(ctx, idx.visible));
     return { files: r?.files ?? 0, archived: r?.archived ?? 0 };
+  });
+
+  /** Numbers for the Documents dashboard: files added this week and the next ones to expire. */
+  app.get(`${P}/dashboard`, async (req) => {
+    const ctx = await requireAccess(req, "documents", "view");
+    const idx = await folderIndex(ctx);
+    const live = and(libraryCond(ctx, idx.visible), isNull(files.archivedAt))!;
+    const today = localDate();
+    const in30 = localDate(new Date(Date.now() + 30 * DAY));
+    const soon = and(live, isNotNull(files.expiresOn), gte(files.expiresOn, today), lte(files.expiresOn, in30))!;
+    const [[counts], expiring] = await Promise.all([
+      db.select({
+        added: dsql<number>`count(*) filter (where ${files.createdAt} >= ${new Date(Date.now() - 7 * DAY).toISOString()}::timestamptz)::int`,
+        expiring: dsql<number>`count(*) filter (where ${files.expiresOn} >= ${today} and ${files.expiresOn} <= ${in30})::int`,
+      }).from(files).where(live),
+      db.select().from(files).where(soon).orderBy(asc(files.expiresOn), asc(files.name)).limit(5),
+    ]);
+    return { addedThisWeek: counts?.added ?? 0, expiringCount: counts?.expiring ?? 0, expiring: await listViews(ctx, expiring, idx) };
   });
 
   app.get(`${P}/folders`, async (req) => {

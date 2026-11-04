@@ -41,7 +41,7 @@ export function Help() {
 }
 
 export function NotFound() {
-  return <EmptyState title="Page not found" icon={<Compass size={24} />} action={<Link to="/" className="btn btn-primary">Go to Overview</Link>}>That page doesn't exist or has moved.</EmptyState>;
+  return <EmptyState title="Page not found" icon={<Compass size={24} />} action={<Link to="/" className="btn btn-primary">Go to Home</Link>}>That page doesn't exist or has moved.</EmptyState>;
 }
 
 /** Development only: shows emails the API would have sent (codes, invitations, reset links). */

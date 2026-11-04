@@ -1,7 +1,7 @@
 import { useMemo, useState, type DragEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CalendarClock, Plus, Trophy, Users } from "lucide-react";
-import { Avatar, Button, Card, EmptyState, Loading, Pill, SearchInput, Stat, cx } from "@windveal/ui";
+import { Avatar, Button, Card, EmptyState, Loading, Pill, SearchInput, cx } from "@windveal/ui";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { dayLabel, fmtDate, fmtTime, isOverdue } from "../../lib/format";
@@ -12,6 +12,7 @@ import {
 import {
   CoMark, DealDrawer, ErrorNotice, FollowUpModal, FollowUpRow, LogFollowUpModal, MoveTo, Owner, StagesModal, useAction, useCrmAccess,
 } from "./parts";
+import { DashKpis } from "../../components/dashboard";
 
 const STAGE_SHADES = ["#9db4f5", "#486fe4", "#263f91", "#172b63", "#6b8be9", "#3554b8", "#0e1c45"];
 
@@ -27,18 +28,17 @@ export function OverviewPage() {
   if (q.isLoading) return <Loading />;
   if (q.error || !q.data) return <ErrorNotice error={q.error} retry={() => q.refetch()} />;
   const { stats, pipeline, followUps, recentWins, leadsToContact } = q.data;
-  const total = pipeline.reduce((s, p) => s + p.value, 0);
   const winsThisMonth = stats.wonThisMonthCount;
   return (
     <>
-      <div className="stats">
-        <Stat label="Open pipeline" value={money(stats.openValue, true)} note={`${stats.openCount} deal${stats.openCount === 1 ? "" : "s"}`} />
-        <Stat label="Won this month" value={money(stats.wonThisMonth, true)} note={`${winsThisMonth} deal${winsThisMonth === 1 ? "" : "s"}`} up={winsThisMonth > 0} />
-        <Stat label="Win rate" value={stats.winRate === null ? "—" : `${stats.winRate}%`} note={stats.winRate === null ? "no closed deals yet" : "last 90 days"} />
-        <Stat label="Follow-ups due" value={stats.followUpsDue} note={stats.followUpsOverdue ? <span className="crm-red">{stats.followUpsOverdue} overdue</span> : "none overdue"} />
-      </div>
+      <DashKpis items={[
+        { label: "Open pipeline", value: money(stats.openValue, true), note: `${stats.openCount} deal${stats.openCount === 1 ? "" : "s"}`, to: "/crm/pipeline" },
+        { label: "Won this month", value: money(stats.wonThisMonth, true), note: `${winsThisMonth} deal${winsThisMonth === 1 ? "" : "s"}` },
+        { label: "Win rate", value: stats.winRate === null ? "—" : `${stats.winRate}%`, note: stats.winRate === null ? "no closed deals yet" : "last 90 days" },
+        { label: "Follow-ups due", value: stats.followUpsDue, note: stats.followUpsOverdue ? <span className="crm-red">{stats.followUpsOverdue} overdue</span> : "none overdue", to: "/crm/follow-ups" },
+      ]} />
       <div className="crm-ov-grid">
-        <Card title="Pipeline by stage" subtitle={`${money(total, true)} across ${stats.openCount} open deal${stats.openCount === 1 ? "" : "s"}`}
+        <Card title="Pipeline by stage" subtitle="Value of open deals at each stage"
           actions={<Link className="crm-link" to="/crm/pipeline">Open pipeline</Link>}>
           {stats.openCount === 0 ? (
             <EmptyState title="No open deals yet" action={<Button size="sm" icon={<Plus size={15} />} onClick={() => navigate("/crm/pipeline?new=deal")}>New deal</Button>}>

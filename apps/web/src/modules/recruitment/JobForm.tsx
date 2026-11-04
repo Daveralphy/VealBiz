@@ -116,7 +116,7 @@ function JobForm({ job }: { job: Job | null }) {
 
   return (
     <>
-      <PageHeader back={{ label: job ? job.title : "All jobs", onClick: () => nav(job ? `/recruitment/jobs/${job.id}` : "/recruitment") }}
+      <PageHeader back={{ label: job ? job.title : "All jobs", onClick: () => nav(job ? `/recruitment/jobs/${job.id}` : "/recruitment/jobs") }}
         title={job ? "Edit job" : "New job"}
         subtitle={job ? (job.status === "draft" ? "This job is a draft." : job.status === "open" ? "This job is open." : "This job is closed.") : "Save it as a draft, or open it to start taking applications."}
         actions={<>
@@ -257,6 +257,6 @@ export function JobFormPage() {
   if (!can("recruitment", "edit")) return <EmptyState title="You can't edit jobs">Ask an admin for edit access to Recruitment.</EmptyState>;
   if (!id) return <JobForm job={null} />;
   if (q.isLoading) return <Loading />;
-  if (q.isError) return <EmptyState title="We couldn't load this job" action={<Button onClick={() => nav("/recruitment")}>Back to jobs</Button>}>{(q.error as Error).message}</EmptyState>;
+  if (q.isError) return <EmptyState title="We couldn't load this job" action={<Button onClick={() => nav("/recruitment/jobs")}>Back to jobs</Button>}>{(q.error as Error).message}</EmptyState>;
   return <JobForm key={q.data!.job.id} job={q.data!.job} />;
 }

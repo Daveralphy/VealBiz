@@ -11,10 +11,10 @@ function watchErrors(page: Page) {
 
 const SCREENS = [
   "/", "/people", "/people/directory", "/people/departments", "/people/leave", "/people/attendance", "/people/onboarding",
-  "/recruitment", "/recruitment/candidates", "/recruitment/interviews", "/recruitment/careers", "/recruitment/jobs/new",
+  "/recruitment", "/recruitment/jobs", "/recruitment/candidates", "/recruitment/interviews", "/recruitment/careers", "/recruitment/jobs/new",
   "/crm", "/crm/pipeline", "/crm/companies", "/crm/leads", "/crm/follow-ups",
-  "/workflows", "/workflows/approvals", "/workflows/all", "/workflows/templates",
-  "/documents", "/documents/recent", "/documents/shared", "/documents/archive",
+  "/workflows", "/workflows/mine", "/workflows/approvals", "/workflows/all", "/workflows/templates",
+  "/documents", "/documents/library", "/documents/recent", "/documents/shared", "/documents/archive",
   "/insights", "/insights/sales", "/insights/people", "/insights/hiring", "/insights/work",
   "/import", "/settings", "/settings/roles", "/billing", "/settings/audit", "/help",
   "/profile", "/profile/edit", "/profile/company", "/profile/company/edit", "/admin", "/admin/organisations", "/admin/people",
@@ -160,12 +160,12 @@ test("the app opens on Welcome, and the website offers Download instead of sign-
 
 test("a screen opened for the first time pauses briefly; going back shows it straight away", async ({ page }) => {
   await signIn(page);
-  await page.locator('nav[aria-label="Main"] a[href="/crm"]').click();
+  await page.locator('.home a[href="/crm"]').click();
   await expect(page.locator(".skel-page")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "CRM" })).toBeVisible();
   await expect(page.locator(".skel-page")).toHaveCount(0);
-  await page.locator('nav[aria-label="Main"] a[href="/people"]').click();
-  await expect(page.getByRole("heading", { level: 1, name: "People & HR" })).toBeVisible();
+  await page.locator('.in-ws .sb a[href="/crm/pipeline"]').click();
+  await expect(page.getByRole("heading", { level: 1, name: "CRM" })).toBeVisible();
   await page.goBack();
   // Seen before: no pause, and it's there at once.
   await expect(page.getByRole("heading", { level: 1, name: "CRM" })).toBeVisible({ timeout: 300 });

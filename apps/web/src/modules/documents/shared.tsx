@@ -28,7 +28,7 @@ export function useFolders() {
 export function useDocsRefresh() {
   const qc = useQueryClient();
   return () => {
-    for (const k of ["dc-folders", "dc-files", "dc-file", "dc-summary", "storage"]) qc.invalidateQueries({ queryKey: [k] });
+    for (const k of ["dc-folders", "dc-files", "dc-file", "dc-summary", "dc-dashboard", "storage"]) qc.invalidateQueries({ queryKey: [k] });
   };
 }
 

@@ -25,7 +25,7 @@ export type Pipeline = { job: Job; stages: { name: string; applications: Card[] 
 
 export type Stats = {
   openRoles: number; draftRoles: number; newApplicantsThisWeek: number; activeCandidates: number; interviewsThisWeek: number;
-  interviewsToday: number; myUpcomingInterviews: number; averageDaysToHire: number | null; previousAverageDaysToHire: number | null;
+  interviewsToday: number; myUpcomingInterviews: number; averageDaysToHire: number | null; previousAverageDaysToHire: number | null; hiredThisMonth: number;
 };
 
 export type Recommendation = "strong_no" | "no" | "yes" | "strong_yes";

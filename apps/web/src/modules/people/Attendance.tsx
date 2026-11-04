@@ -16,7 +16,7 @@ type Row = {
   record: { id: string; clockIn: string | null; clockOut: string | null; source: string; note: string | null; corrected: boolean; onBreak: boolean } | null;
   status: Status; statusLabel: string; minutes: number | null; leaveType: string | null;
 };
-type Board = { date: string; workdayStart: string; rows: Row[]; stats: { total: number; present: number; late: number; away: number; notIn: number } };
+export type Board = { date: string; workdayStart: string; rows: Row[]; stats: { total: number; present: number; late: number; away: number; notIn: number } };
 
 const TONE: Record<Status, Tone> = { present: "ok", late: "warn", not_in: "grey", on_leave: "blue", sick: "red" };
 

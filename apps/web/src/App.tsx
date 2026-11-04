@@ -9,7 +9,7 @@ import { SetupRoutes } from "./pages/setup";
 import { BillingPage, SettingsRoutes } from "./pages/settings";
 import { ProfileRoutes } from "./pages/profile";
 import { AdminRoutes } from "./pages/admin";
-import { Overview } from "./pages/overview/Overview";
+import { Home } from "./pages/home";
 import { Help, NotFound, DevMailbox } from "./pages/misc";
 import PeopleModule from "./modules/people";
 import RecruitmentModule from "./modules/recruitment";
@@ -83,7 +83,7 @@ const router = createBrowserRouter([{ element: <Root />, children: [
   {
     element: <Gate need="app" />,
     children: [
-      { path: "/", element: <Overview /> },
+      { path: "/", element: <Home /> },
       { path: "/people/*", element: <PeopleModule /> },
       { path: "/recruitment/*", element: <RecruitmentModule /> },
       { path: "/crm/*", element: <CrmModule /> },

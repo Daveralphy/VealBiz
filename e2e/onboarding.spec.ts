@@ -33,7 +33,7 @@ test("a new business signs up, sets up and lands on Overview", async ({ page }) 
   await expect(page.getByRole("heading", { name: /You're all set/ })).toBeVisible();
   await page.getByRole("link", { name: /Go to my workspace/ }).click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Ada");
-  await expect(page.getByText("Finish setting up")).toBeVisible();
+  await expect(page.locator(".home-tile").first()).toBeVisible();
 });
 
 test("wrong password shows one clear message", async ({ page }) => {
@@ -47,9 +47,13 @@ test("wrong password shows one clear message", async ({ page }) => {
 test("the admin sees the demo business and can open each workspace", async ({ page }) => {
   await signIn(page);
   await expect(page.getByText("Example Trading").first()).toBeVisible();
+  // Home has a tile for each workspace; each opens on its own dashboard, and Home is back in the account menu.
   for (const [href, heading] of [["/recruitment", "Recruitment"], ["/people", "People & HR"], ["/crm", "CRM"], ["/workflows", "Workflows"], ["/documents", "Documents"], ["/insights", "Insights"], ["/settings", "Settings"]] as const) {
-    await page.locator(`nav[aria-label="Main"] a[href="${href}"]`).click();
+    await page.locator(`.home a[href="${href}"]`).click();
     await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+    await page.getByRole("button", { name: "Account menu" }).first().click();
+    await page.locator(".menu-float").getByRole("button", { name: "Home" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: /Good (morning|afternoon|evening)/ })).toBeVisible();
   }
 });
 
@@ -64,5 +68,5 @@ test("only WindVeal admins can open the admin panel", async ({ page }) => {
   await signIn(page, "member@example-trading.test");
   await page.goto("/admin");
   await expect(page).toHaveURL(`${APP_URL}/`);
-  await expect(page.locator('nav[aria-label="Main"] a[href="/admin"]')).toHaveCount(0);
+  await expect(page.locator('.home a[href="/admin"]')).toHaveCount(0);
 });

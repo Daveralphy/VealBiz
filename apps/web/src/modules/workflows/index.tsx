@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Columns3, List, Plus } from "lucide-react";
-import { Button, EmptyState, PageHeader, Tabs } from "@windveal/ui";
+import { Button, EmptyState, PageHeader } from "@windveal/ui";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { NewTaskModal, TaskBoard, TaskDrawer, TaskFilterBar, TaskList, useTaskList, type TaskFilters } from "./tasks";
 import { ApprovalsView } from "./approvals";
 import { TemplatesView } from "./templates";
+import { WorkflowsDashboard } from "./dashboard";
 import "./workflows.css";
 
 const EMPTY: TaskFilters = { q: "", workspace: "", priority: "", createdBy: "" };
@@ -34,7 +35,6 @@ function TasksTab({ scope, view, onOpen, onNew }: { scope: "mine" | "all"; view:
 
 export default function WorkflowsModule() {
   const { can } = useSession();
-  const navigate = useNavigate();
   const loc = useLocation();
   const [params, setParams] = useSearchParams();
   const [view, setView] = useState<"list" | "board">(readView);
@@ -46,8 +46,8 @@ export default function WorkflowsModule() {
     return <><PageHeader title="Workflows" /><EmptyState title="You don't have access to Workflows">Ask an admin if you need it.</EmptyState></>;
   }
 
-  const tab = loc.pathname.startsWith("/workflows/approvals") ? "approvals" : loc.pathname.startsWith("/workflows/all") ? "all"
-    : loc.pathname.startsWith("/workflows/templates") ? "templates" : "mine";
+  const path = loc.pathname.replace(/\/+$/, "");
+  const page = path === "/workflows" ? "dashboard" : path.startsWith("/workflows/mine") ? "mine" : path.startsWith("/workflows/all") ? "all" : "other";
   const taskId = params.get("task");
   const newOpen = params.get("new") === "task";
   const setParam = (k: string, v: string | null) => {
@@ -62,7 +62,7 @@ export default function WorkflowsModule() {
   };
   const openTask = (id: string) => setParam("task", id);
   const newTask = () => setParam("new", "task");
-  const isTaskTab = tab === "mine" || tab === "all";
+  const isTaskPage = page === "mine" || page === "all";
   const my = summary?.myTasks ?? 0;
   const waiting = summary?.approvalsWaiting ?? 0;
 
@@ -70,9 +70,10 @@ export default function WorkflowsModule() {
     <div className="wf">
       <PageHeader
         title="Workflows"
-        subtitle={summary ? `${my} task${my === 1 ? "" : "s"} for you · ${waiting} approval${waiting === 1 ? "" : "s"} waiting` : " "}
+        // The dashboard shows these counts itself, so its header doesn't repeat them.
+        subtitle={page === "dashboard" ? "Tasks, approvals and checklists" : summary ? `${my} task${my === 1 ? "" : "s"} for you · ${waiting} approval${waiting === 1 ? "" : "s"} waiting` : " "}
         actions={<>
-          {isTaskTab && (
+          {isTaskPage && (
             <Button variant="secondary" className="hide-sm" icon={view === "list" ? <Columns3 size={16} /> : <List size={16} />} onClick={toggleView}>
               {view === "list" ? "Board view" : "List view"}
             </Button>
@@ -80,18 +81,9 @@ export default function WorkflowsModule() {
           {can("workflows", "edit") && <Button className="wf-new-btn" icon={<Plus size={16} />} onClick={newTask}>New task</Button>}
         </>}
       />
-      <Tabs
-        value={tab}
-        onChange={(k) => navigate(k === "mine" ? "/workflows" : `/workflows/${k}`)}
-        items={[
-          { key: "mine", label: "My tasks", count: my },
-          { key: "approvals", label: "Approvals", count: waiting },
-          { key: "all", label: "All tasks" },
-          { key: "templates", label: "Templates" },
-        ]}
-      />
       <Routes>
-        <Route index element={<TasksTab key="mine" scope="mine" view={view} onOpen={openTask} onNew={newTask} />} />
+        <Route index element={<WorkflowsDashboard onOpen={openTask} />} />
+        <Route path="mine" element={<TasksTab key="mine" scope="mine" view={view} onOpen={openTask} onNew={newTask} />} />
         <Route path="all" element={<TasksTab key="all" scope="all" view={view} onOpen={openTask} onNew={newTask} />} />
         <Route path="approvals" element={<ApprovalsView />} />
         <Route path="templates" element={<TemplatesView />} />

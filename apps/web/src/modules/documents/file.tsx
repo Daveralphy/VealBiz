@@ -19,7 +19,7 @@ type Detail = {
 };
 
 const LINK_ROUTE: Record<string, (id: string) => string> = {
-  task: (id) => `/workflows?task=${id}`,
+  task: (id) => `/workflows/mine?task=${id}`,
 };
 
 export function FilePage() {
@@ -46,7 +46,7 @@ export function FilePage() {
   if (error || !data) {
     return (
       <EmptyState title={error instanceof ApiError && error.status === 404 ? "File not found" : "Couldn't open this file"} icon={<FileQuestion size={24} />}
-        action={<Button variant="secondary" onClick={() => navigate("/documents")}>Back to Documents</Button>}>
+        action={<Button variant="secondary" onClick={() => navigate("/documents/library")}>Back to all files</Button>}>
         {error instanceof ApiError && error.status === 404 ? "It may have been deleted, or it's in a folder you can't see." : "Please try again."}
       </EmptyState>
     );
@@ -92,7 +92,7 @@ export function FilePage() {
 
   return (
     <div className="dc-file">
-      <button className="back-link dc-back" onClick={() => navigate(parent ? `/documents/folder/${parent.id}` : "/documents")}>
+      <button className="back-link dc-back" onClick={() => navigate(parent ? `/documents/folder/${parent.id}` : "/documents/library")}>
         <ChevronLeft size={16} />{parent?.name ?? "All files"}
       </button>
       <div className="dc-file-head">
@@ -224,7 +224,7 @@ export function FilePage() {
       <ConfirmDialog open={del} onClose={() => setDel(false)} danger confirmLabel="Delete file" title={`Delete ${f.name}?`}
         onConfirm={async () => {
           setDel(false);
-          try { await api.del(`/api/documents/files/${f.id}`); refresh(); toast("File deleted"); navigate(parent ? `/documents/folder/${parent.id}` : "/documents"); }
+          try { await api.del(`/api/documents/files/${f.id}`); refresh(); toast("File deleted"); navigate(parent ? `/documents/folder/${parent.id}` : "/documents/library"); }
           catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't delete the file.", "error"); }
         }}>
         It will be removed everywhere it's linked. If you might need it later, archive it instead.

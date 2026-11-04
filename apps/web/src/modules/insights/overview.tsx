@@ -74,7 +74,7 @@ export function OverviewPage({ range }: { range: string }) {
             <EmptyState title="No employees yet">Add people in People & HR to see them here.</EmptyState>
           ) : <HBarChart data={d.headcountByDepartment.slice(0, 8)} />}
         </ChartCard>
-        <ChartCard title="Days to hire" subtitle="Average from application to hired" link={{ to: "/insights/hiring", label: "Hiring report" }}>
+        <ChartCard title="Time to hire, month by month" subtitle="Average days from application to hired" link={{ to: "/insights/hiring", label: "Hiring report" }}>
           {!d.daysToHireByMonth ? <NoAccess /> : d.daysToHireByMonth.every((m) => !m.hires) ? (
             <EmptyState title="No hires yet">This fills in as candidates are marked Hired.</EmptyState>
           ) : <LineChart data={d.daysToHireByMonth} />}

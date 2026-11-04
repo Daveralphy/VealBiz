@@ -26,6 +26,7 @@ import documentRoutes from "./modules/documents/routes";
 import importRoutes from "./modules/imports/routes";
 import insightRoutes from "./modules/insights/routes";
 import adminRoutes from "./modules/admin/routes";
+import homeRoutes from "./modules/home/routes";
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: opts.logger ?? false, trustProxy: true, bodyLimit: 2 * 1024 * 1024 });
@@ -73,7 +74,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
 
   for (const routes of [
     authRoutes, orgRoutes, memberRoutes, fileRoutes, auditRoutes, devRoutes, overviewRoutes,
-    peopleRoutes, recruitmentRoutes, careersRoutes, crmRoutes, workflowRoutes, documentRoutes, importRoutes, insightRoutes, adminRoutes,
+    peopleRoutes, recruitmentRoutes, careersRoutes, crmRoutes, workflowRoutes, documentRoutes, importRoutes, insightRoutes, adminRoutes, homeRoutes,
   ]) {
     await app.register(routes);
   }

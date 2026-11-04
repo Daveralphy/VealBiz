@@ -1,4 +1,4 @@
-import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
 import { Download, Plus } from "lucide-react";
 import { Button, EmptyState, PageHeader } from "@windveal/ui";
 import { useSession } from "../../lib/session";
@@ -8,29 +8,17 @@ import { ProfilePage } from "./Profile";
 import { Departments } from "./Departments";
 import { LeavePage } from "./Leave";
 import { AttendancePage } from "./Attendance";
+import { PeopleDashboard } from "./Dashboard";
 import { OnboardingPage } from "./Onboarding";
 import { EmployeeDrawer } from "./EmployeeForm";
 import "./people.css";
-
-// Attendance is the first thing people see; the Directory has its own tab.
-const TABS = [
-  { to: "/people", label: "Attendance" },
-  { to: "/people/directory", label: "Directory" },
-  { to: "/people/departments", label: "Departments" },
-  { to: "/people/leave", label: "Leave", count: "leave" as const },
-  { to: "/people/onboarding", label: "Onboarding", count: "onboarding" as const },
-];
-const SECTIONS = ["", "attendance", "departments", "leave", "onboarding"];
 
 export default function PeopleModule() {
   const { can, hasSpecial } = useSession();
   const stats = useStats();
   const [params, setParams] = useSearchParams();
-  const { pathname } = useLocation();
   const navigate = useNavigate();
   const adding = params.get("new") === "employee";
-  const section = pathname.split("/")[2] ?? "";
-  const isDirectory = !SECTIONS.includes(section);
 
   if (!can("people", "view")) {
     return (
@@ -58,25 +46,12 @@ export default function PeopleModule() {
           {can("people", "edit") && <Button className="ppl-add" icon={<Plus size={16} strokeWidth={2.4} />} onClick={openAdd}>Add employee</Button>}
         </>}
       />
-      <nav className="tabs" aria-label="People & HR sections">
-        {TABS.map((t) => {
-          const count = t.count === "leave" ? s?.pendingForMe : t.count === "onboarding" ? s?.onboardingInProgress : undefined;
-          // Employee profiles count as the Directory.
-          const active = t.to === "/people" ? section === "" || section === "attendance" : t.to === "/people/directory" ? isDirectory : pathname.startsWith(t.to);
-          return (
-            <NavLink key={t.to} to={t.to} end className={`tab ${active ? "active" : ""}`} aria-current={active ? "page" : undefined}>
-              {t.label}
-              {!!count && <span className="count">{count}</span>}
-            </NavLink>
-          );
-        })}
-      </nav>
       <Routes>
-        <Route index element={<AttendancePage />} />
+        <Route index element={<PeopleDashboard />} />
+        <Route path="attendance" element={<AttendancePage />} />
         <Route path="directory" element={<Directory onAdd={openAdd} />} />
         <Route path="departments" element={<Departments />} />
         <Route path="leave" element={<LeavePage />} />
-        <Route path="attendance" element={<Navigate to="/people" replace />} />
         <Route path="onboarding" element={<OnboardingPage />} />
         <Route path="employees/:id" element={<ProfilePage />} />
         <Route path=":id" element={<ProfilePage />} />

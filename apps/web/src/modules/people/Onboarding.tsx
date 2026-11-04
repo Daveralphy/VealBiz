@@ -47,7 +47,7 @@ export function OnboardingPage() {
             <option value="done">Completed</option>
             <option value="all">All</option>
           </select>
-          <Link to="/workflows" className="btn btn-ghost btn-sm">Checklist templates</Link>
+          <Link to="/workflows/templates" className="btn btn-ghost btn-sm">Checklist templates</Link>
         </div>
         {list.isLoading ? <Loading /> : list.isError ? <Notice tone="error">{(list.error as Error).message}</Notice>
           : !list.data?.length ? (

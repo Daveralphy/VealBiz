@@ -43,8 +43,8 @@ export function LineChart({ data, height = 170 }: { data: { label: string; value
     <div>
       <div style={{ height, borderBottom: "1px solid var(--line)" }}>
         <svg viewBox="0 0 300 120" preserveAspectRatio="none" style={{ width: "100%", height: "100%" }}>
-          <polyline fill="rgba(72,111,228,.08)" stroke="none" points={`0,120 ${pts} 300,120`} />
-          <polyline fill="none" stroke="#486FE4" strokeWidth="3" points={pts} vectorEffect="non-scaling-stroke" />
+          <polyline fill="var(--ws-t, rgba(72,111,228,.08))" stroke="none" points={`0,120 ${pts} 300,120`} />
+          <polyline fill="none" stroke="var(--ws-c, #486FE4)" strokeWidth="3" points={pts} vectorEffect="non-scaling-stroke" />
         </svg>
       </div>
       <div className="bar-labels">{data.map((d, i) => <span key={i}>{d.label}</span>)}</div>

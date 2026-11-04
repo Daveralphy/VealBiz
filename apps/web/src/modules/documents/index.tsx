@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Navigate, Route, Routes, useLocation, useMatch, useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, Route, Routes, useMatch, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { FolderPlus, Upload } from "lucide-react";
-import { Button, EmptyState, PageHeader, Tabs } from "@windveal/ui";
+import { Button, EmptyState, PageHeader } from "@windveal/ui";
 import { formatBytes } from "@windveal/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { Library, type LibraryView } from "./library";
 import { FilePage } from "./file";
+import { DocumentsDashboard } from "./dashboard";
 import { UploadModal } from "./upload";
 import { NewFolderModal, useFolders } from "./shared";
 import "./documents.css";
@@ -20,7 +21,6 @@ function FolderRoute({ view, onUpload, archived }: { view: LibraryView; onUpload
 export default function DocumentsModule() {
   const { can } = useSession();
   const navigate = useNavigate();
-  const loc = useLocation();
   const [params, setParams] = useSearchParams();
   const [newFolder, setNewFolder] = useState(false);
   const { data: summary } = useQuery({ queryKey: ["dc-summary"], queryFn: () => api.get<{ files: number; archived: number }>("/api/documents/summary"), enabled: can("documents", "view") });
@@ -28,6 +28,8 @@ export default function DocumentsModule() {
   const { data: tree } = useFolders();
   const folderMatch = useMatch("/documents/folder/:id");
   const folderId = folderMatch?.params.id ?? null;
+  // The dashboard already shows the file count and storage, so its header doesn't repeat them.
+  const onDashboard = !!useMatch("/documents");
 
   if (!can("documents", "view")) {
     return <><PageHeader title="Documents" /><EmptyState title="You don't have access to Documents">Ask an admin if you need it.</EmptyState></>;
@@ -40,9 +42,7 @@ export default function DocumentsModule() {
     if (open) p.set("upload", "1"); else p.delete("upload");
     setParams(p, { replace: true });
   };
-  const tab = loc.pathname.startsWith("/documents/recent") ? "recent" : loc.pathname.startsWith("/documents/shared") ? "shared"
-    : loc.pathname.startsWith("/documents/archive") ? "archive" : "all";
-  const subtitle = summary
+  const subtitle = onDashboard ? "Every business file in one place" : summary
     ? `${summary.files.toLocaleString("en-GB")} file${summary.files === 1 ? "" : "s"}${storage ? ` · ${formatBytes(storage.used)} of ${formatBytes(storage.limit)} used` : ""}`
     : " ";
 
@@ -53,10 +53,9 @@ export default function DocumentsModule() {
           <Button variant="secondary" className="hide-sm" icon={<FolderPlus size={16} />} onClick={() => setNewFolder(true)}>New folder</Button>
           <Button className="dc-upload-btn" icon={<Upload size={16} />} onClick={() => setUpload(true)}>Upload</Button>
         </> : undefined} />
-      <Tabs value={tab} onChange={(k) => navigate(k === "all" ? "/documents" : `/documents/${k}`)}
-        items={[{ key: "all", label: "All files" }, { key: "recent", label: "Recent" }, { key: "shared", label: "Shared with me" }, { key: "archive", label: "Archive" }]} />
       <Routes>
-        <Route index element={<FolderRoute view="all" onUpload={() => setUpload(true)} archived={summary?.archived ?? 0} />} />
+        <Route index element={<DocumentsDashboard />} />
+        <Route path="library" element={<FolderRoute view="all" onUpload={() => setUpload(true)} archived={summary?.archived ?? 0} />} />
         <Route path="folder/:id" element={<FolderRoute view="all" onUpload={() => setUpload(true)} archived={summary?.archived ?? 0} />} />
         <Route path="recent" element={<FolderRoute view="recent" onUpload={() => setUpload(true)} archived={summary?.archived ?? 0} />} />
         <Route path="shared" element={<FolderRoute view="shared" onUpload={() => setUpload(true)} archived={summary?.archived ?? 0} />} />

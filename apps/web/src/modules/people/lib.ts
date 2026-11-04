@@ -30,8 +30,8 @@ export type Profile = Employee & {
 
 export type Stats = {
   headcount: number; joinedThisQuarter: number; departments: number;
-  onLeaveToday: { count: number; names: string[] };
-  startingSoon: { count: number; nextStart: string | null };
+  onLeaveToday: { count: number; names: string[]; until: string | null };
+  startingSoon: { count: number; nextStart: string | null; next14Days: number };
   leaving: { count: number; next: { name: string; endDate: string | null } | null };
   pendingForMe: number; onboardingInProgress: number; myEmployeeId: string | null;
 };

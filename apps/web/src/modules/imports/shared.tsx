@@ -66,7 +66,7 @@ export const WORKSPACE_LINKS: Record<string, { to: string; label: string }> = {
   "people.employees": { to: "/people/directory", label: "View employees" },
   "crm.companies": { to: "/crm/companies", label: "View companies" },
   "crm.leads": { to: "/crm/leads", label: "View leads" },
-  "recruitment.jobs": { to: "/recruitment", label: "View job openings" },
+  "recruitment.jobs": { to: "/recruitment/jobs", label: "View job openings" },
 };
 
 const STEPS = ["Upload", "Sheets", "Map fields", "Review", "Import"];

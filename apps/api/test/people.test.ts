@@ -60,6 +60,8 @@ describe("people: employees", () => {
     const stats = (await c.get("/api/people/stats")).body;
     expect(stats.headcount).toBeGreaterThanOrEqual(2);
     expect(stats.startingSoon.count).toBeGreaterThanOrEqual(1);
+    expect(stats.startingSoon.next14Days).toBeGreaterThanOrEqual(1);
+    expect(stats.onLeaveToday).toHaveProperty("until", null);
     expect(stats.onboardingInProgress).toBeGreaterThanOrEqual(1);
 
     const upd = await c.patch(`/api/people/employees/${kofi.id}`, { jobTitle: "Sales Team Lead" });

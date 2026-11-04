@@ -1,9 +1,10 @@
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Route, Routes, useNavigate } from "react-router-dom";
 import { Globe, Plus } from "lucide-react";
-import { Button, EmptyState, PageHeader, Tabs } from "@windveal/ui";
+import { Button, EmptyState, PageHeader } from "@windveal/ui";
 import { useSession } from "../../lib/session";
 import { useStats } from "./data";
 import { JobsPage } from "./JobsPage";
+import { RecruitmentDashboard } from "./Dashboard";
 import { JobFormPage } from "./JobForm";
 import { PipelinePage } from "./Pipeline";
 import { CandidatePage } from "./CandidatePage";
@@ -12,18 +13,9 @@ import { InterviewsTab } from "./InterviewsTab";
 import { CareersTab } from "./CareersTab";
 import "./recruitment.css";
 
-function tabFor(path: string) {
-  const rest = path.replace(/^\/recruitment\/?/, "");
-  if (rest.startsWith("candidates") || rest.startsWith("applications")) return "candidates";
-  if (rest.startsWith("interviews")) return "interviews";
-  if (rest.startsWith("careers")) return "careers";
-  return "jobs";
-}
-
 export default function RecruitmentModule() {
   const { can } = useSession();
   const nav = useNavigate();
-  const loc = useLocation();
   const stats = useStats();
   const s = stats.data;
 
@@ -36,28 +28,19 @@ export default function RecruitmentModule() {
     );
   }
 
-  const tab = tabFor(loc.pathname);
-  const go = (k: string) => nav(k === "jobs" ? "/recruitment" : `/recruitment/${k}`);
-
   return (
     <div className="rc">
       <PageHeader
         title="Recruitment"
-        subtitle={s ? `${s.openRoles} open role${s.openRoles === 1 ? "" : "s"} · ${s.activeCandidates} active candidate${s.activeCandidates === 1 ? "" : "s"}` : " "}
+        subtitle={s ? `${s.activeCandidates} active candidate${s.activeCandidates === 1 ? "" : "s"}` : " "}
         actions={<>
           <Button variant="secondary" className="hide-sm" icon={<Globe size={16} />} onClick={() => nav("/recruitment/careers")}>Careers page</Button>
           {can("recruitment", "edit") && <Button className="rc-block-sm" icon={<Plus size={16} />} onClick={() => nav("/recruitment/jobs/new")}>New job</Button>}
         </>}
       />
-      <Tabs value={tab} onChange={go} items={[
-        { key: "jobs", label: "Jobs" },
-        { key: "candidates", label: "Candidates" },
-        { key: "interviews", label: "Interviews", count: s?.myUpcomingInterviews || s?.interviewsThisWeek || 0 },
-        { key: "careers", label: "Careers page" },
-      ]} />
       <Routes>
-        <Route index element={<JobsPage />} />
-        <Route path="jobs" element={<Navigate to="/recruitment" replace />} />
+        <Route index element={<RecruitmentDashboard />} />
+        <Route path="jobs" element={<JobsPage />} />
         <Route path="jobs/new" element={<JobFormPage />} />
         <Route path="jobs/:id/edit" element={<JobFormPage />} />
         <Route path="jobs/:id" element={<PipelinePage />} />
@@ -65,7 +48,7 @@ export default function RecruitmentModule() {
         <Route path="candidates" element={<CandidatesTab />} />
         <Route path="interviews" element={<InterviewsTab />} />
         <Route path="careers" element={<CareersTab />} />
-        <Route path="*" element={<EmptyState title="Page not found" action={<Button onClick={() => nav("/recruitment")}>Back to jobs</Button>} />} />
+        <Route path="*" element={<EmptyState title="Page not found" action={<Button onClick={() => nav("/recruitment/jobs")}>Back to jobs</Button>} />} />
       </Routes>
     </div>
   );

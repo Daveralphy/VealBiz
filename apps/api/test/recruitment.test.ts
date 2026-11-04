@@ -136,6 +136,7 @@ describe("recruitment and careers", () => {
     const stats = (await admin.get("/api/recruitment/stats")).body;
     expect(stats.openRoles).toBe(1);
     expect(stats.newApplicantsThisWeek).toBe(1);
+    expect(stats.hiredThisMonth).toBe(0);
 
     // Move stage (but not straight to Hired).
     expect((await admin.post(`/api/recruitment/applications/${appId}/stage`, { stage: "Nope" })).status).toBe(400);
@@ -216,6 +217,7 @@ describe("recruitment and careers", () => {
     const hired = (await admin.get(`/api/recruitment/applications/${appId}`)).body;
     expect(hired.application.stage).toBe("Hired");
     expect(hired.application.employeeId).toBe(emps[0]!.id);
+    expect((await admin.get("/api/recruitment/stats")).body.hiredThisMonth).toBe(1);
   });
 
   it("enforces workspace access and keeps organisations apart", async () => {

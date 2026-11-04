@@ -59,7 +59,7 @@ export function PipelinePage() {
 
   if (pipe.isLoading) return <Loading />;
   if (pipe.isError) {
-    return <EmptyState title="We couldn't load this job" action={<Button onClick={() => nav("/recruitment")}>Back to jobs</Button>}>{(pipe.error as Error).message}</EmptyState>;
+    return <EmptyState title="We couldn't load this job" action={<Button onClick={() => nav("/recruitment/jobs")}>Back to jobs</Button>}>{(pipe.error as Error).message}</EmptyState>;
   }
   const { job, stages, rejected } = pipe.data!;
   const last = job.stages[job.stages.length - 1]!;
@@ -100,7 +100,7 @@ export function PipelinePage() {
 
   return (
     <>
-      <PageHeader back={{ label: "All jobs", onClick: () => nav("/recruitment") }}
+      <PageHeader back={{ label: "All jobs", onClick: () => nav("/recruitment/jobs") }}
         title={<span className="row" style={{ gap: 12, flexWrap: "wrap" }}>{job.title}{statusPill(job.status)}</span>}
         subtitle={meta || undefined}
         actions={<>

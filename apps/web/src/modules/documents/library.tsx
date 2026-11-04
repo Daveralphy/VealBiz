@@ -40,7 +40,7 @@ function FolderTreeNav({ folders, rootTotal, current, archived, view }: { folder
     });
   return (
     <nav className="dc-tree" aria-label="Folders">
-      <Link to="/documents" className={`dc-tree-item ${!current && view === "all" ? "on" : ""}`}><Folder size={15} /><span>All files</span><small>{rootTotal}</small></Link>
+      <Link to="/documents/library" className={`dc-tree-item ${!current && view === "all" ? "on" : ""}`}><Folder size={15} /><span>All files</span><small>{rootTotal}</small></Link>
       {render(null, 0)}
       <hr />
       <Link to="/documents/archive" className={`dc-tree-item ${view === "archive" ? "on" : ""}`}><Archive size={15} /><span>Archive</span><small>{archived}</small></Link>
@@ -90,7 +90,7 @@ export function Library({ view, folderId, onUpload, archivedCount }: { view: Lib
   if (treeLoading) return <Loading />;
   if (treeError) return <Notice tone="error">{treeError instanceof ApiError ? treeError.message : "Couldn't load your folders."}</Notice>;
   if (folderId && !current) {
-    return <EmptyState title="Folder not found" action={<Button variant="secondary" onClick={() => navigate("/documents")}>Back to all files</Button>}>It may have been deleted, or you don't have access to it.</EmptyState>;
+    return <EmptyState title="Folder not found" action={<Button variant="secondary" onClick={() => navigate("/documents/library")}>Back to all files</Button>}>It may have been deleted, or you don't have access to it.</EmptyState>;
   }
 
   const fileMenu = (f: FileRow) => (
@@ -155,7 +155,7 @@ export function Library({ view, folderId, onUpload, archivedCount }: { view: Lib
         {view === "all" && (
           <div className="between dc-crumbs-row">
             <nav className="dc-crumbs" aria-label="Breadcrumb">
-              <Link to="/documents">All files</Link>
+              <Link to="/documents/library">All files</Link>
               {path.map((p, i) => (
                 <span key={p.id} className="row" style={{ gap: 6 }}>
                   <ChevronRight size={14} />
@@ -253,7 +253,7 @@ export function Library({ view, folderId, onUpload, archivedCount }: { view: Lib
           try {
             await api.del(`/api/documents/folders/${folderId}`);
             refresh(); toast("Folder deleted");
-            navigate(current?.parentId ? `/documents/folder/${current.parentId}` : "/documents");
+            navigate(current?.parentId ? `/documents/folder/${current.parentId}` : "/documents/library");
           } catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't delete the folder.", "error"); }
         }}>
         Only empty folders can be deleted.
