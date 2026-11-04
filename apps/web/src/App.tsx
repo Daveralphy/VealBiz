@@ -1,7 +1,7 @@
 import { Navigate, Outlet, RouterProvider, ScrollRestoration, createBrowserRouter, useLocation, useNavigationType } from "react-router-dom";
 import { useFirstVisitHold } from "@windveal/ui";
 import { Splash } from "./components/Splash";
-import { AccountPaused, Welcome } from "./pages/welcome";
+import { AccountPaused, JoinInvitation, Welcome } from "./pages/welcome";
 import { ReviewStatus } from "./pages/review";
 import { useMe } from "./lib/session";
 import { AppShell } from "./layouts/AppShell";
@@ -28,6 +28,8 @@ function Gate({ need }: { need: "app" | "setup" }) {
   // Opening the app signed out starts at Welcome; a deeper link goes to sign-in and comes back after.
   if (!me.user) return <Navigate to={loc.pathname === "/" ? "/welcome" : `/sign-in?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
   if (!me.user.emailVerified) return <Navigate to="/verify-email" replace />;
+  // Invited, but signed up the usual way: join that business rather than setting one up.
+  if (!me.org && me.pendingInvitation) return <JoinInvitation invite={me.pendingInvitation} />;
   if (!me.org) return need === "setup" ? <Outlet /> : <Navigate to="/setup" replace />;
   // WindVeal has suspended or closed this organisation (WindVeal's own admins still get in to sort it out).
   if (me.org.accountStatus !== "active" && !me.user.platformAdmin) {

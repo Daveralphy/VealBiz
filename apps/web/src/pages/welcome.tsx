@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { BrandLogo } from "@windveal/ui";
+import { BrandLogo, Button, useToast } from "@windveal/ui";
+import { api, ApiError } from "../lib/api";
+import { useSetMe, type Me } from "../lib/session";
 import { useSignOut } from "../lib/signout";
 import { SUPPORT_EMAIL } from "../lib/config";
 
@@ -43,6 +45,37 @@ export function AccountPaused({ orgName, status, reason }: { orgName: string; st
         </div>
         <div className="welcome-actions">
           <a href={`mailto:${SUPPORT_EMAIL}`} className="btn btn-light btn-lg">Contact support</a>
+          <button className="btn btn-outline-light btn-lg" onClick={signOut.ask}>Sign out</button>
+        </div>
+      </div>
+      {signOut.dialog}
+    </div>
+  );
+}
+
+/** Shown to someone who signed up with an email that was invited to a business: one click to join it. */
+export function JoinInvitation({ invite }: { invite: NonNullable<Me["pendingInvitation"]> }) {
+  const signOut = useSignOut();
+  const setMe = useSetMe();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { document.title = `Join ${invite.orgName} · WindVeal`; }, [invite.orgName]);
+  const join = async () => {
+    setBusy(true);
+    try { setMe(await api.post<Me>("/api/invitations/accept-waiting")); }
+    catch (e) { toast(e instanceof ApiError ? e.message : "Couldn't join just now", "error"); setBusy(false); }
+  };
+  return (
+    <div className="welcome">
+      <div className="welcome-photo" aria-hidden />
+      <div className="welcome-in page-enter">
+        <BrandLogo height={44} tone="light" />
+        <div className="welcome-copy">
+          <h1>You're invited to <span>{invite.orgName}.</span></h1>
+          <p>{invite.invitedBy ? `${invite.invitedBy} invited you` : "You've been invited"} to join as {invite.roleName === "Admin" ? "an admin" : invite.roleName}. You'll see what your role allows as soon as you join.</p>
+        </div>
+        <div className="welcome-actions">
+          <Button className="btn-light btn-lg" loading={busy} onClick={join}>Join {invite.orgName}</Button>
           <button className="btn btn-outline-light btn-lg" onClick={signOut.ask}>Sign out</button>
         </div>
       </div>

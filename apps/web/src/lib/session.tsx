@@ -18,7 +18,7 @@ export type Me = {
     roleId: string | null; roleName: string | null;
     access: Record<Workspace, AccessLevel>; special: string[];
   } | null;
-  pendingInvitation: { orgName: string; role: string } | null;
+  pendingInvitation: { orgName: string; role: string; roleName: string; invitedBy: string | null; logoFileId: string | null } | null;
 };
 
 export const ME_KEY = ["me"];

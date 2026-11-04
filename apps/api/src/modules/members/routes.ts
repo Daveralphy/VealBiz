@@ -291,6 +291,17 @@ export default async function memberRoutes(app: FastifyInstance) {
   app.post<{ Params: { token: string } }>("/api/invite/:token/accept", async (req) => {
     const auth = requireUser(req);
     const [inv] = await db.select().from(invitations).where(eq(invitations.tokenHash, sha256(req.params.token))).limit(1);
+    return acceptInvitation(auth, inv);
+  });
+
+  /** Someone who signed up the usual way with an invited email: their waiting invitation, without the link. */
+  app.post("/api/invitations/accept-waiting", async (req) => {
+    const auth = requireUser(req);
+    const row = await waitingInvitation(auth.user.email);
+    return acceptInvitation(auth, row?.i);
+  });
+
+  async function acceptInvitation(auth: ReturnType<typeof requireUser>, inv: typeof invitations.$inferSelect | undefined) {
     if (!inv || inv.revokedAt) throw notFound("This invitation");
     if (inv.acceptedAt) throw conflict("This invitation has already been used.");
     if (inv.expiresAt < new Date()) throw badRequest("This invitation has expired. Ask your admin to send a new one.");
@@ -307,7 +318,7 @@ export default async function memberRoutes(app: FastifyInstance) {
       await notify(inv.orgId, inv.invitedBy, `${auth.user.name} joined ${org!.tradingName || org!.legalName}`, undefined, "/settings/members", tx);
     });
     return mePayload(auth.user.id);
-  });
+  }
 
   app.get("/api/members/assignable", async (req) => {
     const ctx = await requireOrg(req);

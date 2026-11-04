@@ -12,6 +12,7 @@ import { AppError, badRequest, conflict, parse } from "../../lib/http";
 import { sendMail } from "../../lib/mailer";
 import { env } from "../../env";
 import { audit } from "../../lib/audit";
+import { loadRole } from "../../lib/roles";
 
 const DAY = 86_400_000;
 // Generous limit under automated tests (many sign-ups from one address), strict otherwise.
@@ -99,7 +100,11 @@ export async function mePayload(userId: string) {
       roleId: mine!.m.roleId, roleName: mine!.role?.name ?? (row.m.role === "admin" ? "Admin" : null),
       access: computeAccess(row.o, mine!.m, mine!.role), special: computeSpecial(row.o, mine!.m, mine!.role),
     } : null,
-    pendingInvitation: invite ? { orgName: invite.o.tradingName || invite.o.legalName, role: invite.i.role } : null,
+    pendingInvitation: invite ? {
+      orgName: invite.o.tradingName || invite.o.legalName, role: invite.i.role, logoFileId: invite.o.logoFileId,
+      roleName: invite.i.role === "admin" ? "Admin" : (await loadRole(invite.o.id, invite.i.roleId))?.name ?? invite.i.role,
+      invitedBy: (await db.select({ name: users.name }).from(users).where(eq(users.id, invite.i.invitedBy)).limit(1))[0]?.name ?? null,
+    } : null,
   };
 }
 

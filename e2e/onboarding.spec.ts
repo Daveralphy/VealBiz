@@ -163,3 +163,25 @@ test("only WindVeal admins can open the admin panel", async ({ page }) => {
   await page.getByRole("button", { name: "Go to Home" }).click();
   await expect(page.locator('.home a[href="/admin"]')).toHaveCount(0);
 });
+
+test("someone invited who signs up the usual way is offered their invitation, not business setup", async ({ page, browser }) => {
+  const email = `invitee-${Date.now()}@example.com`;
+  const admin = await (await browser.newContext()).newPage();
+  await signIn(admin);
+  expect((await admin.request.post(`${APP_URL}/api/invitations`, { data: { invites: [{ email, role: "manager" }] } })).status()).toBe(200);
+
+  await page.goto("/create-account");
+  await page.getByLabel("Full name").fill("Tunde Ade");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: /Create account/ }).click();
+  await expect(page.getByRole("heading", { name: "Check your email." })).toBeVisible();
+  const code = (await (async () => { for (let i = 0; i < 20; i++) { const m = await latestMail(page, email); if (m.code) return m; await page.waitForTimeout(250); } throw new Error("no code"); })()).code!;
+  await page.getByLabel("Digit 1").fill(code);
+
+  await expect(page.getByRole("heading", { name: /You're invited to Example Trading/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tell us about your business." })).toHaveCount(0);
+  await page.getByRole("button", { name: "Join Example Trading" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Tunde");
+});
