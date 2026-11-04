@@ -135,14 +135,15 @@ export function fileView(f: typeof files.$inferSelect) {
 
 export default async function fileRoutes(app: FastifyInstance) {
   app.post<{ Querystring: UploadQuery }>("/api/files", async (req) => {
-    const ctx = await requireOrg(req);
+    // Branding and verification files are needed while WindVeal reviews the business; Documents waits for approval.
+    const ctx = await requireOrg(req, { beforeApproval: (req.query.kind ?? "document") !== "document" });
     if ((req.query.kind ?? "document") === "document" && !hasAccess(ctx.access.documents, "edit")) throw forbidden("You can't upload to Documents.");
     const r = await handleUpload(req, ctx);
     return { file: r.file ? fileView(r.file) : null, duplicateOf: r.duplicateOf };
   });
 
   app.get<{ Params: { id: string }; Querystring: { download?: string } }>("/api/files/:id/content", async (req, reply) => {
-    const ctx = await requireOrg(req);
+    const ctx = await requireOrg(req, { beforeApproval: true });
     const [f] = await db.select().from(files).where(and(eq(files.id, req.params.id), isNull(files.deletedAt))).limit(1);
     if (!f || !(await canReadFile(ctx, f))) throw notFound("That file");
     reply.header("Content-Type", f.mime || "application/octet-stream");

@@ -49,8 +49,12 @@ describe("accounts", () => {
 describe("organisations and members", () => {
   it("creates an org with the creator as primary admin, pending verification", async () => {
     const app = await getApp();
-    const { c, org } = await signUpWithOrg(app);
+    const { c, org } = await signUpWithOrg(app, undefined, { approved: false });
     expect(org.verificationStatus).toBe("pending");
+    // Nothing but setup and its review works until WindVeal approves it.
+    expect((await c.get("/api/people/employees")).status).toBe(403);
+    expect((await c.post("/api/invitations", { invites: [{ email: "x@example.com", role: "member" }] })).status).toBe(403);
+    expect((await c.get("/api/org/review")).status).toBe(200);
     expect(org.currency).toBe("NGN");
     const me = await c.get("/api/auth/me");
     expect(me.body.membership.role).toBe("admin");

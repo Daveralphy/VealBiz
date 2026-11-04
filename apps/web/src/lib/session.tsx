@@ -10,7 +10,7 @@ export type Me = {
   } | null;
   org: {
     id: string; name: string; legalName: string; slug: string; country: string; currency: string; plan: string;
-    verificationStatus: "pending" | "verified" | "rejected"; brandColor: string | null; logoFileId: string | null; setupStep: string;
+    verificationStatus: "pending" | "needs_info" | "verified" | "rejected"; brandColor: string | null; logoFileId: string | null; setupStep: string;
     accountStatus: "active" | "suspended" | "closed"; accountStatusReason: string | null;
   } | null;
   membership: {

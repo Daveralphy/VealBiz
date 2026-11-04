@@ -14,7 +14,7 @@ export default async function devRoutes(app: FastifyInstance) {
 
   /** Stand-in for WindVeal's own verification review, so the careers page can be tested. */
   app.post<{ Body: { status?: "verified" | "pending" | "rejected" } }>("/api/dev/verify-org", async (req) => {
-    const ctx = await requireOrg(req);
+    const ctx = await requireOrg(req, { beforeApproval: true });
     const status = req.body?.status ?? "verified";
     await db.update(organisations).set({ verificationStatus: status }).where(eq(organisations.id, ctx.org.id));
     return { ok: true, status };

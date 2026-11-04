@@ -42,10 +42,6 @@ describe("recruitment and careers", () => {
     const app = await getApp();
     const { c: admin, org } = await signUpWithOrg(app);
 
-    // Create a job while unverified: can't publish yet.
-    const blocked = await admin.post("/api/recruitment/jobs", { ...JOB, published: true });
-    expect(blocked.status).toBe(400);
-    expect(blocked.body.error.details.published).toBeTruthy();
     const created = await admin.post("/api/recruitment/jobs", JOB);
     expect(created.status).toBe(200);
     const job = created.body.job;
@@ -59,14 +55,11 @@ describe("recruitment and careers", () => {
     const second = await admin.post("/api/recruitment/jobs", { title: "Accounts Officer" });
     expect(second.body.job.slug).toBe("accounts-officer-2");
 
-    // Careers page isn't live until the organisation is verified.
-    const hidden = await app.inject({ method: "GET", url: `/api/careers/${org.slug}` });
-    expect(hidden.statusCode).toBe(404);
-    expect(hidden.json().error).toEqual({ code: "not_live", message: "This careers page isn't available." });
-    expect((await app.inject({ method: "GET", url: `/api/careers/no-such-org-xyz` })).statusCode).toBe(404);
+    const missing = await app.inject({ method: "GET", url: `/api/careers/no-such-org-xyz` });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error).toEqual({ code: "not_live", message: "This careers page isn't available." });
 
-    await admin.post("/api/dev/verify-org", { status: "verified" });
-    // Verified but not published yet: not listed.
+    // Not published yet: not listed.
     const empty = await app.inject({ method: "GET", url: `/api/careers/${org.slug}` });
     expect(empty.statusCode).toBe(200);
     expect(empty.json().jobs).toHaveLength(0);

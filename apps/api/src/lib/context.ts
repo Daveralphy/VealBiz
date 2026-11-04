@@ -74,9 +74,20 @@ export function computeSpecial(org: Org, m: Membership): SpecialPermission[] {
   return Array.from(new Set([...base, ...((m.specialPermissions ?? []) as SpecialPermission[])]));
 }
 
+export type OrgOpts = {
+  /** Routes a business needs while WindVeal reviews it (setup, its details, its documents). Everything else waits for approval. */
+  beforeApproval?: boolean;
+};
+
+/** Until WindVeal approves a business, only the routes marked `beforeApproval` work (WindVeal's own admins are never held up). */
+function assertApproved(ctx: OrgContext, opts: OrgOpts) {
+  if (opts.beforeApproval || ctx.org.verificationStatus === "verified" || ctx.user.platformAdmin) return;
+  throw forbidden("WindVeal is still reviewing your business. You can use WindVeal once it's approved.");
+}
+
 /** Loads the user's active organisation and membership. Every org-scoped route starts here. */
-export async function requireOrg(req: FastifyRequest): Promise<OrgContext> {
-  if (req.orgCtx) return req.orgCtx;
+export async function requireOrg(req: FastifyRequest, opts: OrgOpts = {}): Promise<OrgContext> {
+  if (req.orgCtx) { assertApproved(req.orgCtx, opts); return req.orgCtx; }
   const auth = requireUser(req);
   const [row] = await db
     .select({ m: memberships, o: organisations })
@@ -99,6 +110,7 @@ export async function requireOrg(req: FastifyRequest): Promise<OrgContext> {
     special: computeSpecial(row.o, row.m),
     deviceLabel: auth.deviceLabel,
   };
+  assertApproved(req.orgCtx, opts);
   return req.orgCtx;
 }
 
@@ -111,8 +123,8 @@ export async function requireAccess(req: FastifyRequest, ws: Workspace, level: A
   return ctx;
 }
 
-export async function requireAdmin(req: FastifyRequest): Promise<OrgContext> {
-  const ctx = await requireOrg(req);
+export async function requireAdmin(req: FastifyRequest, opts: OrgOpts = {}): Promise<OrgContext> {
+  const ctx = await requireOrg(req, opts);
   if (ctx.membership.role !== "admin") throw forbidden("Only admins can do that.");
   return ctx;
 }

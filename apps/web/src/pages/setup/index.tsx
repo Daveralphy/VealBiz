@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowRight, Building2, Check, Clock, Plus, Upload, UserCheck, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, Check, Clock, Upload, UserCheck, X } from "lucide-react";
 import { BrandLogo, Button, IconButton, Input, Notice, Segmented, Select, Textarea, usePageTransition } from "@windveal/ui";
 import { INDUSTRIES, TEAM_SIZES, formatMoney } from "@windveal/shared";
 import { monthlyPrice, usePricing, yearlyTotal, type PricingPlan } from "../../lib/pricing";
@@ -18,7 +18,7 @@ const STEPS = [
   { key: "role", label: "Your role" },
   { key: "branding", label: "Branding" },
   { key: "plan", label: "Choose a plan" },
-  { key: "team", label: "Invite your team" },
+  { key: "documents", label: "Send for review" },
 ];
 
 function Wizard({ step, children }: { step: string; children: ReactNode }) {
@@ -304,7 +304,7 @@ function Plan() {
   const enterprise = pricing.data?.plans.find((p) => p.custom);
   const go = async () => {
     setBusy(true);
-    try { await api.post("/api/org/plan", { plan, billing }); await refresh(); navigate("/setup/team"); } finally { setBusy(false); }
+    try { await api.post("/api/org/plan", { plan, billing }); await refresh(); navigate("/setup/documents"); } finally { setBusy(false); }
   };
   return (
     <Wizard step="plan">
@@ -336,75 +336,72 @@ function Plan() {
   );
 }
 
-function Team() {
+type ProofDoc = { id: string; name: string; proof: string };
+
+/** Last step: proof the business is real, then it goes to WindVeal for review. */
+function Documents() {
   const navigate = useNavigate();
   const refresh = useMeUpdater();
-  const [rows, setRows] = useState([{ email: "", role: "member" }, { email: "", role: "member" }]);
+  const docs = useQuery({ queryKey: ["verification-documents"], queryFn: () => api.get<ProofDoc[]>("/api/org/verification-documents") });
+  const kinds = useQuery({ queryKey: ["org"], queryFn: () => api.get<{ org: { verificationDocumentKinds: Record<string, string> } }>("/api/org") });
+  const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const finish = async (send: boolean) => {
-    setBusy(true); setError(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const proofOf = (id: string) => kinds.data?.org.verificationDocumentKinds[id] ?? "other";
+  const of = (proof: string) => (docs.data ?? []).filter((d) => proofOf(d.id) === proof);
+  const upload = async (proof: string, file?: File) => {
+    if (!file) return;
+    setBusy(proof); setError(null);
     try {
-      const invites = rows.filter((r) => r.email.trim());
-      if (send && invites.length) await api.post("/api/invitations", { invites });
-      await api.post("/api/org/setup-step", { step: "done" });
-      // Go to the final screen first; refreshing marks setup complete, which would otherwise redirect to Overview.
-      navigate("/setup/done");
-      await refresh();
-    } catch (e) {
-      setError(e instanceof ApiError ? (e.details ? "Check the email addresses." : e.message) : "Something went wrong.");
-    } finally { setBusy(false); }
+      const r = await api.upload<{ file: { id: string } }>("/api/files", file, { kind: "system" });
+      await api.post("/api/org/verification-document", { fileId: r.file.id, proof });
+      await Promise.all([qc.invalidateQueries({ queryKey: ["verification-documents"] }), qc.invalidateQueries({ queryKey: ["org"] })]);
+    } catch (e) { setError(e instanceof ApiError ? e.message : "Upload failed."); }
+    finally { setBusy(null); }
   };
-  return (
-    <Wizard step="team">
-      <h1>Invite your team.</h1>
-      <p className="sub">Add the people you work with. They'll get an email to join on WindVeal.</p>
-      {error && <Notice tone="error">{error}</Notice>}
-      <div className="stack" style={{ gap: 10 }}>
-        {rows.map((r, i) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr) 40px", gap: 10, alignItems: "center" }}>
-            <Input type="email" placeholder="colleague@email.com" aria-label="Email" value={r.email} onChange={(e) => setRows(rows.map((x, k) => k === i ? { ...x, email: e.target.value } : x))} />
-            <Select aria-label="Role" value={r.role} onChange={(e) => setRows(rows.map((x, k) => k === i ? { ...x, role: e.target.value } : x))}
-              options={[{ value: "admin", label: "Admin" }, { value: "manager", label: "Manager" }, { value: "member", label: "Member" }]} />
-            <IconButton label="Remove" onClick={() => setRows(rows.filter((_, k) => k !== i))}><X size={16} /></IconButton>
-          </div>
+  const remove = async (id: string) => {
+    await api.del(`/api/org/verification-document/${id}`);
+    await Promise.all([qc.invalidateQueries({ queryKey: ["verification-documents"] }), qc.invalidateQueries({ queryKey: ["org"] })]);
+  };
+  const send = async () => {
+    setBusy("send"); setError(null);
+    try {
+      await api.post("/api/org/submit-review");
+      await refresh();
+      navigate("/", { replace: true });
+    } catch (e) { setError(e instanceof ApiError ? e.message : "Something went wrong."); }
+    finally { setBusy(null); }
+  };
+  const hasCertificate = of("certificate").length > 0;
+  const slot = (proof: string, title: string, hint: string, optional?: boolean) => (
+    <div className="wz-proof">
+      <div><b className="ink">{title}{optional && <span className="muted" style={{ fontWeight: 500 }}> (optional)</span>}</b><small className="muted">{hint}</small>
+        {of(proof).map((d) => (
+          <div key={d.id} className="wz-proof-file"><Check size={14} strokeWidth={3} />{d.name}<IconButton label={`Remove ${d.name}`} onClick={() => remove(d.id)}><X size={14} /></IconButton></div>
         ))}
       </div>
-      <button className="link row" style={{ marginTop: 12 }} onClick={() => setRows([...rows, { email: "", role: "member" }])}><Plus size={15} />Add another</button>
+      <label className="btn btn-secondary btn-sm" style={{ cursor: "pointer" }}>
+        <Upload size={14} />{busy === proof ? "Uploading…" : of(proof).length ? "Add another" : "Upload"}
+        <input type="file" accept=".pdf,.png,.jpg,.jpeg" hidden onChange={(e) => { void upload(proof, e.target.files?.[0]); e.target.value = ""; }} />
+      </label>
+    </div>
+  );
+  return (
+    <Wizard step="documents">
+      <h1>Show us you're real.</h1>
+      <p className="sub">WindVeal checks every business before it goes live. Send your certificate of incorporation; proof of address helps us approve you faster.</p>
+      {error && <Notice tone="error">{error}</Notice>}
+      <div className="stack" style={{ gap: 12 }}>
+        {slot("certificate", "Certificate of incorporation", "PDF, JPG or PNG, up to 10 MB")}
+        {slot("address", "Proof of address", "A utility bill or bank statement from the last 3 months", true)}
+      </div>
       <div className="wz-group">
-        <h3>What each role can do</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
-          {[["Admin", "Manage members, settings and billing."], ["Manager", "Run their team's work and approve requests."], ["Member", "Work in the workspaces they're given."]].map(([t, d]) => (
-            <div key={t} style={{ background: "var(--soft)", borderRadius: 14, padding: 14, fontSize: 13.5 }}><b className="ink" style={{ display: "block" }}>{t}</b>{d}</div>
-          ))}
-        </div>
-        <p className="field-hint" style={{ marginTop: 10 }}>You can fine-tune what each person sees later in Settings.</p>
+        <h3>What happens next</h3>
+        <p style={{ fontSize: 14 }}>We review your business, usually within one working day, and email you when it's done. You can invite your team once you're approved.</p>
       </div>
       <div className="wz-foot">
         <Link to="/setup/plan" className="link row"><ArrowLeft size={15} />Back</Link>
-        <div className="r"><button className="link" onClick={() => finish(false)}>Skip for now</button><Button size="lg" loading={busy} onClick={() => finish(true)}>Send invites <ArrowRight size={16} /></Button></div>
-      </div>
-    </Wizard>
-  );
-}
-
-function Done() {
-  const { data: me } = useMe();
-  return (
-    <Wizard step="done">
-      <div style={{ textAlign: "center", maxWidth: 620, margin: "0 auto" }}>
-        <span style={{ width: 72, height: 72, borderRadius: "50%", background: "var(--ok-bg)", color: "var(--ok)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}><Check size={34} strokeWidth={3} /></span>
-        <h1>You're all set, {me?.user?.name.split(" ")[0]}.</h1>
-        <p className="sub" style={{ margin: "0 auto 28px" }}>{me?.org?.name} is ready on WindVeal. Here's what happens next.</p>
-        <div style={{ textAlign: "left" }}>
-          <Notice tone="warn" icon={<Clock size={20} />}><b>We're verifying {me?.org?.name}.</b> This usually takes 1 to 2 working days. You can use WindVeal straight away. Your public careers page goes live once you're verified.</Notice>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 12, textAlign: "left", margin: "8px 0 28px" }}>
-          {[["Import your data", "Bring in staff, client or job spreadsheets.", "/import"], ["Set up your team", "Add departments and people.", "/people"], ["Explore the workspaces", "See what each part of WindVeal can do.", "/"]].map(([t, d, h]) => (
-            <Link key={t} to={h!} className="card" style={{ padding: 16 }}><b className="ink" style={{ display: "block" }}>{t}</b><span style={{ fontSize: 13.5 }}>{d}</span></Link>
-          ))}
-        </div>
-        <Link to="/" className="btn btn-primary btn-lg">Go to my workspace <ArrowRight size={16} /></Link>
+        <div className="r"><Button size="lg" loading={busy === "send"} disabled={!hasCertificate} onClick={send}>Send for review <ArrowRight size={16} /></Button></div>
       </div>
     </Wizard>
   );
@@ -415,13 +412,12 @@ export function SetupRoutes() {
   const step = me?.org?.setupStep ?? "details";
   return (
     <Routes>
-      <Route index element={<Navigate to={me?.org ? `/setup/${step === "done" ? "done" : step}` : "/setup/details"} replace />} />
+      <Route index element={<Navigate to={me?.org ? `/setup/${step === "team" ? "documents" : step}` : "/setup/details"} replace />} />
       <Route path="details" element={<Details />} />
       <Route path="role" element={me?.org ? <Role /> : <Navigate to="/setup/details" replace />} />
       <Route path="branding" element={me?.org ? <Branding /> : <Navigate to="/setup/details" replace />} />
       <Route path="plan" element={me?.org ? <Plan /> : <Navigate to="/setup/details" replace />} />
-      <Route path="team" element={me?.org ? <Team /> : <Navigate to="/setup/details" replace />} />
-      <Route path="done" element={<Done />} />
+      <Route path="documents" element={me?.org ? <Documents /> : <Navigate to="/setup/details" replace />} />
       <Route path="*" element={<Navigate to="/setup" replace />} />
     </Routes>
   );

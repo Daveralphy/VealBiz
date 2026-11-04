@@ -1,5 +1,5 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, bigint } from "drizzle-orm/pg-core";
-import type { AccessLevel, Workspace } from "@windveal/shared";
+import type { AccessLevel, ReviewRequest, Workspace } from "@windveal/shared";
 import { pk, timestamps, tracked } from "./_common";
 
 // ---------------- accounts ----------------
@@ -80,12 +80,20 @@ export const organisations = pgTable("organisations", {
   address: text("address"),
   registrationNumber: text("registration_number"),
   website: text("website"),
-  verificationStatus: text("verification_status").$type<"pending" | "verified" | "rejected">().notNull().default("pending"),
+  verificationStatus: text("verification_status").$type<"pending" | "needs_info" | "verified" | "rejected">().notNull().default("pending"),
   verificationNote: text("verification_note"),
   /** Certificates and other documents uploaded to support verification. */
   verificationDocumentIds: jsonb("verification_document_ids").$type<string[]>().notNull().default([]),
   verificationReviewedAt: timestamp("verification_reviewed_at", { withTimezone: true }),
   verificationReviewedBy: uuid("verification_reviewed_by"),
+  /** When the business last sent itself (or more) for review; null while it's still setting up. */
+  verificationSubmittedAt: timestamp("verification_submitted_at", { withTimezone: true }),
+  /** What WindVeal asked for when it needs more, and how far the business has got with it. */
+  verificationRequest: jsonb("verification_request").$type<ReviewRequest | null>(),
+  /** Which kind of proof each verification document is. */
+  verificationDocumentKinds: jsonb("verification_document_kinds").$type<Record<string, string>>().notNull().default({}),
+  /** WindVeal reviewers' own ticks while checking (never shown to the business). */
+  verificationChecks: jsonb("verification_checks").$type<Record<string, boolean>>().notNull().default({}),
   /** WindVeal can suspend or close an organisation's account; its data is kept and it can be brought back. */
   accountStatus: text("account_status").$type<"active" | "suspended" | "closed">().notNull().default("active"),
   accountStatusReason: text("account_status_reason"),

@@ -12,6 +12,7 @@ import { MAX_UPLOAD_BYTES } from "./lib/storage";
 
 import authRoutes from "./modules/auth/routes";
 import orgRoutes from "./modules/org/routes";
+import reviewRoutes from "./modules/org/review";
 import memberRoutes from "./modules/members/routes";
 import fileRoutes from "./modules/files/routes";
 import auditRoutes from "./modules/audit/routes";
@@ -73,7 +74,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   });
 
   for (const routes of [
-    authRoutes, orgRoutes, memberRoutes, fileRoutes, auditRoutes, devRoutes, overviewRoutes,
+    authRoutes, orgRoutes, reviewRoutes, memberRoutes, fileRoutes, auditRoutes, devRoutes, overviewRoutes,
     peopleRoutes, recruitmentRoutes, careersRoutes, crmRoutes, workflowRoutes, documentRoutes, importRoutes, insightRoutes, adminRoutes, homeRoutes,
   ]) {
     await app.register(routes);

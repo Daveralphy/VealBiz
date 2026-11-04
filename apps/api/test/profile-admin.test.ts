@@ -74,33 +74,76 @@ describe("profile", () => {
   });
 });
 
-describe("verification documents", () => {
-  it("are kept on the organisation and a rejected organisation goes back to review", async () => {
+/** Uploads a small PDF as the given client and returns its file id. */
+async function uploadPdf(app: Awaited<ReturnType<typeof getApp>>, c: Client, name = "certificate.pdf") {
+  const up = await app.inject({
+    method: "POST", url: "/api/files?kind=system",
+    headers: { cookie: Object.entries(c.cookies).map(([k, v]) => `${k}=${v}`).join("; "), "content-type": "multipart/form-data; boundary=X" },
+    payload: `--X\r\nContent-Disposition: form-data; name="file"; filename="${name}"\r\nContent-Type: application/pdf\r\n\r\n%PDF-1.4 test\r\n--X--\r\n`,
+  });
+  return up.json().file.id as string;
+}
+
+describe("WindVeal review", () => {
+  it("is sent at the end of setup, asks for more, takes the reply and approves", async () => {
     const app = await getApp();
-    const { c, org } = await signUpWithOrg(app);
+    const { c, org, email } = await signUpWithOrg(app, undefined, { approved: false });
+    const { c: platform, email: staff } = await signUpWithOrg(app, "WindVeal Staff Org");
+    await makePlatformAdmin(staff);
+
+    // A certificate is needed before it can be sent.
+    expect((await c.post("/api/org/submit-review")).status).toBe(400);
+    const cert = await uploadPdf(app, c);
+    expect((await c.post("/api/org/verification-document", { fileId: cert, proof: "certificate" })).status).toBe(200);
+    expect((await c.post("/api/org/submit-review")).status).toBe(200);
+    expect(recentMail(email)[0]!.subject).toMatch(/^We're reviewing/);
+    expect(recentMail(staff)[0]!.subject).toMatch(/^New business to review/);
+    expect((await platform.get("/api/admin/organisations?status=pending")).body.some((o: any) => o.id === org.id)).toBe(true);
+
+    // Asking for more needs what and why.
+    expect((await platform.post(`/api/admin/organisations/${org.id}/verification`, { status: "needs_info", items: [], message: "x" })).status).toBe(400);
+    const ask = await platform.post(`/api/admin/organisations/${org.id}/verification`, {
+      status: "needs_info", items: ["address", "registration_number"], message: "The number doesn't match the certificate.",
+    });
+    expect(ask.status).toBe(200);
+    expect(recentMail(email)[0]!.subject).toMatch(/needs a little more/);
+    let review = (await c.get("/api/org/review")).body;
+    expect(review.status).toBe("needs_info");
+    expect(review.request.items.map((i: any) => i.key)).toEqual(["address", "registration_number"]);
+
+    // It can't be sent back until every item is done.
+    expect((await c.post("/api/org/review/submit")).status).toBe(400);
+    const bill = await uploadPdf(app, c, "bill.pdf");
+    await c.post("/api/org/verification-document", { fileId: bill, proof: "address", item: "address" });
+    await c.patch("/api/org/details", { registrationNumber: "RC 99887" });
+    review = (await c.get("/api/org/review")).body;
+    expect(review.request.items.every((i: any) => i.doneAt)).toBe(true);
+    expect((await c.post("/api/org/review/submit")).status).toBe(200);
+    expect(recentMail(staff)[0]!.subject).toMatch(/sent more for review/);
+
+    // The reviewer sees the documents (and which proof each one is), ticks checks and approves.
+    const detail = await platform.get(`/api/admin/organisations/${org.id}`);
+    expect(detail.body.documents.map((f: any) => [f.id, f.proof])).toEqual(expect.arrayContaining([[cert, "certificate"], [bill, "address"]]));
+    expect(detail.body.review.history.map((h: any) => h.action)).toEqual(expect.arrayContaining(["org.verification_submitted", "org.verification_needs_info", "org.verification_resubmitted"]));
+    expect((await platform.post(`/api/admin/organisations/${org.id}/checks`, { key: "certificate", done: true })).body.checks.certificate).toBe(true);
+    const file = await app.inject({ method: "GET", url: `/api/admin/files/${cert}/content`, headers: { cookie: Object.entries(platform.cookies).map(([k, v]) => `${k}=${v}`).join("; ") } });
+    expect(file.body).toContain("%PDF-1.4 test");
+    expect((await platform.post(`/api/admin/organisations/${org.id}/verification`, { status: "verified" })).status).toBe(200);
+    expect(recentMail(email)[0]!.subject).toMatch(/is approved$/);
+    expect((await c.get("/api/people/employees")).status).toBe(200);
+  });
+
+  it("not approving needs a reason, and the business stays locked out", async () => {
+    const app = await getApp();
+    const { c, org, email } = await signUpWithOrg(app, undefined, { approved: false });
     const { c: platform, email: staff } = await signUpWithOrg(app, "WindVeal Staff Org");
     await makePlatformAdmin(staff);
     expect((await platform.post(`/api/admin/organisations/${org.id}/verification`, { status: "rejected" })).status).toBe(400);
-    expect((await platform.post(`/api/admin/organisations/${org.id}/verification`, { status: "rejected", note: "Registration number doesn't match" })).status).toBe(200);
-    expect((await c.get("/api/org")).body.org.verificationStatus).toBe("rejected");
-
-    const up = await app.inject({
-      method: "POST", url: "/api/files?kind=system",
-      headers: { cookie: Object.entries(c.cookies).map(([k, v]) => `${k}=${v}`).join("; "), "content-type": "multipart/form-data; boundary=X" },
-      payload: "--X\r\nContent-Disposition: form-data; name=\"file\"; filename=\"certificate.pdf\"\r\nContent-Type: application/pdf\r\n\r\n%PDF-1.4 test\r\n--X--\r\n",
-    });
-    const fileId = up.json().file.id;
-    const r = await c.post("/api/org/verification-document", { fileId });
-    expect(r.status).toBe(200);
-    expect(r.body.org.verificationStatus).toBe("pending");
-    expect((await c.get("/api/org/verification-documents")).body.map((f: any) => f.id)).toContain(fileId);
-
-    // WindVeal staff see the document and can open it.
-    const detail = await platform.get(`/api/admin/organisations/${org.id}`);
-    expect(detail.body.documents.map((f: any) => f.id)).toContain(fileId);
-    const file = await app.inject({ method: "GET", url: `/api/admin/files/${fileId}/content`, headers: { cookie: Object.entries(platform.cookies).map(([k, v]) => `${k}=${v}`).join("; ") } });
-    expect(file.statusCode).toBe(200);
-    expect(file.body).toContain("%PDF-1.4 test");
+    expect((await platform.post(`/api/admin/organisations/${org.id}/verification`, { status: "rejected", note: "Not a registered business" })).status).toBe(200);
+    expect(recentMail(email)[0]!.subject).toMatch(/^We couldn't approve/);
+    const review = (await c.get("/api/org/review")).body;
+    expect([review.status, review.note]).toEqual(["rejected", "Not a registered business"]);
+    expect((await c.get("/api/crm/companies")).status).toBe(403);
   });
 });
 
@@ -117,25 +160,27 @@ describe("WindVeal admin panel", () => {
 
   it("reviews an organisation, approves it and tells its admins", async () => {
     const app = await getApp();
-    const { c, org } = await signUpWithOrg(app);
-    const { c: second } = await addMember(app, c, "admin", "Second Admin");
+    const { c, org } = await signUpWithOrg(app, undefined, { approved: false });
+    const cert = await uploadPdf(app, c);
+    await c.post("/api/org/verification-document", { fileId: cert, proof: "certificate" });
+    await c.post("/api/org/submit-review");
     const { c: platform, email: staff } = await signUpWithOrg(app, "WindVeal Review Org");
     await makePlatformAdmin(staff);
 
     const list = await platform.get("/api/admin/organisations?status=pending");
     expect(list.body.some((o: any) => o.id === org.id)).toBe(true);
     const detail = await platform.get(`/api/admin/organisations/${org.id}`);
-    expect(detail.body.members.length).toBe(2);
+    expect(detail.body.members.length).toBe(1);
     expect(detail.body.creator.name).toBe("Amaka Okafor");
     expect(detail.body.history.some((h: any) => h.action === "org.created")).toBe(true);
 
     const r = await platform.post(`/api/admin/organisations/${org.id}/verification`, { status: "verified" });
     expect(r.body.org.verificationStatus).toBe("verified");
     expect((await c.get("/api/org")).body.org.verificationStatus).toBe("verified");
-    const notes = await second.get("/api/notifications");
-    expect(JSON.stringify(notes.body)).toMatch(/is verified/);
+    const notes = await c.get("/api/notifications");
+    expect(JSON.stringify(notes.body)).toMatch(/is approved/);
     const audit = await c.get("/api/audit");
-    expect(JSON.stringify(audit.body)).toMatch(/WindVeal approved the verification/);
+    expect(JSON.stringify(audit.body)).toMatch(/WindVeal approved the business/);
 
     expect((await platform.post(`/api/admin/organisations/${org.id}/plan`, { plan: "pro", billing: "yearly" })).body.org.plan).toBe("pro");
   });

@@ -20,7 +20,7 @@ export const PLANS = ["free", "growth", "pro", "enterprise"] as const;
 export type Plan = (typeof PLANS)[number];
 
 
-export const VERIFICATION_STATUSES = ["pending", "verified", "rejected"] as const;
+export const VERIFICATION_STATUSES = ["pending", "needs_info", "verified", "rejected"] as const;
 export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
 
 

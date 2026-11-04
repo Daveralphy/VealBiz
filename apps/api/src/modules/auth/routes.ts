@@ -273,7 +273,7 @@ export default async function authRoutes(app: FastifyInstance) {
       to: oldEmail, subject: "Your WindVeal email was changed",
       text: `Hi ${auth.user.name}, your WindVeal sign-in email was changed to ${newEmail}. If you didn't do this, contact support straight away.`,
     });
-    const ctx = await requireOrg(req).catch(() => null);
+    const ctx = await requireOrg(req, { beforeApproval: true }).catch(() => null);
     if (ctx) await audit(ctx, { action: "auth.email_changed", category: "access", summary: `${auth.user.name} changed their sign-in email`, meta: { from: oldEmail, to: newEmail } });
     return mePayload(auth.user.id);
   });

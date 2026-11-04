@@ -49,7 +49,7 @@ export function PeopleDashboard() {
   return (
     <>
       <DashKpis loading={board.isLoading || stats.isLoading} items={[
-        { label: "In today", value: b?.stats.present ?? 0, note: b ? (b.stats.notIn ? `${b.stats.notIn} not in yet` : "everyone's in") : undefined, to: "/people/attendance" },
+        { label: "In today", value: b?.stats.present ?? 0, note: b ? (b.stats.notIn ? `${b.stats.notIn} not in yet` : b.stats.present ? "everyone's in" : "no one added yet") : undefined, to: "/people/attendance" },
         { label: "On leave", value: s?.onLeaveToday.count ?? 0, note: s?.onLeaveToday.until ? untilText(s.onLeaveToday.until, today) : "no one away", to: "/people/leave" },
         { label: "Late today", value: b?.stats.late ?? 0, note: b ? `after ${b.workdayStart}` : undefined },
         { label: "Starting soon", value: s?.startingSoon.next14Days ?? 0, note: "next 14 days", to: "/people/onboarding" },

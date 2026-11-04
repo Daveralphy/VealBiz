@@ -1,7 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
 import { buildApp } from "../src/app";
+import { eq } from "drizzle-orm";
 import { recentMail } from "../src/lib/mailer";
+import { db } from "../src/db/client";
+import { organisations, users } from "../src/db/schema";
 
 let appPromise: Promise<FastifyInstance> | null = null;
 export function getApp() {
@@ -48,14 +51,26 @@ export async function signUp(app: FastifyInstance, name = "Test Person") {
   return { c, email };
 }
 
-export async function signUpWithOrg(app: FastifyInstance, orgName = `Test Org ${randomUUID().slice(0, 6)}`) {
+/** Registers a business. By default it's then approved, as WindVeal would, so the rest of WindVeal opens. */
+export async function signUpWithOrg(app: FastifyInstance, orgName = `Test Org ${randomUUID().slice(0, 6)}`, { approved = true } = {}) {
   const { c, email } = await signUp(app, "Amaka Okafor");
   const r = await c.post("/api/org", {
     legalName: `${orgName} Limited`, tradingName: orgName, industry: "Retail", teamSize: "11 to 50 people",
     country: "NG", city: "Lagos", address: "14 Creek Road, Apapa",
   });
   if (r.status !== 200) throw new Error(`org failed: ${JSON.stringify(r.body)}`);
+  if (approved) await approve(r.body.org.id);
   return { c, email, org: r.body.org };
+}
+
+/** Stands in for WindVeal's review. */
+export async function approve(orgId: string) {
+  await db.update(organisations).set({ verificationStatus: "verified", verificationSubmittedAt: new Date(), setupStep: "done" }).where(eq(organisations.id, orgId));
+}
+
+/** Makes someone a WindVeal reviewer (platform admin). */
+export async function makeReviewer(email: string) {
+  await db.update(users).set({ platformAdmin: true }).where(eq(users.email, email));
 }
 
 /** Invites someone into the admin's org and returns a signed-in client for them. */

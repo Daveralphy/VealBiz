@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { and, desc, eq, getTableColumns, gt, ilike, inArray, isNotNull, isNull, or, sql as dsql, type SQL } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { z } from "zod";
-import { PLANS } from "@windveal/shared";
+import { PLANS, REVIEW_CHECKS, REVIEW_REQUEST_KEYS, type ReviewRequest, type ReviewRequestKey } from "@windveal/shared";
 import { db } from "../../db/client";
 import {
   applications, auditEvents, authTokens, companies, deals, devices, employees, files, folders, invitations, jobs, leads, memberships, organisations, sessions, tasks, users,
@@ -15,6 +15,7 @@ import { readObject } from "../../lib/storage";
 import { randomToken, sha256 } from "../../lib/crypto";
 import { env } from "../../env";
 import { orgView } from "../org/routes";
+import { listOf, orgName, requestLabel, tellBusinessAdmins } from "../../lib/review";
 import { fileView, storageUsed } from "../files/routes";
 
 /** Live (not deleted) rows of an org-scoped table. */
@@ -41,7 +42,7 @@ export default async function adminRoutes(app: FastifyInstance) {
   app.get("/api/admin/summary", async (req) => {
     requirePlatformAdmin(req);
     const byStatus = await db.select({ status: organisations.verificationStatus, n: dsql<number>`count(*)::int` })
-      .from(organisations).where(isNull(organisations.deletedAt)).groupBy(organisations.verificationStatus);
+      .from(organisations).where(and(isNull(organisations.deletedAt), isNotNull(organisations.verificationSubmittedAt))).groupBy(organisations.verificationStatus);
     const [u] = await db.select({ n: dsql<number>`count(*)::int` }).from(users);
     const [recent] = await db.select({ n: dsql<number>`count(*)::int` }).from(organisations)
       .where(and(isNull(organisations.deletedAt), dsql`${organisations.createdAt} > now() - interval '7 days'`));
@@ -50,7 +51,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       .from(organisations).where(isNull(organisations.deletedAt)).groupBy(organisations.accountStatus);
     const [off] = await db.select({ n: dsql<number>`count(*)::int` }).from(users).where(isNotNull(users.deactivatedAt));
     return {
-      pending: count("pending"), verified: count("verified"), rejected: count("rejected"), users: u?.n ?? 0, newThisWeek: recent?.n ?? 0,
+      pending: count("pending"), needsInfo: count("needs_info"), verified: count("verified"), rejected: count("rejected"), users: u?.n ?? 0, newThisWeek: recent?.n ?? 0,
       suspended: byAccount.find((r) => r.status === "suspended")?.n ?? 0, closed: byAccount.find((r) => r.status === "closed")?.n ?? 0,
       deactivatedUsers: off?.n ?? 0,
     };
@@ -60,7 +61,9 @@ export default async function adminRoutes(app: FastifyInstance) {
     requirePlatformAdmin(req);
     const where: SQL[] = [isNull(organisations.deletedAt)];
     const status = req.query.status;
-    if (status === "pending" || status === "verified" || status === "rejected") where.push(eq(organisations.verificationStatus, status));
+    // "Waiting for review" only lists businesses that finished setup and sent themselves in.
+    if (status === "pending") where.push(eq(organisations.verificationStatus, "pending"), isNotNull(organisations.verificationSubmittedAt));
+    if (status === "needs_info" || status === "verified" || status === "rejected") where.push(eq(organisations.verificationStatus, status));
     if (status === "suspended" || status === "closed") where.push(eq(organisations.accountStatus, status));
     const q = req.query.q?.trim();
     if (q) {
@@ -69,7 +72,8 @@ export default async function adminRoutes(app: FastifyInstance) {
     }
     const rows = await db.select({ o: organisations, creator: { name: users.name, email: users.email } })
       .from(organisations).innerJoin(users, eq(users.id, organisations.createdBy))
-      .where(and(...where)).orderBy(desc(organisations.createdAt)).limit(500);
+      // The review queue is oldest first, so nobody waits longest; other lists are newest first.
+      .where(and(...where)).orderBy(status === "pending" ? organisations.verificationSubmittedAt : desc(organisations.createdAt)).limit(500);
     const ids = rows.map((r) => r.o.id);
     const memberCounts = ids.length ? await db.select({ orgId: memberships.orgId, n: dsql<number>`count(*)::int` }).from(memberships)
       .where(and(inArray(memberships.orgId, ids), isNull(memberships.deletedAt))).groupBy(memberships.orgId) : [];
@@ -77,6 +81,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       id: r.o.id, name: r.o.tradingName || r.o.legalName, legalName: r.o.legalName, slug: r.o.slug, country: r.o.country, industry: r.o.industry,
       registrationNumber: r.o.registrationNumber, verificationStatus: r.o.verificationStatus, accountStatus: r.o.accountStatus, plan: r.o.plan, setupStep: r.o.setupStep,
       logoFileId: r.o.logoFileId, documents: r.o.verificationDocumentIds.length, createdAt: r.o.createdAt, creator: r.creator,
+      submittedAt: r.o.verificationSubmittedAt, secondLook: !!r.o.verificationRequest && r.o.verificationStatus === "pending",
       members: memberCounts.find((m) => m.orgId === r.o.id)?.n ?? 0,
     }));
   });
@@ -108,7 +113,17 @@ export default async function adminRoutes(app: FastifyInstance) {
         jobTitle: m.jobTitle, isOwner: m.isOwner, isPrimaryAdmin: m.isPrimaryAdmin, joinedAt: m.createdAt, lastLoginAt: u.lastLoginAt,
       })),
       invitations: invites.map((i) => ({ id: i.id, email: i.email, role: i.role, expiresAt: i.expiresAt, createdAt: i.createdAt })),
-      documents: docs.map(fileView),
+      documents: docs.map((f) => ({ ...fileView(f), proof: o.verificationDocumentKinds[f.id] ?? "other" })),
+      review: {
+        status: o.verificationStatus, submittedAt: o.verificationSubmittedAt, request: o.verificationRequest, checks: o.verificationChecks,
+        note: o.verificationNote, decidedAt: o.verificationReviewedAt,
+        history: [
+          ...(creator ? [{ action: "account.created", summary: "Account created", actor: creator.name, createdAt: creator.createdAt, meta: null as unknown }] : []),
+          ...(creator?.emailVerifiedAt ? [{ action: "account.email_verified", summary: "Email verified", actor: creator.name, createdAt: creator.emailVerifiedAt, meta: null as unknown }] : []),
+          ...history.filter(({ e }) => e.action.startsWith("org.verification_") && !e.action.startsWith("org.verification_document"))
+            .map(({ e, actor }) => ({ action: e.action, summary: e.summary, actor, createdAt: e.createdAt, meta: e.meta as unknown })),
+        ].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
+      },
       counts: { employees: nEmployees, jobs: nJobs, applications: nApplications, companies: nCompanies, leads: nLeads, deals: nDeals, tasks: nTasks, files: nFiles },
       storageUsed: await storageUsed(o.id),
       history: history.map(({ e, actor }) => ({ id: e.id, action: e.action, summary: e.summary, category: e.category, actor, device: e.deviceLabel, createdAt: e.createdAt })),
@@ -141,35 +156,64 @@ export default async function adminRoutes(app: FastifyInstance) {
   });
 
   /** Approve or reject an organisation (or send it back to review). The organisation's admins are told. */
+  /**
+   * WindVeal's decision: approve, ask for more (what's needed + a message) or don't approve (with the reason).
+   * The business is emailed, and the app shows it exactly what to do next.
+   */
   app.post<{ Params: { id: string } }>("/api/admin/organisations/:id/verification", async (req) => {
     const auth = requirePlatformAdmin(req);
     const o = await loadOrg(req.params.id);
-    const input = parse(z.object({
-      status: z.enum(["verified", "rejected", "pending"]),
-      note: z.string().trim().max(1000).optional().or(z.literal("")),
-    }).refine((v) => v.status !== "rejected" || !!v.note, { message: "Tell them why so they can fix it", path: ["note"] }), req.body);
+    const input = parse(z.discriminatedUnion("status", [
+      z.object({ status: z.literal("verified"), note: z.string().trim().max(1000).optional() }),
+      z.object({
+        status: z.literal("needs_info"),
+        items: z.array(z.enum(REVIEW_REQUEST_KEYS as [ReviewRequestKey, ...ReviewRequestKey[]])).min(1, "Choose what they need to send"),
+        other: z.string().trim().max(200).optional(),
+        message: z.string().trim().min(1, "Tell them what's wrong so they can fix it").max(1000),
+      }),
+      z.object({ status: z.literal("rejected"), note: z.string().trim().min(1, "Tell them why").max(1000) }),
+      z.object({ status: z.literal("pending") }),
+    ]), req.body);
+    if (input.status === "needs_info" && input.items.includes("other") && !input.other) {
+      throw badRequest("Say what else they need to send.", { other: "Required" });
+    }
+    const now = new Date();
+    const request: ReviewRequest | null = input.status === "needs_info" ? {
+      items: input.items.map((key) => ({ key, ...(key === "other" ? { label: input.other } : {}), doneAt: null, fileIds: [], note: null })),
+      message: input.message, at: now.toISOString(), by: auth.user.name,
+    } : o.verificationRequest;
+    const note = input.status === "needs_info" ? input.message : input.status === "pending" ? o.verificationNote : (input.note || null);
     const [updated] = await db.update(organisations).set({
-      verificationStatus: input.status, verificationNote: input.note || null,
-      verificationReviewedAt: new Date(), verificationReviewedBy: auth.user.id,
+      verificationStatus: input.status, verificationNote: note, verificationRequest: request,
+      verificationReviewedAt: now, verificationReviewedBy: auth.user.id,
     }).where(eq(organisations.id, o.id)).returning();
-    const label = input.status === "verified" ? "approved" : input.status === "rejected" ? "not approved" : "sent back for review";
+    const label = { verified: "approved the business", needs_info: "asked for more", rejected: "didn't approve the business", pending: "reopened the review" }[input.status];
     await audit({ org: updated!, user: auth.user, deviceLabel: auth.deviceLabel }, {
       action: `org.verification_${input.status}`, category: "settings", entityType: "organisation", entityId: o.id,
-      summary: `WindVeal ${label} the verification (${auth.user.name})`, meta: { note: input.note || null },
+      summary: `WindVeal ${label} (${auth.user.name})`, meta: { note, items: input.status === "needs_info" ? request!.items.map(requestLabel) : undefined },
     });
-    if (input.status !== "pending") {
-      const admins = await db.select({ m: memberships, u: users }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
-        .where(and(eq(memberships.orgId, o.id), eq(memberships.role, "admin"), isNull(memberships.deletedAt)));
-      const title = input.status === "verified" ? `${updated!.legalName} is verified` : `${updated!.legalName} couldn't be verified yet`;
-      const body = input.status === "verified"
-        ? "Your business is verified. Your careers page is now live."
-        : `We couldn't verify your business yet: ${input.note}. Update your details or send a document from Profile → Company.`;
-      for (const { u } of admins) {
-        await notify(o.id, u.id, title, body, "/profile/company");
-        await sendMail({ to: u.email, subject: title, text: `Hi ${u.name}, ${body}`, link: `${env.appUrl}/profile/company` });
-      }
+    const name = orgName(updated!);
+    if (input.status === "verified") {
+      await tellBusinessAdmins(updated!, `${name} is approved`,
+        "good news: WindVeal has approved your business. You can now invite your team, set up roles and use every workspace in your plan.");
+    } else if (input.status === "needs_info") {
+      await tellBusinessAdmins(updated!, `WindVeal needs a little more from ${name}`,
+        `we couldn't finish checking your business yet. We need: ${listOf(request!.items.map((i) => requestLabel(i).toLowerCase()))}.\n\n"${input.message}"\n\nOpen WindVeal to send it.`);
+    } else if (input.status === "rejected") {
+      await tellBusinessAdmins(updated!, `We couldn't approve ${name}`,
+        `WindVeal couldn't approve your business: ${input.note}\n\nIf you think this is a mistake, reply to this email or contact support.`);
     }
     return { org: orgView(updated!) };
+  });
+
+  /** A reviewer's own tick against one check (only WindVeal reviewers see these). */
+  app.post<{ Params: { id: string } }>("/api/admin/organisations/:id/checks", async (req) => {
+    requirePlatformAdmin(req);
+    const o = await loadOrg(req.params.id);
+    const input = parse(z.object({ key: z.enum(Object.keys(REVIEW_CHECKS) as [string, ...string[]]), done: z.boolean() }), req.body);
+    const [u] = await db.update(organisations).set({ verificationChecks: { ...o.verificationChecks, [input.key]: input.done } })
+      .where(eq(organisations.id, o.id)).returning();
+    return { checks: u!.verificationChecks };
   });
 
   /** Set an organisation's plan directly (e.g. an Enterprise agreement or a paid invoice). */
@@ -204,8 +248,8 @@ export default async function adminRoutes(app: FastifyInstance) {
     requirePlatformAdmin(req);
     const waiting = await db.select({ o: organisations, creator: { name: users.name, email: users.email } })
       .from(organisations).innerJoin(users, eq(users.id, organisations.createdBy))
-      .where(and(isNull(organisations.deletedAt), eq(organisations.verificationStatus, "pending"), eq(organisations.accountStatus, "active")))
-      .orderBy(organisations.createdAt).limit(5);
+      .where(and(isNull(organisations.deletedAt), eq(organisations.verificationStatus, "pending"), isNotNull(organisations.verificationSubmittedAt), eq(organisations.accountStatus, "active")))
+      .orderBy(organisations.verificationSubmittedAt).limit(5);
     const newest = await db.select({ u: users, org: organisations.legalName, orgId: organisations.id }).from(users)
       .leftJoin(memberships, and(eq(memberships.userId, users.id), isNull(memberships.deletedAt)))
       .leftJoin(organisations, eq(organisations.id, memberships.orgId))

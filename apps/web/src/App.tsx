@@ -2,6 +2,7 @@ import { Navigate, Outlet, RouterProvider, ScrollRestoration, createBrowserRoute
 import { useFirstVisitHold } from "@windveal/ui";
 import { Splash } from "./components/Splash";
 import { AccountPaused, Welcome } from "./pages/welcome";
+import { ReviewStatus } from "./pages/review";
 import { useMe } from "./lib/session";
 import { AppShell } from "./layouts/AppShell";
 import { SignIn, CreateAccount, VerifyEmail, ForgotPassword, ResetPassword, AcceptInvite, Invited } from "./pages/auth";
@@ -34,7 +35,9 @@ function Gate({ need }: { need: "app" | "setup" }) {
   }
   const setupDone = me.org.setupStep === "done" || me.membership?.role !== "admin";
   if (need === "app" && !setupDone) return <Navigate to={`/setup/${me.org.setupStep}`} replace />;
-  if (need === "setup" && setupDone && !loc.pathname.startsWith("/setup/done")) return <Navigate to="/" replace />;
+  if (need === "setup" && setupDone) return <Navigate to="/" replace />;
+  // Nothing opens until WindVeal approves the business; until then it sees where its review has got to.
+  if (need === "app" && me.org.verificationStatus !== "verified" && !me.user.platformAdmin) return <ReviewStatus email={me.user.email} />;
   return need === "app" ? <AppShell /> : <Outlet />;
 }
 

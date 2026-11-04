@@ -1,24 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Check, Download, ExternalLink, Eye, FileText, Image as ImageIcon, KeyRound, LogOut, MailCheck, Pause, RotateCcw, ShieldCheck, X } from "lucide-react";
-import { Avatar, Button, Card, EmptyState, Loading, Modal, PageHeader, Pill, SearchInput, Segmented, Select, Textarea, useConfirm, useToast } from "@windveal/ui";
-import { PLANS, formatBytes } from "@windveal/shared";
+import { Ban, Check, Download, ExternalLink, FileText, Image as ImageIcon, KeyRound, LogOut, MailCheck, Pause, RotateCcw, ShieldCheck } from "lucide-react";
+import { Avatar, Button, Card, EmptyState, Input, Loading, Modal, PageHeader, Pill, SearchInput, Segmented, Select, Textarea, useConfirm, useToast } from "@windveal/ui";
+import { PLANS, REVIEW_CHECKS, REVIEW_REQUESTS, REVIEW_REQUEST_KEYS, VERIFICATION_DOC_KINDS, formatBytes, type ReviewRequestKey } from "@windveal/shared";
 import { api, qs } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { DashKpis } from "../../components/dashboard";
 import { SITE_URL } from "../../lib/config";
-import { fmtDate, timeAgo } from "../../lib/format";
+import { fmtDate, fmtTime, timeAgo } from "../../lib/format";
 import { FileViewer, type ViewableFile } from "../../components/FileViewer";
 
 const adminFileUrl = (id: string, download = false) => `/api/admin/files/${id}/content${download ? "?download=1" : ""}`;
 
-type Status = "pending" | "verified" | "rejected";
-const STATUS: Record<Status, { label: string; tone: "warn" | "ok" | "red" }> = {
+type Status = "pending" | "needs_info" | "verified" | "rejected";
+const STATUS: Record<Status, { label: string; tone: "warn" | "ok" | "red" | "blue" }> = {
   pending: { label: "Waiting for review", tone: "warn" },
+  needs_info: { label: "Waiting for them", tone: "blue" },
   verified: { label: "Verified", tone: "ok" },
-  rejected: { label: "Not verified", tone: "red" },
+  rejected: { label: "Not approved", tone: "red" },
 };
+/** A business that hasn't finished setting up isn't in the review queue yet. */
+const statusOf = (o: { verificationStatus: Status; submittedAt?: string | null; verificationSubmittedAt?: string | null }) =>
+  o.verificationStatus === "pending" && !(o.submittedAt ?? o.verificationSubmittedAt) ? { label: "Setting up", tone: "grey" as const } : STATUS[o.verificationStatus];
 const ACCOUNT = { active: "Active", suspended: "Suspended", closed: "Closed" } as const;
 const country = (code: string) => new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
 
@@ -44,19 +48,19 @@ function Organisations() {
     <>
       <div className="between ad-filters">
         <Segmented value={status} onChange={setStatus} options={[
-          { value: "pending", label: "Waiting" }, { value: "verified", label: "Verified" }, { value: "rejected", label: "Not verified" },
+          { value: "pending", label: "Waiting" }, { value: "needs_info", label: "Asked for more" }, { value: "verified", label: "Verified" }, { value: "rejected", label: "Not approved" },
           { value: "suspended", label: "Suspended" }, { value: "closed", label: "Closed" }, { value: "all", label: "All" },
         ]} />
         <SearchInput value={q} onChange={setQ} placeholder="Name, registration number or email" />
       </div>
       {list.isLoading ? <Loading /> : !(list.data ?? []).length ? (
         <Card><EmptyState title={status === "pending" ? "Nothing waiting for review" : "No organisations found"}>
-          {status === "pending" ? "New organisations appear here as soon as they register." : "Try another filter or search."}
+          {status === "pending" ? "Businesses appear here once they finish setting up and send themselves for review." : "Try another filter or search."}
         </EmptyState></Card>
       ) : (
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Organisation</th><th className="hide-sm">Registered by</th><th className="hide-sm">Country</th><th className="hide-sm">Plan</th><th className="hide-sm">Documents</th><th>Registered</th><th>Status</th></tr></thead>
+            <thead><tr><th>Organisation</th><th className="hide-sm">Registered by</th><th className="hide-sm">Country</th><th className="hide-sm">Plan</th><th className="hide-sm">Documents</th><th>{status === "pending" ? "Sent" : "Registered"}</th><th>Status</th></tr></thead>
             <tbody>
               {(list.data ?? []).map((o) => (
                 <tr key={o.id} className="clickable" onClick={() => navigate(`/admin/organisations/${o.id}`)}>
@@ -65,9 +69,9 @@ function Organisations() {
                   <td className="hide-sm">{country(o.country)}</td>
                   <td className="hide-sm" style={{ textTransform: "capitalize" }}>{o.plan}</td>
                   <td className="hide-sm">{o.documents || <span className="muted">None</span>}</td>
-                  <td>{timeAgo(o.createdAt)}</td>
+                  <td>{timeAgo(status === "pending" ? o.submittedAt : o.createdAt)}</td>
                   <td>{o.accountStatus !== "active" ? <Pill tone={o.accountStatus === "closed" ? "grey" : "red"}>{ACCOUNT[o.accountStatus as "suspended" | "closed"]}</Pill>
-                    : <Pill tone={STATUS[o.verificationStatus as Status].tone}>{STATUS[o.verificationStatus as Status].label}</Pill>}</td>
+                    : o.secondLook ? <Pill tone="warn">Second look</Pill> : <Pill tone={statusOf(o).tone}>{statusOf(o).label}</Pill>}</td>
                 </tr>
               ))}
             </tbody>
@@ -79,55 +83,185 @@ function Organisations() {
 }
 
 // ---------------- One organisation ----------------
-function Review({ data }: { data: any }) {
+type Decision = "verified" | "needs_info" | "rejected" | "pending";
+
+/** The decision bar at the top of a business's page: approve, ask for more, or don't approve. */
+function DecisionBar({ data }: { data: any }) {
   const qc = useQueryClient();
   const toast = useToast();
   const o = data.org;
-  const [decision, setDecision] = useState<Status | null>(null);
+  const r = data.review;
+  const [open, setOpen] = useState<Decision | null>(null);
   const [note, setNote] = useState("");
+  const [items, setItems] = useState<ReviewRequestKey[]>([]);
+  const [other, setOther] = useState("");
+  const decide = useMutation({
+    mutationFn: () => api.post(`/api/admin/organisations/${o.id}/verification`,
+      open === "needs_info" ? { status: open, items, other: other || undefined, message: note } : open === "pending" ? { status: open } : { status: open, note }),
+    onSuccess: () => {
+      toast(open === "verified" ? `${o.name} is approved` : open === "needs_info" ? `${o.name} was asked for more` : open === "rejected" ? `${o.name} wasn't approved` : `${o.name} is back in the queue`);
+      setOpen(null); setNote(""); setItems([]); setOther("");
+      void qc.invalidateQueries({ queryKey: ["admin"] });
+    },
+  });
+  const status = r.status as Status;
+  const checks = Object.keys(REVIEW_CHECKS).filter((k) => r.checks?.[k]).length;
+  const total = Object.keys(REVIEW_CHECKS).length;
+  const req = r.request;
+  const done = req ? req.items.filter((i: any) => i.doneAt).length : 0;
+  let title = "Your decision", sub = `${checks} of ${total} checks done. They'll get an email and see your decision when they open WindVeal.`;
+  if (!r.submittedAt && status === "pending") { title = "Still setting up"; sub = `They're at the "${o.setupStep}" step. You can review once they send themselves in.`; }
+  if (status === "needs_info") { title = "Waiting for them"; sub = `You asked for more ${timeAgo(req?.at)}. They've done ${done} of ${req?.items.length ?? 0}.`; }
+  if (status === "verified") { title = "Approved"; sub = `Approved ${fmtDate(r.decidedAt)}${data.reviewer ? ` by ${data.reviewer.name}` : ""}.`; }
+  if (status === "rejected") { title = "Not approved"; sub = `Decided ${fmtDate(r.decidedAt)}${data.reviewer ? ` by ${data.reviewer.name}` : ""}. Reason: ${r.note}`; }
+  const canDecide = status === "pending" ? !!r.submittedAt : status === "needs_info";
+  return (
+    <Card className="ad-decide">
+      <div className="ad-decide-text"><h3>{title}</h3><p>{sub}</p></div>
+      <div className="ad-decide-btns">
+        {canDecide && <>
+          <Button variant="secondary" onClick={() => setOpen("rejected")}>Don't approve</Button>
+          {status === "pending" && <Button variant="secondary" onClick={() => setOpen("needs_info")}>Ask for more</Button>}
+          <Button icon={<Check size={16} />} onClick={() => setOpen("verified")}>Approve</Button>
+        </>}
+        {(status === "verified" || status === "rejected") && <Button variant="secondary" icon={<RotateCcw size={16} />} onClick={() => setOpen("pending")}>Reopen review</Button>}
+      </div>
+      <Modal open={open === "verified"} onClose={() => setOpen(null)} title={`Approve ${o.name}?`}
+        subtitle="They can start using WindVeal straight away, and their admins get an email."
+        footer={<><Button variant="secondary" onClick={() => setOpen(null)}>Cancel</Button><Button loading={decide.isPending} onClick={() => decide.mutate()}>Approve</Button></>}>
+        {checks < total && <p className="muted" style={{ margin: 0 }}>{total - checks} of the checks aren't ticked yet.</p>}
+      </Modal>
+      <Modal open={open === "needs_info"} onClose={() => setOpen(null)} title={`Ask ${o.name} for more`}
+        subtitle="They'll get an email, and WindVeal will show them exactly what to send."
+        footer={<><Button variant="secondary" onClick={() => setOpen(null)}>Cancel</Button>
+          <Button loading={decide.isPending} disabled={!items.length || !note.trim() || (items.includes("other") && !other.trim())} onClick={() => decide.mutate()}>Send request</Button></>}>
+        <span className="field-label" style={{ marginBottom: 6 }}>What do they need to send?</span>
+        <div className="ad-ask">
+          {REVIEW_REQUEST_KEYS.map((k) => (
+            <label key={k} className="check">
+              <input type="checkbox" checked={items.includes(k)} onChange={(e) => setItems(e.target.checked ? [...items, k] : items.filter((x) => x !== k))} />
+              {REVIEW_REQUESTS[k].ask}
+            </label>
+          ))}
+        </div>
+        {items.includes("other") && <Input label="What else?" value={other} onChange={(e) => setOther(e.target.value)} placeholder="e.g. A recent tax clearance certificate" wrapClassName="ad-ask-other" />}
+        <Textarea label="Message to them" rows={4} value={note} onChange={(e) => setNote(e.target.value)} wrapClassName="ad-ask-other"
+          placeholder="e.g. The registration number on your certificate doesn't match the one you entered." />
+      </Modal>
+      <Modal open={open === "rejected"} onClose={() => setOpen(null)} title={`Don't approve ${o.name}`}
+        subtitle="They won't be able to use WindVeal. Their admins see your reason and can contact support."
+        footer={<><Button variant="secondary" onClick={() => setOpen(null)}>Cancel</Button><Button variant="danger" loading={decide.isPending} disabled={!note.trim()} onClick={() => decide.mutate()}>Don't approve</Button></>}>
+        <Textarea label="Reason" rows={4} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. We couldn't find a registered business with this name and number." />
+      </Modal>
+      <Modal open={open === "pending"} onClose={() => setOpen(null)} title="Reopen the review?"
+        subtitle={status === "verified" ? "They'll be held at the review screen again until you decide." : "They go back into the review queue."}
+        footer={<><Button variant="secondary" onClick={() => setOpen(null)}>Cancel</Button><Button loading={decide.isPending} onClick={() => decide.mutate()}>Reopen</Button></>} />
+    </Card>
+  );
+}
+
+/** What a reviewer ticks off, with everything needed to check each one. Ticks are private to WindVeal. */
+function ChecksCard({ data, onOpen }: { data: any; onOpen: (f: ViewableFile) => void }) {
+  const qc = useQueryClient();
+  const o = data.org;
+  // Ticks show straight away; the server catches up.
+  const [checks, setChecks] = useState<Record<string, boolean>>(data.review.checks ?? {});
+  useEffect(() => { setChecks(data.review.checks ?? {}); }, [data.review.checks]);
+  const tick = useMutation({
+    mutationFn: (v: { key: string; done: boolean }) => { setChecks((c) => ({ ...c, [v.key]: v.done })); return api.post(`/api/admin/organisations/${o.id}/checks`, v); },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "org", o.id] }),
+  });
+  const docs = (proof: string) => data.documents.filter((f: any) => f.proof === proof);
+  const doc = (f: any) => (
+    <div key={f.id} className="ad-doc">
+      <span className="th"><FileText size={18} /></span>
+      <div><b>{f.name}</b><small>Uploaded {fmtDate(f.createdAt)} · {formatBytes(f.size)}</small></div>
+      <button className="link" onClick={() => onOpen(f)}>Open</button>
+    </div>
+  );
+  const lookup = (q: string) => `https://www.google.com/search?q=${encodeURIComponent(q)}`;
+  const website = o.website && (o.website.startsWith("http") ? o.website : `https://${o.website}`);
+  const rows: [string, ReactNode, ReactNode, string | null][] = [
+    ["name", o.legalName, null, lookup(`${o.legalName} ${country(o.country)} company registry`)],
+    ["registration_number", o.registrationNumber || <span className="muted">Not given</span>, null, o.registrationNumber ? lookup(`${o.registrationNumber} ${o.legalName}`) : null],
+    ["certificate", null, docs("certificate").length ? docs("certificate").map(doc) : <small>Not sent</small>, null],
+    ["address", [o.address, o.city].filter(Boolean).join(", ") || <span className="muted">Not given</span>, docs("address").length ? docs("address").map(doc) : <small>No proof of address sent</small>, null],
+    ["person", data.creator ? `${data.creator.name} · ${data.creator.email}` : "",
+      data.creator && <small>{[data.creator.emailVerified ? "Email verified" : "Email not verified", data.creator.phone && `phone ${data.creator.phone}`, data.members.find((m: any) => m.userId === data.creator.id)?.jobTitle].filter(Boolean).join(" · ")}</small>, null],
+    ["website", o.website || <span className="muted">Not given</span>, null, website || null],
+  ];
+  const others = data.documents.filter((f: any) => f.proof !== "certificate" && f.proof !== "address");
+  return (
+    <Card title="Check these" subtitle="Ticks are only for you and other WindVeal reviewers.">
+      {rows.map(([key, value, extra, link]) => (
+        <div key={key} className={`ad-chk ${checks[key] ? "on" : ""}`}>
+          <label className="ad-chk-box"><input type="checkbox" checked={!!checks[key]} onChange={(e) => tick.mutate({ key, done: e.target.checked })} aria-label={REVIEW_CHECKS[key as keyof typeof REVIEW_CHECKS]} /></label>
+          <div><b>{REVIEW_CHECKS[key as keyof typeof REVIEW_CHECKS]}</b>{value && <span>{value}</span>}{extra}</div>
+          {link ? <a className="link ad-chk-link" href={link} target="_blank" rel="noreferrer">{key === "website" ? "Open" : "Look it up"}<ExternalLink size={13} /></a> : <span />}
+        </div>
+      ))}
+      {!!others.length && (
+        <div className="ad-chk"><span /><div><b>Other documents</b>{others.map((f: any) => <div key={f.id}><small className="muted">{VERIFICATION_DOC_KINDS[f.proof as keyof typeof VERIFICATION_DOC_KINDS]}</small>{doc(f)}</div>)}</div><span /></div>
+      )}
+    </Card>
+  );
+}
+
+/** What was asked for, and how far they've got. */
+function RequestCard({ request }: { request: any }) {
+  return (
+    <Card title="What you asked for" subtitle={`${fmtDate(request.at)} · ${request.by}`}>
+      <p className="ad-quote">{request.message}</p>
+      {request.items.map((i: any) => (
+        <div key={i.key} className="list-row">
+          {i.doneAt ? <Pill tone="ok">Done</Pill> : <Pill tone="grey">Not yet</Pill>}
+          <div style={{ minWidth: 0, flex: 1 }}><span className="ink">{i.key === "other" ? i.label : REVIEW_REQUESTS[i.key as ReviewRequestKey].ask}</span>
+            {i.note && <small className="muted" style={{ display: "block" }}>{i.note}</small>}</div>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+const HISTORY_DOT: Record<string, string> = {
+  "account.created": "ok", "account.email_verified": "ok", "org.verification_submitted": "b", "org.verification_resubmitted": "b",
+  "org.verification_needs_info": "w", "org.verification_verified": "ok", "org.verification_rejected": "r", "org.verification_pending": "b",
+};
+
+function HistoryCard({ history }: { history: any[] }) {
+  return (
+    <Card title="Review history">
+      <div className="ad-tl">
+        {history.slice(0, 8).map((h, i) => (
+          <div key={i}>
+            <i className={HISTORY_DOT[h.action] ?? ""} />
+            <span><b>{h.summary}</b><small>{fmtDate(h.createdAt)}, {fmtTime(h.createdAt)}{h.actor ? ` · ${h.actor}` : ""}</small>
+              {h.meta?.items && <q>{(h.meta.items as string[]).join(", ")}</q>}
+              {h.meta?.what?.length ? <q>{(h.meta.what as string[]).join("; ")}</q> : null}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function PlanCard({ org: o }: { org: any }) {
+  const qc = useQueryClient();
+  const toast = useToast();
   const [plan, setPlan] = useState<string>(o.plan);
   const [billing, setBilling] = useState<string>(o.billing);
   useEffect(() => { setPlan(o.plan); setBilling(o.billing); }, [o.plan, o.billing]);
-  const refresh = () => qc.invalidateQueries({ queryKey: ["admin"] });
-  const decide = useMutation({
-    mutationFn: () => api.post(`/api/admin/organisations/${o.id}/verification`, { status: decision, note }),
-    onSuccess: () => {
-      toast(decision === "verified" ? `${o.name} is verified` : decision === "rejected" ? `${o.name} was told what to fix` : `${o.name} is back in review`);
-      setDecision(null); setNote(""); refresh();
-    },
-  });
   const savePlan = useMutation({
     mutationFn: () => api.post(`/api/admin/organisations/${o.id}/plan`, { plan, billing }),
-    onSuccess: () => { toast("Plan updated"); refresh(); },
+    onSuccess: () => { toast("Plan updated"); void qc.invalidateQueries({ queryKey: ["admin"] }); },
   });
-  const status = o.verificationStatus as Status;
   return (
-    <Card title="Review" actions={<Pill tone={STATUS[status].tone}>{STATUS[status].label}</Pill>}>
-      {o.verificationReviewedAt && <p className="muted" style={{ fontSize: 13, marginTop: 0 }}>Last decided {fmtDate(o.verificationReviewedAt)}{data.reviewer ? ` by ${data.reviewer.name}` : ""}.</p>}
-      {o.verificationNote && <p className={`pf-note ${status === "rejected" ? "bad" : ""}`}><b>Note sent:</b> {o.verificationNote}</p>}
-      <div className="stack" style={{ gap: 8 }}>
-        {status !== "verified" && <Button block icon={<Check size={16} />} onClick={() => setDecision("verified")}>Approve</Button>}
-        {status !== "rejected" && <Button block variant="secondary" icon={<X size={16} />} onClick={() => setDecision("rejected")}>Don't approve</Button>}
-        {status !== "pending" && <Button block variant="ghost" icon={<RotateCcw size={16} />} onClick={() => setDecision("pending")}>Send back to review</Button>}
-      </div>
-      <h4 className="pf-sub">Plan</h4>
+    <Card title="Plan">
       <div className="form-grid">
         <Select label="Plan" value={plan} onChange={(e) => setPlan(e.target.value)} options={PLANS.map((p) => ({ value: p, label: p[0]!.toUpperCase() + p.slice(1) }))} />
         <Select label="Billing" value={billing} onChange={(e) => setBilling(e.target.value)} options={[{ value: "monthly", label: "Monthly" }, { value: "yearly", label: "Yearly" }]} />
       </div>
       {(plan !== o.plan || billing !== o.billing) && <Button variant="secondary" block style={{ marginTop: 12 }} loading={savePlan.isPending} onClick={() => savePlan.mutate()}>Save plan</Button>}
-      <Modal open={!!decision} onClose={() => setDecision(null)}
-        title={decision === "verified" ? `Approve ${o.name}?` : decision === "rejected" ? `Don't approve ${o.name}` : "Send back to review"}
-        subtitle={decision === "verified" ? "Their careers page goes live and their admins are told." : decision === "rejected" ? "Their admins see this note and can fix their details or send a document." : "It goes back to the waiting list."}
-        footer={<>
-          <Button variant="secondary" onClick={() => setDecision(null)}>Cancel</Button>
-          <Button variant={decision === "rejected" ? "danger" : "primary"} loading={decide.isPending} disabled={decision === "rejected" && !note.trim()} onClick={() => decide.mutate()}>
-            {decision === "verified" ? "Approve" : decision === "rejected" ? "Send note" : "Send back"}
-          </Button>
-        </>}>
-        <Textarea label={decision === "rejected" ? "What needs fixing" : "Note to the organisation"} optional={decision !== "rejected"} value={note} onChange={(e) => setNote(e.target.value)}
-          placeholder={decision === "rejected" ? "e.g. The registration number doesn't match the certificate." : ""} />
-      </Modal>
     </Card>
   );
 }
@@ -171,7 +305,17 @@ function OrganisationDetail() {
   const c = d.counts;
   return (
     <>
-      <PageHeader title={o.name} subtitle={`${o.legalName} · ${country(o.country)} · registered ${fmtDate(o.createdAt)}`} back={{ label: "All organisations", onClick: () => navigate("/admin/organisations") }} />
+      <PageHeader title={o.name} back={{ label: "All organisations", onClick: () => navigate("/admin/organisations") }}
+        subtitle={[o.legalName, country(o.country), d.review.submittedAt ? `sent for review ${fmtDate(d.review.submittedAt)}, ${fmtTime(d.review.submittedAt)}` : `registered ${fmtDate(o.createdAt)}`,
+          d.review.request && d.review.status === "pending" ? "second look" : null].filter(Boolean).join(" · ")} />
+      <DecisionBar data={d} />
+      <div className="grid-side side-360">
+        <div>
+          <ChecksCard data={d} onOpen={setViewing} />
+          {d.review.request && d.review.status !== "verified" && <RequestCard request={d.review.request} />}
+        </div>
+        <div><HistoryCard history={d.review.history} /></div>
+      </div>
       <div className="pf-company">
         <button className="pf-cover ad-cover" disabled={!o.coverFileId} onClick={() => o.coverFileId && image(o.coverFileId, "Cover image")}
           style={o.coverFileId ? { backgroundImage: `url(${adminFileUrl(o.coverFileId)})` } : { background: `linear-gradient(120deg, ${o.brandColor ?? "#263f91"}, var(--night))` }}
@@ -199,15 +343,6 @@ function OrganisationDetail() {
               ] as [string, React.ReactNode][]).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v || <span className="muted">Not given</span>}</dd></div>)}
             </dl>
           </Card>
-          <Card title="Verification documents" subtitle="What they sent to prove the business is real.">
-            {!d.documents.length ? <p className="muted">They haven't sent any documents.</p> : d.documents.map((f: any) => (
-              <div key={f.id} className="list-row">
-                <FileText size={18} className="muted" />
-                <div style={{ flex: 1, minWidth: 0 }}><button className="link pf-file" onClick={() => setViewing(f)}>{f.name}</button><small className="muted" style={{ display: "block" }}>{formatBytes(f.size)} · {fmtDate(f.createdAt)}</small></div>
-                <Button variant="secondary" size="sm" icon={<Eye size={15} />} onClick={() => setViewing(f)}>Open</Button>
-              </div>
-            ))}
-          </Card>
           <Card title="Branding and careers page">
             <dl className="kv pf-kv">
               <div><dt>Logo</dt><dd>{o.logoFileId ? <button className="link" onClick={() => image(o.logoFileId, "Logo")}>Open</button> : <span className="muted">Not given</span>}</dd></div>
@@ -230,8 +365,8 @@ function OrganisationDetail() {
           </Card>
         </div>
         <div>
-          <Review data={d} />
           <AccountCard org={o} />
+          <PlanCard org={o} />
           {d.creator && (
             <Card title="Registered by">
               <div className="list-row"><Avatar name={d.creator.name} /><div style={{ minWidth: 0, flex: 1 }}><b className="ink" style={{ display: "block" }}>{d.creator.name}</b><small className="muted">{d.creator.email}</small></div>{d.creator.emailVerified ? <Pill tone="ok">Email verified</Pill> : <Pill tone="warn">Email not verified</Pill>}</div>

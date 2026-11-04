@@ -181,7 +181,7 @@ export default async function homeRoutes(app: FastifyInstance) {
     let adminWaiting: number | null = null;
     if (ctx.user.platformAdmin) {
       const [p] = await db.select({ n: count }).from(organisations)
-        .where(and(eq(organisations.verificationStatus, "pending"), eq(organisations.accountStatus, "active"), isNull(organisations.deletedAt)));
+        .where(and(eq(organisations.verificationStatus, "pending"), isNotNull(organisations.verificationSubmittedAt), eq(organisations.accountStatus, "active"), isNull(organisations.deletedAt)));
       const [o] = await db.select({ n: count }).from(organisations).where(isNull(organisations.deletedAt));
       const [u] = await db.select({ n: count }).from(users);
       adminWaiting = p?.n ?? 0;
