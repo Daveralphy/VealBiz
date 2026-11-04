@@ -375,7 +375,7 @@
 .ad-row:hover b { color: var(--blue); }
 
 /* ---------- Workspace dashboards (colours come from the workspace: --ws-c, --ws-t) ---------- */
-.dash-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 24px 0 20px; }
+.dash-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 0 0 20px; }
 .dash-kpi { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px; color: inherit; }
 a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
 .dash-kpi small { color: var(--muted); font-size: 13px; display: block; }
@@ -466,8 +466,11 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
 }
 
 /* Insights uses its own tiles (with an info tip); give them the same spacing and highlight as other dashboards. */
-.in-ws .ins-stats { margin-top: 24px; }
+.in-ws .ins-stats { margin-top: 0; }
 .in-ws .ins-stats > .ins-kpi:first-child { background: var(--ws-c); border-color: var(--ws-c); }
 .in-ws .ins-stats > .ins-kpi:first-child small, .in-ws .ins-stats > .ins-kpi:first-child em, .in-ws .ins-stats > .ins-kpi:first-child .ins-tip button { color: rgba(255, 255, 255, .85); }
 .in-ws .ins-stats > .ins-kpi:first-child b { color: #fff; }
 .in-ws { --ws-t-strong: color-mix(in srgb, var(--ws-c) 30%, white); }
+
+/* Sidebar areas have no tab bar under the title, so the title itself keeps the page's spacing. */
+.in-ws .page-head { margin-bottom: 24px; }

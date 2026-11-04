@@ -205,13 +205,13 @@ export default async function adminRoutes(app: FastifyInstance) {
     const waiting = await db.select({ o: organisations, creator: { name: users.name, email: users.email } })
       .from(organisations).innerJoin(users, eq(users.id, organisations.createdBy))
       .where(and(isNull(organisations.deletedAt), eq(organisations.verificationStatus, "pending"), eq(organisations.accountStatus, "active")))
-      .orderBy(organisations.createdAt).limit(10);
+      .orderBy(organisations.createdAt).limit(5);
     const newest = await db.select({ u: users, org: organisations.legalName, orgId: organisations.id }).from(users)
       .leftJoin(memberships, and(eq(memberships.userId, users.id), isNull(memberships.deletedAt)))
       .leftJoin(organisations, eq(organisations.id, memberships.orgId))
-      .orderBy(desc(users.createdAt)).limit(8);
+      .orderBy(desc(users.createdAt)).limit(5);
     const paused = await db.select().from(organisations)
-      .where(and(isNull(organisations.deletedAt), dsql`${organisations.accountStatus} <> 'active'`)).orderBy(desc(organisations.accountStatusAt)).limit(8);
+      .where(and(isNull(organisations.deletedAt), dsql`${organisations.accountStatus} <> 'active'`)).orderBy(desc(organisations.accountStatusAt)).limit(5);
     return {
       waiting: waiting.map(({ o, creator }) => ({
         id: o.id, name: o.tradingName || o.legalName, legalName: o.legalName, country: o.country, logoFileId: o.logoFileId,

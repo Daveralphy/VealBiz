@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useNavigate, useSearchParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Download, Plus } from "lucide-react";
 import { Button, EmptyState, PageHeader } from "@windveal/ui";
 import { useSession } from "../../lib/session";
@@ -19,6 +19,8 @@ export default function PeopleModule() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const adding = params.get("new") === "employee";
+  const { pathname } = useLocation();
+  const section = pathname.split("/")[2] ?? "";
 
   if (!can("people", "view")) {
     return (
@@ -40,7 +42,8 @@ export default function PeopleModule() {
         title="People & HR"
         subtitle={subtitle}
         actions={<>
-          {hasSpecial("export_data") && (
+          {/* Exporting the employee list belongs with the Directory (Attendance has its own export). */}
+          {hasSpecial("export_data") && section === "directory" && (
             <a className="btn btn-secondary hide-sm" href="/api/people/employees/export" download><Download size={16} />Export</a>
           )}
           {can("people", "edit") && <Button className="ppl-add" icon={<Plus size={16} strokeWidth={2.4} />} onClick={openAdd}>Add employee</Button>}

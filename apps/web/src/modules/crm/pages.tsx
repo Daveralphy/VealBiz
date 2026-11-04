@@ -1,6 +1,6 @@
 import { useMemo, useState, type DragEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { CalendarClock, Plus, Trophy, Users } from "lucide-react";
+import { CalendarClock, Plus, Users } from "lucide-react";
 import { Avatar, Button, Card, EmptyState, Loading, Pill, SearchInput, cx } from "@windveal/ui";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
@@ -39,7 +39,7 @@ export function OverviewPage() {
       ]} />
       <div className="crm-ov-grid">
         <Card title="Pipeline by stage" subtitle="Value of open deals at each stage"
-          actions={<Link className="crm-link" to="/crm/pipeline">Open pipeline</Link>}>
+          actions={<Link className="crm-link" to="/crm/pipeline">See all →</Link>}>
           {stats.openCount === 0 ? (
             <EmptyState title="No open deals yet" action={<Button size="sm" icon={<Plus size={15} />} onClick={() => navigate("/crm/pipeline?new=deal")}>New deal</Button>}>
               Add a deal or convert a qualified lead to start your pipeline.
@@ -64,7 +64,7 @@ export function OverviewPage() {
             </>
           )}
         </Card>
-        <Card title="Recent wins" actions={winsThisMonth > 0 && <Pill tone="ok"><Trophy size={12} />{winsThisMonth} this month</Pill>}>
+        <Card title="Recent wins" actions={<Link className="crm-link" to="/crm/pipeline">See all →</Link>}>
           {recentWins.length === 0 ? <p className="muted crm-small">No wins yet. Mark a deal as won from the pipeline.</p> : (
             <div>
               {recentWins.map((d) => (
@@ -80,12 +80,12 @@ export function OverviewPage() {
             </div>
           )}
         </Card>
-        <Card title="Your follow-ups" subtitle="Today and overdue" actions={<Link className="crm-link" to="/crm/follow-ups">View all</Link>}>
+        <Card title="Your follow-ups" subtitle="Today and overdue" actions={<Link className="crm-link" to="/crm/follow-ups">See all →</Link>}>
           {followUps.length === 0
             ? <EmptyState icon={<CalendarClock size={24} />} title="You're all caught up">Follow-ups you add when logging calls and meetings show up here.</EmptyState>
             : followUps.map((t) => <FollowUpRow key={t.id} t={t} onLog={setLog} />)}
         </Card>
-        <Card title="Leads to contact" actions={<Link className="crm-link" to="/crm/leads">All leads</Link>}>
+        <Card title="Leads to contact" actions={<Link className="crm-link" to="/crm/leads">See all →</Link>}>
           {leadsToContact.length === 0 ? (
             <EmptyState icon={<Users size={24} />} title="No leads waiting">
               <Link className="crm-link" to="/crm/leads?new=lead">Add a lead</Link>

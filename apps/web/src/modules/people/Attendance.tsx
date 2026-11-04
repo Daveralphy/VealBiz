@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock, Download, LogIn, LogOut, Pencil, Coffee, Play } from "lucide-react";
-import { Avatar, Button, EmptyState, IconButton, Input, Loading, Modal, Notice, Pill, SearchInput, Stat, Textarea, useToast, type Tone } from "@windveal/ui";
+import { Avatar, Button, EmptyState, IconButton, Input, Loading, Modal, Notice, Pill, SearchInput, Textarea, useToast, type Tone } from "@windveal/ui";
 import { api, qs } from "../../lib/api";
 import { fmtTime } from "../../lib/format";
 import { useForm } from "../../lib/form";
@@ -45,10 +45,13 @@ function MyDay() {
             <span>In <b>{c.record?.clockIn ? fmtTime(c.record.clockIn) : "—"}</b></span>
             <span>Out <b>{c.record?.clockOut ? fmtTime(c.record.clockOut) : "—"}</b></span>
           </div>
-          <div className="ppl-myday-total">
-            <b>{c.state === "out" ? "Not clocked in" : fmtDuration(c.workedMs, c.state === "in")}</b>
-            {c.state === "break" && <small>On a break</small>}
-          </div>
+          {/* The total appears once there's time to show; before clocking in it's just the times and the button. */}
+          {c.state !== "out" && (
+            <div className="ppl-myday-total">
+              <b>{fmtDuration(c.workedMs, c.state === "in")}</b>
+              {c.state === "break" && <small>On a break</small>}
+            </div>
+          )}
           <div className="ppl-myday-actions">
             {c.state === "out" && <button className="btn ppl-clockbtn" disabled={c.busy} onClick={c.clockIn}><LogIn size={16} />Clock in</button>}
             {c.state === "in" && <button className="btn ppl-clockbtn ghost" disabled={c.busy} onClick={c.pause}><Coffee size={16} />Take a break</button>}
@@ -91,12 +94,6 @@ export function AttendancePage() {
   return (
     <>
       <MyDay />
-      <div className="stats">
-        <Stat label="Present" value={b?.stats.present ?? "—"} note={b ? `of ${b.stats.total}` : undefined} />
-        <Stat label="Late" value={b?.stats.late ?? "—"} note={b ? `after ${b.workdayStart}` : undefined} />
-        <Stat label="On leave or sick" value={b?.stats.away ?? "—"} note="approved" />
-        <Stat label="Not in yet" value={b?.stats.notIn ?? "—"} note="no clock-in" />
-      </div>
       <div className="toolbar">
         <SearchInput value={search} onChange={setSearch} placeholder="Search people" />
         <input className="input chip-select ppl-date" type="date" aria-label="Date" value={date} max={localYmd()} onChange={(e) => setDate(e.target.value || localYmd())} />

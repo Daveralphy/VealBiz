@@ -1,7 +1,7 @@
 import { useMemo, useState, type DragEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Users } from "lucide-react";
-import { Button, EmptyState, Loading, SearchInput, Stat, cx } from "@windveal/ui";
+import { Button, EmptyState, Loading, SearchInput, cx } from "@windveal/ui";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { dayLabel, fmtDate, isOverdue, timeAgo } from "../../lib/format";
@@ -60,7 +60,7 @@ function LeadCard({ l, stages, last, canEdit, onOpen, onMove, onConvert }: {
 }
 
 export function LeadsPage() {
-  const { money, user } = useSession();
+  const { user } = useSession();
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState("");
   const [owner, setOwner] = useState("");
@@ -102,18 +102,9 @@ export function LeadsPage() {
     if (l.stage !== key) void move(l, key);
   };
 
-  const s = data.data?.stats;
   const filtered = !!(q || owner || source);
   return (
     <>
-      {s && (
-        <div className="stats">
-          <Stat label="Active leads" value={s.active} note={`${s.notContacted} not contacted yet`} />
-          <Stat label="Contacted this week" value={s.contactedThisWeek} note={s.contactedBy ? `by ${s.contactedBy} ${s.contactedBy === 1 ? "person" : "people"}` : "no contact logged"} />
-          <Stat label="Ready to convert" value={s.ready} note={s.readyValue ? `${money(s.readyValue, true)} estimated` : `at ${last}`} />
-          <Stat label="Lead to client rate" value={s.conversionRate === null ? "—" : `${s.conversionRate}%`} note="last 90 days" />
-        </div>
-      )}
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Search leads" />
         <select className="select chip-select" aria-label="Owner" value={owner} onChange={(e) => setOwner(e.target.value)}>

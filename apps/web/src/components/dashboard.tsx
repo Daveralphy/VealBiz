@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Loading } from "@windveal/ui";
 
@@ -27,19 +27,27 @@ export function DashColumns({ left, right }: { left: ReactNode; right: ReactNode
   return <div className="dash-cols"><div>{left}</div><div>{right}</div></div>;
 }
 
-/** A dashboard card with a title, a short line under it and an optional link to the full page. */
+/** Lists on dashboards stop here; "See all" opens the full page. */
+export const DASH_LIMIT = 5;
+
+/**
+ * A dashboard card with a title, a short line under it and a "See all" link to the full page. Lists inside
+ * show at most DASH_LIMIT items, so dashboards stay even.
+ */
 export function DashCard({ title, sub, link, children, loading, empty }: {
   title: string; sub?: string; link?: { to: string; label: string }; children?: ReactNode; loading?: boolean;
   /** Shown instead of the content when there's nothing to list. */
   empty?: ReactNode | false;
 }) {
+  const items = Children.toArray(children);
+  const shown = items.length > 1 ? items.slice(0, DASH_LIMIT) : children;
   return (
     <section className="dash-card">
       <div className="dash-card-hd">
         <div><h3>{title}</h3>{sub && <p>{sub}</p>}</div>
-        {link && <Link to={link.to} className="dash-link">{link.label} →</Link>}
+        {link && <Link to={link.to} className="dash-link" aria-label={`See all: ${link.label}`}>See all →</Link>}
       </div>
-      {loading ? <Loading lines={3} /> : empty ? <p className="dash-empty">{empty}</p> : children}
+      {loading ? <Loading lines={3} /> : empty ? <p className="dash-empty">{empty}</p> : shown}
     </section>
   );
 }

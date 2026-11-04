@@ -44,7 +44,7 @@ export function PeopleDashboard() {
     .sort((x, y) => Number(!!x.record!.clockOut) - Number(!!y.record!.clockOut) || x.record!.clockIn!.localeCompare(y.record!.clockIn!));
   const unassigned = s ? s.headcount - (depts.data ?? []).reduce((a, d) => a + d.count, 0) : 0;
   const bars = [...(depts.data ?? []).map((d) => ({ label: d.name, value: d.count })), ...(unassigned > 0 ? [{ label: "No department", value: unassigned }] : [])]
-    .filter((r) => r.value > 0).sort((x, y) => y.value - x.value).slice(0, 6);
+    .filter((r) => r.value > 0).sort((x, y) => y.value - x.value).slice(0, 5);
 
   return (
     <>

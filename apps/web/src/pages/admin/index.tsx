@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Check, Download, ExternalLink, Eye, FileText, Image as ImageIcon, KeyRound, LogOut, MailCheck, Pause, RotateCcw, ShieldCheck, X } from "lucide-react";
-import {
-  Avatar, Button, Card, EmptyState, Loading, Modal, PageHeader, Pill, SearchInput, Segmented, Select, Stat, Textarea, useConfirm, useToast,
-} from "@windveal/ui";
+import { Avatar, Button, Card, EmptyState, Loading, Modal, PageHeader, Pill, SearchInput, Segmented, Select, Textarea, useConfirm, useToast } from "@windveal/ui";
 import { PLANS, formatBytes } from "@windveal/shared";
 import { api, qs } from "../../lib/api";
 import { useSession } from "../../lib/session";
@@ -38,23 +36,12 @@ function Organisations() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status | "suspended" | "closed" | "all">(() => (new URLSearchParams(location.search).get("status") as any) || "pending");
   const [q, setQ] = useState("");
-  const summary = useQuery({ queryKey: ["admin", "summary"], queryFn: () => api.get("/api/admin/summary") });
   const list = useQuery({
     queryKey: ["admin", "orgs", status, q],
     queryFn: () => api.get<any[]>(`/api/admin/organisations${qs({ status: status === "all" ? undefined : status, q })}`),
   });
-  const s = summary.data;
   return (
     <>
-      {s && (
-        <div className="ad-stats">
-          <Stat label="Waiting for review" value={s.pending} />
-          <Stat label="Verified" value={s.verified} />
-          <Stat label="Not verified" value={s.rejected} />
-          <Stat label="New this week" value={s.newThisWeek} />
-          <Stat label="People on WindVeal" value={s.users} />
-        </div>
-      )}
       <div className="between ad-filters">
         <Segmented value={status} onChange={setStatus} options={[
           { value: "pending", label: "Waiting" }, { value: "verified", label: "Verified" }, { value: "rejected", label: "Not verified" },
@@ -344,7 +331,7 @@ function Overview() {
             ))}
           </Card>
           <div>
-            <Card title="New people">
+            <Card title="New people" actions={<Button variant="ghost" size="sm" onClick={() => navigate("/admin/people")}>See all</Button>}>
               {o.data.newUsers.map((u: any) => (
                 <button key={u.id} className="list-row ad-row" onClick={() => navigate(`/admin/people/${u.id}`)}>
                   <Avatar name={u.name} size={32} />
@@ -354,7 +341,7 @@ function Overview() {
               ))}
             </Card>
             {!!o.data.paused.length && (
-              <Card title="Suspended or closed">
+              <Card title="Suspended or closed" actions={<Button variant="ghost" size="sm" onClick={() => navigate("/admin/organisations?status=suspended")}>See all</Button>}>
                 {o.data.paused.map((x: any) => (
                   <button key={x.id} className="list-row ad-row" onClick={() => navigate(`/admin/organisations/${x.id}`)}>
                     <span style={{ flex: 1, minWidth: 0 }}><b className="ink" style={{ display: "block" }}>{x.name}</b><small className="muted">{x.reason ?? ""}</small></span>

@@ -28,7 +28,7 @@ export function DocumentsDashboard() {
   const tree = useFolders();
 
   const folders = (tree.data?.folders ?? []).filter((f) => !f.parentId && f.totalCount > 0)
-    .sort((a, b) => b.totalCount - a.totalCount).slice(0, 6)
+    .sort((a, b) => b.totalCount - a.totalCount).slice(0, 5)
     .map((f) => ({ label: f.name, value: f.totalCount }));
   const fileLead = (f: FileRow) => <TypeBadge name={f.name} size={32} />;
 

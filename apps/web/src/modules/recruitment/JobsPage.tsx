@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Briefcase, Globe, Lock, MoreHorizontal } from "lucide-react";
-import { Button, ConfirmDialog, EmptyState, IconButton, Loading, Menu, Notice, Pill, SearchInput, Select, Stat, useToast } from "@windveal/ui";
+import { Button, ConfirmDialog, EmptyState, IconButton, Loading, Menu, Notice, Pill, SearchInput, Select, useToast } from "@windveal/ui";
 import { api, qs } from "../../lib/api";
 import { useSession } from "../../lib/session";
-import { keys, useDepartments, useRefresh, useStats, type Job } from "./data";
+import { keys, useDepartments, useRefresh, type Job } from "./data";
 
 export function statusPill(status: Job["status"]) {
   return status === "open" ? <Pill tone="ok">Open</Pill> : status === "draft" ? <Pill tone="grey">Draft</Pill> : <Pill tone="red">Closed</Pill>;
@@ -91,11 +91,9 @@ export function JobsPage() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("open,draft");
   const [dept, setDept] = useState("");
-  const stats = useStats();
   const departments = useDepartments();
   const params = qs({ status: status === "all" ? "" : status, departmentId: dept, q: q.trim() });
   const jobs = useQuery({ queryKey: keys.jobs(params), queryFn: () => api.get<Job[]>(`/api/recruitment/jobs${params}`), placeholderData: (p) => p });
-  const s = stats.data;
   const filtered = !!(q || dept || status !== "open,draft");
 
   return (
@@ -105,14 +103,6 @@ export function JobsPage() {
           <b>Your careers page isn't live yet.</b> Jobs can be shared publicly once {org.name} is verified. You can prepare them now.
         </Notice>
       )}
-      <div className="stats">
-        <Stat label="Open roles" value={s?.openRoles ?? "–"} note={s ? `${s.draftRoles} draft${s.draftRoles === 1 ? "" : "s"}` : undefined} />
-        <Stat label="New applicants" value={s?.newApplicantsThisWeek ?? "–"} note="this week" />
-        <Stat label="Interviews this week" value={s?.interviewsThisWeek ?? "–"} note={s ? `${s.interviewsToday} today` : undefined} />
-        <Stat label="Average time to hire" value={s?.averageDaysToHire != null ? `${s.averageDaysToHire} day${s.averageDaysToHire === 1 ? "" : "s"}` : "–"}
-          note={s?.averageDaysToHire == null ? "no hires yet" : s.previousAverageDaysToHire != null ? `${s.averageDaysToHire <= s.previousAverageDaysToHire ? "down" : "up"} from ${s.previousAverageDaysToHire}` : "last 90 days"}
-          up={s?.averageDaysToHire != null && s.previousAverageDaysToHire != null && s.averageDaysToHire < s.previousAverageDaysToHire} />
-      </div>
       <div className="toolbar">
         <SearchInput value={q} onChange={setQ} placeholder="Search jobs" />
         <Select className="chip-select" aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} options={[

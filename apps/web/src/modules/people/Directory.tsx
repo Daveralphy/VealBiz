@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { LayoutGrid, List, MoreHorizontal, Plus, Users } from "lucide-react";
-import { Avatar, Button, EmptyState, IconButton, Loading, Menu, Notice, Pill, SearchInput, Stat } from "@windveal/ui";
+import { Avatar, Button, EmptyState, IconButton, Loading, Menu, Notice, Pill, SearchInput } from "@windveal/ui";
 import { api } from "../../lib/api";
-import { fmtDate } from "../../lib/format";
 import { useSession } from "../../lib/session";
-import { STATUS, monthYear, statusLabel, useDepartments, useStats, type Employee } from "./lib";
+import { STATUS, monthYear, statusLabel, useDepartments, type Employee } from "./lib";
 
 type ListResponse = { items: Employee[]; total: number; page: number; pageSize: number; locations: string[] };
 
@@ -37,7 +36,6 @@ export function Directory({ onAdd }: { onAdd: () => void }) {
   const status = params.get("status") ?? "current";
   const page = Math.max(1, Number(params.get("page")) || 1);
   const [view, setView] = useState<"list" | "grid">(readView);
-  const stats = useStats();
   const depts = useDepartments();
 
   const setParam = (k: string, v: string) => setParams((p) => {
@@ -54,19 +52,12 @@ export function Directory({ onAdd }: { onAdd: () => void }) {
     placeholderData: keepPreviousData,
   });
 
-  const s = stats.data;
   const data = list.data;
   const filtered = !!(q || departmentId || location || status !== "current");
   const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
 
   return (
     <>
-      <div className="stats">
-        <Stat label="Headcount" value={s?.headcount ?? "—"} note={s ? (s.joinedThisQuarter ? `+${s.joinedThisQuarter} this quarter` : "No new starters this quarter") : undefined} up={!!s?.joinedThisQuarter} />
-        <Stat label="On leave today" value={s?.onLeaveToday.count ?? "—"} note={s ? (s.onLeaveToday.names.length ? s.onLeaveToday.names.slice(0, 3).join(", ") + (s.onLeaveToday.names.length > 3 ? "…" : "") : "Everyone's in") : undefined} />
-        <Stat label="Starting soon" value={s?.startingSoon.count ?? "—"} note={s ? (s.startingSoon.nextStart ? `Next start: ${fmtDate(s.startingSoon.nextStart, { day: "numeric", month: "short" })}` : "No one starting") : undefined} />
-        <Stat label="Leaving" value={s?.leaving.count ?? "—"} note={s ? (s.leaving.next ? `${s.leaving.next.name}${s.leaving.next.endDate ? `, ${fmtDate(s.leaving.next.endDate, { day: "numeric", month: "short" })}` : ""}` : "No one leaving") : undefined} />
-      </div>
 
       <div className="toolbar">
         <SearchInput value={search} onChange={setSearch} placeholder="Search by name, role or department" />
