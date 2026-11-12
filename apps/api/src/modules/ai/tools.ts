@@ -235,5 +235,5 @@ export const TOOLS: Tool[] = [
   },
 ];
 
-export const toolSpecs = (): ToolSpec[] => TOOLS.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } }));
+export const toolSpecs = (tools: Tool[] = TOOLS): ToolSpec[] => tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.parameters } }));
 export const toolByName = (name: string) => TOOLS.find((t) => t.name === name);

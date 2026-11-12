@@ -93,6 +93,29 @@ describe("WindVeal AI", () => {
     expect(JSON.stringify((await c.get("/api/crm/companies")).body)).not.toContain("Zeta Foods");
   });
 
+  it("offers only the tools a question is about, so a small model answers faster", async () => {
+    const app = await getApp();
+    const { c, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    connect();
+    const offered = async (messages: unknown[]) => {
+      script.push(say("ok"));
+      await c.post("/api/ai/chat", { messages });
+      return seen.at(-1).tools?.map((t: any) => t.function.name) ?? [];
+    };
+    const crm = await offered([{ role: "user", content: "Add Apex Bakery as a new lead" }]);
+    expect(crm).toEqual(expect.arrayContaining(["search", "add_lead", "leads"]));
+    expect(crm).not.toContain("request_leave");
+    // A short follow-up carries on with the earlier topic.
+    const followUp = await offered([
+      { role: "user", content: "I want to take annual leave" }, { role: "assistant", content: "Which days?" }, { role: "user", content: "1 to 3 Dec" },
+    ]);
+    expect(followUp).toContain("request_leave");
+    expect(followUp).not.toContain("add_deal");
+    // Nothing recognisable: everything they can use.
+    expect((await offered([{ role: "user", content: "hello" }])).length).toBeGreaterThan(15);
+  });
+
   it("can't do anything the person couldn't do themself", async () => {
     const app = await getApp();
     const { c: admin, org } = await signUpWithOrg(app);

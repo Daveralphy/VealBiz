@@ -11,6 +11,7 @@ import { loadPricing } from "../../lib/pricing";
 import { env } from "../../env";
 import { localDate } from "../people/util";
 import { toolByName, toolSpecs, type Call } from "./tools";
+import { toolsFor } from "./topics";
 import { checkColumns } from "./imports";
 
 const MAX_STEPS = 6;
@@ -68,7 +69,7 @@ function args(raw: string) { try { return JSON.parse(raw || "{}"); } catch { ret
 async function converse(ctx: OrgContext, call: Call, messages: ChatMessage[]): Promise<Outcome> {
   const system: ChatMessage = { role: "system", content: systemPrompt(ctx) };
   for (let step = 0; step < MAX_STEPS; step++) {
-    const res = await chatCompletion([system, ...messages], toolSpecs());
+    const res = await chatCompletion([system, ...messages], toolSpecs(toolsFor(messages, ctx.access)));
     if (!res.toolCalls.length) {
       const reply = res.content?.trim() || "Sorry, I didn't catch that. Could you say it another way?";
       messages.push({ role: "assistant", content: reply });
