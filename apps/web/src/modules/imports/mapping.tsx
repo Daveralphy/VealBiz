@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { api, ApiError } from "../../lib/api";
 import { useNavigate, useParams } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, ArrowRight } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import { Avatar, Button, EmptyState, Notice, PageHeader, Pill } from "@windveal/ui";
 import { IMPORT_KEEP } from "@windveal/shared";
 import { fmtDate } from "../../lib/format";
@@ -100,6 +102,10 @@ function Mapping({ job }: { job: Job }) {
             <Notice tone="error">Match a column to <b>{missing.map((m) => m.label).join(", ")}</b>. Every {dest.noun.replace(/s$/, "")} needs it.</Notice>
           )}
           <ErrorNotice error={patch.error} />
+          <AiColumnCheck job={job} sheet={sheet} onApply={(destination, mapping) => {
+            setConfirmed((c) => ({ ...c, ...Object.fromEntries(sheet.columns.map((col) => [`${sheet.name}:${col}`, true])) }));
+            patch.mutate([{ name: sheet.name, ...(destination !== sheet.destination ? { destination } : {}), mapping }]);
+          }} />
           <div className="imp-map">
             <div className="imp-map-head hide-sm"><span>Column in your file</span><span>Example values</span><span /><span>WindVeal field</span><span>Status</span></div>
             {sheet.columns.map((c) => {
@@ -160,6 +166,42 @@ function Mapping({ job }: { job: Job }) {
           <Button disabled={blocked || patch.isPending} onClick={() => nav(`/import/${job.id}/review`)}>Continue to review<ArrowRight size={16} /></Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+type ColumnCheck = { destination: string | null; mapping: Record<string, string | null>; notes: string[]; changes: string[] };
+
+/**
+ * WindVeal AI reads the columns' sample values, not just their headers, and suggests what each really is
+ * (a "Col B" full of emails, phone numbers under "Remark"). Nothing changes until the person applies it.
+ */
+function AiColumnCheck({ job, sheet, onApply }: { job: Job; sheet: Sheet; onApply: (destination: string | null, mapping: Record<string, string | null>) => void }) {
+  const status = useQuery({ queryKey: ["ai", "status"], queryFn: () => api.get<{ connected: boolean; used: number; limit: number }>("/api/ai/status") });
+  const check = useMutation({ mutationFn: () => api.post<ColumnCheck>(`/api/ai/imports/${job.id}/check`, { sheet: sheet.name }) });
+  useEffect(() => { check.reset(); }, [sheet.name]); // eslint-disable-line react-hooks/exhaustive-deps
+  const s = status.data;
+  if (!s?.connected || s.limit === 0) return null;
+  const r = check.data;
+  const destLabel = (key: string | null) => destOf(job, key)?.label ?? "nowhere";
+  return (
+    <div className="imp-ai">
+      <Sparkles size={18} />
+      <div className="grow">
+        {!r ? <>
+          <b>Not sure the columns are right?</b>
+          <small>WindVeal AI can read the values in each column, not just the headers, and suggest what each one really is.</small>
+          {check.error && <small className="imp-ai-err">{check.error instanceof ApiError ? check.error.message : "That didn't work. Try again."}</small>}
+        </> : !r.changes.length && r.destination === sheet.destination ? <>
+          <b>The columns look right.</b>
+          {r.notes.map((n) => <small key={n}>{n}</small>)}
+        </> : <>
+          <b>{r.destination !== sheet.destination ? `This looks like ${destLabel(r.destination)}.` : `${plural(r.changes.length, "column")} could be matched better.`}</b>
+          {r.notes.map((n) => <small key={n}>{n}</small>)}
+        </>}
+      </div>
+      {!r ? <Button size="sm" variant="secondary" loading={check.isPending} disabled={s.used >= s.limit} onClick={() => check.mutate()}>Check with AI</Button>
+        : (r.changes.length > 0 || r.destination !== sheet.destination) && <Button size="sm" onClick={() => { onApply(r.destination, r.mapping); check.reset(); }}>Apply suggestions</Button>}
     </div>
   );
 }

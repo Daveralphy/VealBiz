@@ -25,5 +25,14 @@ export const env = {
   isProd: process.env.NODE_ENV === "production",
   isTest: process.env.NODE_ENV === "test" || process.env.VITEST === "true",
   /** Sign-in, sign-up and code attempts allowed per minute from one address (raised for automated tests). */
+  /**
+   * WindVeal AI: any server that speaks the standard chat-completions format with tools (Ollama, llama.cpp,
+   * vLLM...). Leave AI_BASE_URL empty and WindVeal AI simply shows as not connected.
+   */
+  aiBaseUrl: process.env.AI_BASE_URL ?? "",
+  aiModel: process.env.AI_MODEL ?? "",
+  aiApiKey: process.env.AI_API_KEY ?? "",
+  /** Extra settings sent with each request, as JSON (e.g. {"think": false} for Qwen models on Ollama). */
+  aiExtraBody: (() => { try { return JSON.parse(process.env.AI_EXTRA_BODY ?? "{}") as Record<string, unknown>; } catch { return {}; } })(),
   authRateLimit: Number(process.env.AUTH_RATE_LIMIT ?? (process.env.NODE_ENV === "test" || process.env.VITEST === "true" ? 10_000 : 10)),
 };

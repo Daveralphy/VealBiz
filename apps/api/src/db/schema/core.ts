@@ -252,3 +252,10 @@ export const fileLinks = pgTable("file_links", {
   label: text("label"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("file_links_target_idx").on(t.linkType, t.linkId)]);
+
+/** WindVeal AI requests per business per month, for plan allowances. Only counts: no conversations are kept. */
+export const aiUsage = pgTable("ai_usage", {
+  orgId: uuid("org_id").notNull().references(() => organisations.id),
+  month: text("month").notNull(), // "2026-11"
+  count: integer("count").notNull().default(0),
+}, (t) => [uniqueIndex("ai_usage_org_month_uq").on(t.orgId, t.month)]);

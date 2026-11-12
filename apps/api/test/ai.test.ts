@@ -1,0 +1,132 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import { eq } from "drizzle-orm";
+import { db } from "../src/db/client";
+import { organisations } from "../src/db/schema";
+import { env } from "../src/env";
+import { addMember, getApp, signUpWithOrg } from "./helpers";
+
+/** A stand-in for a model server: answers each request with the next scripted reply, and remembers what it was sent. */
+const script: unknown[] = [];
+const seen: any[] = [];
+let server: http.Server;
+const say = (content: string) => ({ choices: [{ message: { role: "assistant", content } }] });
+const useTool = (name: string, args: unknown) => ({
+  choices: [{ message: { role: "assistant", content: null, tool_calls: [{ id: `call_${name}_${seen.length}`, type: "function", function: { name, arguments: JSON.stringify(args) } }] } }],
+});
+
+beforeAll(async () => {
+  server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => { body += c; });
+    req.on("end", () => {
+      seen.push(JSON.parse(body));
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify(script.shift() ?? say("(no more scripted replies)")));
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, r));
+});
+afterAll(() => { server.close(); env.aiBaseUrl = ""; env.aiModel = ""; });
+
+const connect = () => { env.aiBaseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`; env.aiModel = "test-model"; };
+const growth = (orgId: string) => db.update(organisations).set({ plan: "growth" }).where(eq(organisations.id, orgId));
+
+describe("WindVeal AI", () => {
+  it("shows as not connected until a model is set up", async () => {
+    const app = await getApp();
+    const { c } = await signUpWithOrg(app);
+    env.aiBaseUrl = ""; env.aiModel = "";
+    expect((await c.get("/api/ai/status")).body).toMatchObject({ connected: false, used: 0, limit: 0 });
+    expect((await c.post("/api/ai/chat", { messages: [{ role: "user", content: "hi" }] })).status).toBe(503);
+  });
+
+  it("comes with Growth: Free has no AI", async () => {
+    const app = await getApp();
+    const { c } = await signUpWithOrg(app);
+    connect();
+    const r = await c.post("/api/ai/chat", { messages: [{ role: "user", content: "hi" }] });
+    expect(r.status).toBe(402);
+  });
+
+  it("looks things up with the person's own access, and answers", async () => {
+    const app = await getApp();
+    const { c, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    connect();
+    script.push(useTool("my_leave", {}), say("You have 20 days of annual leave left."));
+    const r = await c.post("/api/ai/chat", { messages: [{ role: "user", content: "How much leave do I have?" }] });
+    expect(r.status).toBe(200);
+    expect(r.body.reply).toBe("You have 20 days of annual leave left.");
+    // The tool's answer went back to the model; the tools were offered in the standard format.
+    expect(r.body.messages.some((m: any) => m.role === "tool")).toBe(true);
+    expect(seen.at(-1).tools.map((t: any) => t.function.name)).toContain("request_leave");
+    expect((await c.get("/api/ai/status")).body).toMatchObject({ connected: true, used: 1, limit: 200 });
+  });
+
+  it("proposes a change, does it only once confirmed, and can be cancelled", async () => {
+    const app = await getApp();
+    const { c, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    connect();
+    script.push(useTool("create_task", { title: "Call Apex Bakery", dueDate: "2026-12-01", priority: "high" }));
+    const r = await c.post("/api/ai/chat", { messages: [{ role: "user", content: "Remind me to call Apex Bakery on 1 Dec, it's urgent" }] });
+    expect(r.body.proposal).toMatchObject({ tool: "create_task" });
+    expect(r.body.proposal.summary).toContain("Call Apex Bakery");
+    // Nothing yet.
+    const before = (await c.get("/api/workflows/tasks?scope=mine")).body.groups.flatMap((g: any) => g.tasks);
+    expect(before.some((t: any) => t.title === "Call Apex Bakery")).toBe(false);
+    script.push(say("Done: I've added it, due 1 Dec."));
+    const ok = await c.post("/api/ai/confirm", { messages: r.body.messages, toolCallId: r.body.proposal.toolCallId, confirm: true });
+    expect(ok.body).toMatchObject({ done: true, reply: "Done: I've added it, due 1 Dec." });
+    const after = (await c.get("/api/workflows/tasks?scope=mine")).body.groups.flatMap((g: any) => g.tasks);
+    expect(after.some((t: any) => t.title === "Call Apex Bakery")).toBe(true);
+    // The same change can't be answered twice.
+    expect((await c.post("/api/ai/confirm", { messages: ok.body.messages, toolCallId: r.body.proposal.toolCallId, confirm: true })).status).toBe(400);
+
+    script.push(useTool("add_company", { name: "Zeta Foods" }));
+    const p = await c.post("/api/ai/chat", { messages: [{ role: "user", content: "Add Zeta Foods as a company" }] });
+    script.push(say("Okay, I've left it."));
+    const no = await c.post("/api/ai/confirm", { messages: p.body.messages, toolCallId: p.body.proposal.toolCallId, confirm: false });
+    expect(no.body.done).toBe(false);
+    expect(JSON.stringify((await c.get("/api/crm/companies")).body)).not.toContain("Zeta Foods");
+  });
+
+  it("can't do anything the person couldn't do themself", async () => {
+    const app = await getApp();
+    const { c: admin, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    const { c: member } = await addMember(app, admin, "member", "Plain Member");
+    connect();
+    script.push(useTool("team_today", {}), say("You can't see the team's attendance."));
+    const r = await member.post("/api/ai/chat", { messages: [{ role: "user", content: "Who's in today?" }] });
+    const tool = r.body.messages.find((m: any) => m.role === "tool");
+    expect(JSON.parse(tool.content).error).toBeTruthy();
+  });
+
+  it("reads a sheet's values to say what each column really is, keeping only what WindVeal can use", async () => {
+    const app = await getApp();
+    const { c, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    connect();
+    const csv = "Name,Col B,Remark\nAda Obi,ada@example.com,0803 111 2222\nTunde Ade,tunde@example.com,0805 333 4444\n";
+    const up = await app.inject({
+      method: "POST", url: "/api/imports/upload",
+      headers: { cookie: Object.entries(c.cookies).map(([k, v]) => `${k}=${v}`).join("; "), "content-type": "multipart/form-data; boundary=X" },
+      payload: `--X\r\nContent-Disposition: form-data; name="file"; filename="staff.csv"\r\nContent-Type: text/csv\r\n\r\n${csv}\r\n--X--\r\n`,
+    });
+    const job = up.json().job;
+    const sheet = job.sheets[0].name;
+    script.push(say(`Here you go: {"destination": "people.employees", "mapping": {"Name": "fullName", "Col B": "email", "Remark": "phone", "Extra": "madeUpField"}, "notes": ["Col B holds email addresses.", "Remark holds phone numbers."]}`));
+    const r = await c.post(`/api/ai/imports/${job.id}/check`, { sheet });
+    expect(r.status).toBe(200);
+    expect(r.body.destination).toBe("people.employees");
+    expect(r.body.mapping).toMatchObject({ "Col B": "email", Remark: "phone" });
+    expect(Object.keys(r.body.mapping)).not.toContain("Extra");
+    expect(r.body.notes).toContain("Col B holds email addresses.");
+    // The model was shown sample values, not just headers.
+    expect(seen.at(-1).messages[0].content).toContain("ada@example.com");
+    expect(seen.at(-1).tools).toBeUndefined();
+  });
+});

@@ -358,3 +358,11 @@ test("a member sees their own things in My space, and nobody else's", async ({ p
   await page.getByRole("button", { name: "Account menu" }).first().click();
   await expect(page.getByRole("button", { name: "Company profile" })).toHaveCount(0);
 });
+
+test("WindVeal AI opens from the top bar and says when it isn't switched on", async ({ page }) => {
+  await signIn(page);
+  await page.getByRole("button", { name: "WindVeal AI" }).first().click();
+  const panel = page.getByRole("dialog", { name: "WindVeal AI" });
+  await expect(panel.getByText("WindVeal AI isn't switched on yet")).toBeVisible();
+  await expect(panel.getByRole("textbox", { name: "Message WindVeal AI" })).toBeDisabled();
+});
