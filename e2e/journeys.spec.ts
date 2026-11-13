@@ -10,7 +10,7 @@ function watchErrors(page: Page) {
 }
 
 const SCREENS = [
-  "/", "/me", "/me/attendance", "/me/leave", "/me/pay", "/people", "/people/directory", "/people/departments", "/people/leave", "/people/attendance", "/people/onboarding",
+  "/", "/me", "/me/attendance", "/me/leave", "/me/tasks", "/me/pay", "/people", "/people/directory", "/people/departments", "/people/leave", "/people/attendance", "/people/onboarding",
   "/recruitment", "/recruitment/jobs", "/recruitment/candidates", "/recruitment/interviews", "/recruitment/careers", "/recruitment/jobs/new",
   "/crm", "/crm/pipeline", "/crm/companies", "/crm/leads", "/crm/follow-ups",
   "/workflows", "/workflows/mine", "/workflows/approvals", "/workflows/all", "/workflows/templates",
@@ -342,7 +342,7 @@ test("notification settings are all on to start and can be turned off", async ({
   await expect(crm.getByText("Off", { exact: true })).toBeVisible();
 });
 
-test("a member sees their own things in My space, and nobody else's", async ({ page }) => {
+test("a member sees their own things in My Workspace, and nobody else's", async ({ page }) => {
   await signIn(page, "member@example-trading.test");
   await page.locator('.home a[href="/me"]').click();
   await expect(page.getByRole("heading", { level: 1, name: "My Workspace" })).toBeVisible();

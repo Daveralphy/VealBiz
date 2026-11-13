@@ -13,6 +13,7 @@ import { badRequest, conflict, forbidden, iso, notFound, parse } from "../../lib
 import { audit, notify } from "../../lib/audit";
 import { startChecklist } from "../../lib/tasks";
 import { env } from "../../env";
+import { inviteNewStaff } from "../../lib/invites";
 
 export const SCORE_CRITERIA = ["Skills and knowledge", "Attention to detail", "Communication", "Fit with the team"] as const;
 const DAY = 86_400_000;
@@ -766,9 +767,11 @@ export default async function recruitmentRoutes(app: FastifyInstance) {
       }, tx);
       return { employee: emp!, alreadyHired: false, checklistId: cl?.id ?? null };
     });
+    // A new hire gets their access to WindVeal straight away (My Workspace, on their job title's role).
+    const access = result.alreadyHired ? "skipped" : await inviteNewStaff(ctx, result.employee);
     return {
       employee: { id: result.employee.id, firstName: result.employee.firstName, lastName: result.employee.lastName, startDate: result.employee.startDate, status: result.employee.status },
-      alreadyHired: result.alreadyHired, checklistId: result.checklistId,
+      alreadyHired: result.alreadyHired, checklistId: result.checklistId, access,
     };
   });
 }

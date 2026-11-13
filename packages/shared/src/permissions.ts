@@ -5,8 +5,8 @@ export type WorkspaceAccess = Partial<Record<Workspace, AccessLevel>>;
 export const DEFAULT_ACCESS: Record<Role, Record<Workspace, AccessLevel>> = {
   admin: { recruitment: "manage", people: "manage", crm: "manage", workflows: "manage", documents: "manage", insights: "manage" },
   manager: { recruitment: "edit", people: "view", crm: "edit", workflows: "edit", documents: "edit", insights: "view" },
-  // Everyone has My space for their own things, so a member needn't see People & HR.
-  member: { recruitment: "none", people: "none", crm: "edit", workflows: "edit", documents: "view", insights: "none" },
+  // Everyone has My Workspace for their own things; anything more is given by an admin, through their role or to them.
+  member: { recruitment: "none", people: "none", crm: "none", workflows: "none", documents: "none", insights: "none" },
 };
 
 export function accessFor(role: Role, overrides: WorkspaceAccess | null | undefined, ws: Workspace): AccessLevel {
@@ -50,3 +50,10 @@ const PLAN_ORDER = ["free", "growth", "pro", "enterprise"] as const;
 export function planAtLeast(plan: string, needed: (typeof PLAN_ORDER)[number]): boolean {
   return PLAN_ORDER.indexOf(plan as (typeof PLAN_ORDER)[number]) >= PLAN_ORDER.indexOf(needed);
 }
+
+/** On Free, this many roles (not counting Admin) can open more than My Workspace. Growth and up: no limit. */
+export const FREE_ROLES_WITH_ACCESS = 3;
+
+/** Whether a role opens anything beyond My Workspace. */
+export const opensMore = (r: { access: Partial<Record<Workspace, AccessLevel>>; special: readonly string[] }) =>
+  Object.values(r.access).some((v) => v && v !== "none") || r.special.length > 0;

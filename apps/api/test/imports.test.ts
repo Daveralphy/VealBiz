@@ -152,6 +152,22 @@ describe("imports", () => {
     expect(k2!.deletedAt).toBeNull();
   });
 
+  it("sends everyone it adds their WindVeal access on their job title's role, and undo takes it back", async () => {
+    const app = await getApp();
+    const { c } = await signUpWithOrg(app);
+    const n = Date.now();
+    const csv = ["Full Name,Email,Job Title", `Bisi Ade,bisi.${n}@example.test,Cashier`, `Tayo Bello,tayo.${n}@example.test,Cashier`, "Uche Eze,,Driver"].join("\n");
+    const up = await upload(app, c, "team.csv", csv);
+    const commit = await c.post(`/api/imports/jobs/${up.body.job.id}/commit`, { confirm: true });
+    expect(commit.body.job.summary).toMatchObject({ added: 3, invited: 2 });
+    const waiting = (await c.get("/api/invitations")).body;
+    expect(waiting.filter((i: any) => i.email.endsWith(`${n}@example.test`)).map((i: any) => i.roleName)).toEqual(["Cashier", "Cashier"]);
+    // Their job titles are roles now (My Workspace only).
+    expect((await c.get("/api/roles")).body.roles.map((r: any) => r.name)).toEqual(expect.arrayContaining(["Cashier", "Driver"]));
+    await c.post(`/api/imports/jobs/${up.body.job.id}/undo`);
+    expect((await c.get("/api/invitations")).body.filter((i: any) => i.email.endsWith(`${n}@example.test`))).toEqual([]);
+  });
+
   it("suggests CRM and recruitment destinations and flags unclear sheets", async () => {
     const app = await getApp();
     const { c } = await signUpWithOrg(app);

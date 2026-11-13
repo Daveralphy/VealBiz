@@ -24,7 +24,7 @@ const AREA: Partial<Record<string, Workspace>> = {
   leads: "crm", deals: "crm", follow_ups: "crm", add_lead: "crm", add_company: "crm", add_deal: "crm",
   jobs: "recruitment", candidates: "recruitment",
   add_employee: "people",
-  my_tasks: "workflows", create_task: "workflows", complete_task: "workflows",
+  create_task: "workflows",
 };
 
 const matching = (text: string) => TOPICS.filter((t) => t.words.test(text.toLowerCase())).flatMap((t) => t.tools);

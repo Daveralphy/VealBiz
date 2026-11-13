@@ -23,6 +23,7 @@ import leaveRoutes from "./leave";
 import attendanceRoutes from "./attendance";
 import onboardingRoutes from "./onboarding";
 import mySpaceRoutes from "./me";
+import { followJobTitle, inviteNewStaff } from "../../lib/invites";
 
 const mgr = alias(employees, "mgr");
 const STATUSES = ["onboarding", "active", "on_leave", "leaving", "left"] as const;
@@ -48,6 +49,8 @@ const createInput = z.object({
   lastName: z.string().trim().min(1, "Enter a last name").max(80),
   ...employeeFields,
   startOnboarding: z.boolean().optional(),
+  /** False holds back their WindVeal invitation (e.g. they haven't started yet). Sent by default. */
+  sendAccess: z.boolean().optional(),
 });
 const updateInput = z.object({
   firstName: z.string().trim().min(1, "Enter a first name").max(80).optional(),
@@ -289,7 +292,7 @@ export default async function peopleRoutes(app: FastifyInstance) {
     const startDate = input.startDate ?? today;
     const willOnboard = input.startOnboarding === true;
     const status = startDate > today || willOnboard ? "onboarding" : "active";
-    const { startOnboarding: _s, ...fields } = input;
+    const { startOnboarding: _s, sendAccess, ...fields } = input;
     const result = await db.transaction(async (tx) => {
       const [e] = await tx.insert(employees).values({
         ...fields, orgId: ctx.org.id, startDate, status,
@@ -311,7 +314,9 @@ export default async function peopleRoutes(app: FastifyInstance) {
         summary: `${ctx.user.name} added ${fullName(e!)} to People` }, tx);
       return { employee: e!, checklistId, onboardingNote };
     });
-    return { employee: employeeSummary(result.employee, { departmentName: dName }), checklistId: result.checklistId, notice: result.onboardingNote };
+    // Their access to WindVeal goes out straight away (My Workspace, on their job title's role), unless HR holds it back.
+    const access = sendAccess === false ? "held" : await inviteNewStaff(ctx, result.employee);
+    return { employee: employeeSummary(result.employee, { departmentName: dName }), checklistId: result.checklistId, notice: result.onboardingNote, access };
   });
 
   app.patch<{ Params: { id: string } }>("/api/people/employees/:id", async (req) => {
@@ -348,7 +353,20 @@ export default async function peopleRoutes(app: FastifyInstance) {
         summary: `${ctx.user.name} updated ${fullName(u!)}'s details`, meta: { fields: Object.keys(patch) } }, tx);
       return u!;
     });
+    if (patch.jobTitle !== undefined && (patch.jobTitle ?? "") !== (e.jobTitle ?? "")) await followJobTitle(ctx.org, updated, updated.jobTitle);
     return { employee: employeeSummary(updated) };
+  });
+
+  /** Sends someone their access to WindVeal now (when it was held back, or the first invitation ran out). */
+  app.post<{ Params: { id: string } }>("/api/people/employees/:id/send-access", async (req) => {
+    const ctx = await requireAccess(req, "people", "edit");
+    const e = await getTeamEmployee(ctx, req.params.id);
+    if (!e.email) throw badRequest("Add their email address first, so WindVeal knows where to send their access.", { email: "Needed to send access" });
+    if (e.userId) throw conflict(`${fullName(e)} already uses WindVeal.`);
+    const r = await inviteNewStaff(ctx, e);
+    if (r === "has_account") throw conflict("This email address already belongs to someone in another business on WindVeal.");
+    if (r === "already_invited") return { ok: true, notice: `${fullName(e)} already has an invitation waiting. It's in their email.` };
+    return { ok: true, notice: `${fullName(e)} has been sent their access.` };
   });
 
   /** Mark leaving: sets the last day and starts the offboarding checklist. */

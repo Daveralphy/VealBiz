@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { db } from "../src/db/client";
 import { employees } from "../src/db/schema";
-import { addMember, getApp, signUpWithOrg, type Client } from "./helpers";
+import { addMember, getApp, giveAccess, signUpWithOrg, type Client } from "./helpers";
 
 /** Each request gets a random client IP so the per-IP sign-up rate limit doesn't trip across many test sign-ups. */
 beforeAll(async () => {
@@ -108,8 +108,10 @@ describe("workflows: approvals", () => {
     const app = await getApp();
     const { c: admin, org } = await signUpWithOrg(app);
     const { c: manager } = await addMember(app, admin, "manager", "Amaka Manager");
-    const { c: finance } = await addMember(app, admin, "member", "Ngozi Finance");
-    const { c: requester } = await addMember(app, admin, "member", "Yaw Boakye");
+    const { c: finance, email: financeEmail } = await addMember(app, admin, "member", "Ngozi Finance");
+    const { c: requester, email: requesterEmail } = await addMember(app, admin, "member", "Yaw Boakye");
+    await giveAccess(admin, financeEmail, { workflows: "edit" });
+    await giveAccess(admin, requesterEmail, { workflows: "edit" });
     const [managerId, financeId, requesterId] = await Promise.all([myUserId(manager), myUserId(finance), myUserId(requester)]);
 
     // Requester reports to the manager (People & HR data).
@@ -164,7 +166,8 @@ describe("workflows: approvals", () => {
   it("falls back to an admin when the requester has no manager, and a decline ends the request", async () => {
     const app = await getApp();
     const { c: admin } = await signUpWithOrg(app);
-    const { c: member } = await addMember(app, admin, "member", "Efua Nyarko");
+    const { c: member, email } = await addMember(app, admin, "member", "Efua Nyarko");
+    await giveAccess(admin, email, { workflows: "edit" });
     const adminId = await myUserId(admin);
     const r = await member.post("/api/workflows/approvals", { kind: "other", title: "Work from Kumasi for a week" });
     expect(r.body.currentApprover.id).toBe(adminId);

@@ -20,7 +20,15 @@ const WS_WHAT: Record<Workspace, string> = {
 const rank = (l: AccessLevel) => ACCESS_LEVELS.indexOf(l);
 const first = (name: string) => name.split(" ")[0];
 
-type Role = { id: string; name: string; description: string | null; kind: "manager" | "custom"; access: Record<Workspace, AccessLevel>; special: string[]; people: number; invited: number };
+type Role = { id: string; name: string; description: string | null; kind: "manager" | "custom" | "job"; access: Record<Workspace, AccessLevel>; special: string[]; opensMore: boolean; people: number; invited: number };
+type Allowance = { used: number; limit: number | null };
+const roleNote = (r: Role) => r.description || (r.kind === "manager" ? "Runs a team's work" : r.kind === "job" ? "Job title in People & HR" : "");
+
+/** On Free, how many roles can open more than My Workspace (Admin doesn't count). */
+function AllowanceNote({ a }: { a: Allowance }) {
+  if (a.limit === null) return null;
+  return <span className="ac-upsell"><Lock size={14} />Free plan: {a.used} of {a.limit} roles open more than My Workspace. <Link className="link" to="/billing">See plans</Link></span>;
+}
 type RoleOption = { id: string; name: string; description: string | null; access: Record<Workspace, AccessLevel> | null };
 
 function useToastError() {
@@ -60,7 +68,7 @@ function PermRow({ p, on, editing, onChange, disabled, tag, from }: { p: Special
 
 function Chips({ access }: { access: Record<Workspace, AccessLevel> }) {
   const open = WORKSPACES.filter((w) => access[w] !== "none");
-  if (!open.length) return <span className="muted">Nothing yet</span>;
+  if (!open.length) return <span className="muted">My Workspace only</span>;
   return <div className="ac-chips">{open.map((w) => <span key={w}>{WORKSPACE_LABELS[w]} <em>{LEVEL[access[w]].label.toLowerCase()}</em></span>)}</div>;
 }
 
@@ -70,10 +78,10 @@ export function RolesList() {
   const toast = useToast();
   const fail = useToastError();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["roles"], queryFn: () => api.get<{ canCustomise: boolean; admins: number; roles: Role[] }>("/api/roles") });
+  const q = useQuery({ queryKey: ["roles"], queryFn: () => api.get<{ canCustomise: boolean; allowance: Allowance; admins: number; roles: Role[] }>("/api/roles") });
   const [deleting, setDeleting] = useState<Role | null>(null);
   if (!q.data) return <Loading />;
-  const { canCustomise, roles, admins } = q.data;
+  const { allowance, roles, admins } = q.data;
   const duplicate = async (r: Role) => {
     try { const c = await api.post<{ role: Role }>(`/api/roles/${r.id}/duplicate`); await qc.invalidateQueries({ queryKey: ["roles"] }); navigate(`/settings/roles/${c.role.id}?edit=1`); }
     catch (e) { fail(e); }
@@ -81,11 +89,10 @@ export function RolesList() {
   return (
     <>
       <div className="toolbar">
-        <p className="muted ac-lead">A role decides what people can open. You can add extra access for one person from their page.</p>
+        <p className="muted ac-lead">Every job title in People &amp; HR is a role here, and everyone starts with My Workspace. Give a role more, or add extra access for one person from their page.</p>
         <span className="grow" />
-        {canCustomise
-          ? <Button icon={<Plus size={15} />} onClick={() => navigate("/settings/roles/new")}>New role</Button>
-          : <span className="ac-upsell"><Lock size={14} />Custom roles come with Growth. <Link className="link" to="/billing">See plans</Link></span>}
+        <AllowanceNote a={allowance} />
+        <Button icon={<Plus size={15} />} onClick={() => navigate("/settings/roles/new")}>New role</Button>
       </div>
       <div className="table-wrap">
         <table className="table">
@@ -99,11 +106,11 @@ export function RolesList() {
             </tr>
             {roles.map((r) => (
               <tr key={r.id} className="clickable" onClick={() => navigate(`/settings/roles/${r.id}`)}>
-                <td><div className="ac-role"><b>{r.name}</b><small>{r.description || (r.kind === "manager" ? "Runs a team's work" : "")}</small></div></td>
+                <td><div className="ac-role"><b>{r.name}</b><small>{roleNote(r)}</small></div></td>
                 <td>{r.people}{r.invited ? <small className="muted"> · {r.invited} invited</small> : null}</td>
                 <td className="hide-sm"><Chips access={r.access} /></td>
                 <td style={{ width: 48 }} onClick={(e) => e.stopPropagation()}>
-                  {r.kind === "custom" && canCustomise && (
+                  {r.kind !== "manager" && (
                     <MoreMenu label={`Actions for ${r.name}`} items={[
                       { label: "Duplicate", icon: <Copy size={16} />, onClick: () => duplicate(r) },
                       { label: "Delete role", icon: <Trash2 size={16} />, danger: true, onClick: () => setDeleting(r) },
@@ -141,7 +148,7 @@ function RoleEditor({ id }: { id: string }) {
   const toast = useToast();
   const fail = useToastError();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["role", id], enabled: !isNew, queryFn: () => api.get<{ role: Role; people: any[]; canEdit: boolean; canCustomise: boolean }>(`/api/roles/${id}`) });
+  const q = useQuery({ queryKey: ["role", id], enabled: !isNew, queryFn: () => api.get<{ role: Role; people: any[]; canEdit: boolean; canCustomise: boolean; allowance: Allowance; locked: boolean }>(`/api/roles/${id}`) });
   const role = q.data?.role;
   const [editing, setEditing] = useState(isNew || new URLSearchParams(location.search).has("edit"));
   const [name, setName] = useState("");
@@ -158,6 +165,7 @@ function RoleEditor({ id }: { id: string }) {
   if (!isNew && q.isLoading) return <Loading />;
   if (!isNew && !role) return <EmptyState title="That role doesn't exist" action={<Button onClick={() => navigate("/settings/roles")}>All roles</Button>} />;
   const isManager = role?.kind === "manager";
+  const fromJob = role?.kind === "job";
   const canEdit = isNew || !!q.data?.canEdit;
   const save = async () => {
     setSaving(true);
@@ -188,11 +196,11 @@ function RoleEditor({ id }: { id: string }) {
         <div className="ac-head">
           {editing ? (
             <div className="ac-head-fields">
-              <Input aria-label="Role name" placeholder="Role name, e.g. HR officer" value={name} disabled={isManager} onChange={(e) => setName(e.target.value)} className="ac-name" />
+              <Input aria-label="Role name" placeholder="Role name, e.g. HR officer" value={name} disabled={isManager || fromJob} title={fromJob ? "Change the job title in People & HR to rename this role" : undefined} onChange={(e) => setName(e.target.value)} className="ac-name" />
               <Input aria-label="Description" placeholder="What this role is for (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
           ) : (
-            <div><h2>{role!.name}</h2><p className="muted">{[role!.description, `${role!.people} ${role!.people === 1 ? "person" : "people"}`].filter(Boolean).join(" · ")}</p></div>
+            <div><h2>{role!.name}</h2><p className="muted">{[roleNote(role!), `${role!.people} ${role!.people === 1 ? "person" : "people"}`].filter(Boolean).join(" · ")}</p></div>
           )}
           <div className="ac-actions">
             {editing ? <>
@@ -200,14 +208,14 @@ function RoleEditor({ id }: { id: string }) {
               <Button loading={saving} disabled={!name.trim()} onClick={save}>{isNew ? "Create role" : "Save role"}</Button>
             </> : <>
               {canEdit && <Button icon={<Pencil size={15} />} onClick={() => setEditing(true)}>Edit role</Button>}
-              {!isManager && q.data?.canCustomise && <MoreMenu label="Role actions" items={[
+              {!isManager && <MoreMenu label="Role actions" items={[
                 { label: "Duplicate", icon: <Copy size={16} />, onClick: duplicate },
                 { label: "Delete role", icon: <Trash2 size={16} />, danger: true, onClick: () => setDeleting(true) },
               ]} />}
             </>}
           </div>
         </div>
-        {!canEdit && <p className="ac-upsell" style={{ marginTop: 12 }}><Lock size={14} />Custom roles come with Growth. You can still move people to another role. <Link className="link" to="/billing">See plans</Link></p>}
+        {q.data?.locked && <p className="ac-upsell" style={{ marginTop: 12 }}><Lock size={14} />On the Free plan, {q.data.allowance.limit} roles can open more than My Workspace, and they're all in use. Upgrade, or take access away from another role, to give this one more. <Link className="link" to="/billing">See plans</Link></p>}
       </div>
       <Card title="Workspaces" subtitle="View lets them look. Edit lets them add and change. Manage also lets them delete and change the workspace's settings.">
         {WORKSPACES.map((w) => <LevelRow key={w} ws={w} level={access[w]} editing={editing} onChange={(l) => setAccess({ ...access, [w]: l })} />)}

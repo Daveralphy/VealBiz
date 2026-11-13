@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { randomUUID } from "node:crypto";
-import { addMember, getApp, signUpWithOrg, type Client } from "./helpers";
+import { addMember, getApp, giveAccess, signUpWithOrg, type Client } from "./helpers";
 
 /** Each request gets a random client IP so the per-IP sign-up rate limit doesn't trip across many test sign-ups. */
 beforeAll(async () => {
@@ -87,7 +87,8 @@ describe("documents", () => {
   it("hides restricted folders from people without access", async () => {
     const app = await getApp();
     const { c: admin } = await signUpWithOrg(app);
-    const { c: member } = await addMember(app, admin, "member", "Kofi Mensah");
+    const { c: member, email } = await addMember(app, admin, "member", "Kofi Mensah");
+    await giveAccess(admin, email, { documents: "view" });
     const f = await admin.post("/api/documents/folders", { name: "Payroll" });
     expect((await member.patch(`/api/documents/folders/${f.body.id}`, { restricted: true, accessRoles: ["admin"] })).status).toBe(403);
     await admin.patch(`/api/documents/folders/${f.body.id}`, { restricted: true, accessRoles: ["admin"] });
@@ -102,7 +103,7 @@ describe("documents", () => {
     expect((await member.get(`/api/documents/files/${up.body.file.id}`)).status).toBe(404);
     expect((await member.get(`/api/documents/files?q=payroll`)).body).toHaveLength(0);
     expect((await member.get(`/api/files/${up.body.file.id}/content`)).status).toBe(404);
-    // Members can view but not upload by default.
+    // With view access, they can look but not upload.
     expect((await upload(app, member, "mine.pdf", uniq("mine"))).status).toBe(403);
 
     const detail = await admin.get(`/api/documents/files/${up.body.file.id}`);
@@ -195,7 +196,8 @@ describe("documents", () => {
     expect(r.body.addedThisWeek).toBe(3);
     expect(r.body.expiringCount).toBe(2);
     expect(r.body.expiring.map((f: any) => f.name)).toEqual(["licence.pdf", "insurance.pdf"]);
+    // Someone with only My Workspace can't see the business's files.
     const { c: none } = await addMember(app, admin, "member", "Ama Owusu");
-    expect((await none.get("/api/documents/dashboard")).status).toBe(200);
+    expect((await none.get("/api/documents/dashboard")).status).toBe(403);
   });
 });

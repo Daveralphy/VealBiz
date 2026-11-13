@@ -11,6 +11,7 @@ import { audit, notify } from "../../lib/audit";
 import { sendMail } from "../../lib/mailer";
 import { env } from "../../env";
 import { mePayload, startSession } from "../auth/routes";
+import { INVITE_DAYS, sendInvite } from "../../lib/invites";
 
 const CLAIM_LIMIT = { config: { rateLimit: { max: env.authRateLimit, timeWindow: "1 minute" } } };
 
@@ -38,25 +39,11 @@ async function checkClaimCode(email: string, code: string) {
   return row!;
 }
 
-const INVITE_DAYS = 7;
 
 async function activeAdminCount(orgId: string) {
   const [r] = await db.select({ n: dsql<number>`count(*)::int` }).from(memberships)
     .where(and(eq(memberships.orgId, orgId), eq(memberships.role, "admin"), eq(memberships.status, "active"), isNull(memberships.deletedAt)));
   return r?.n ?? 0;
-}
-
-async function sendInvite(orgName: string, inviterName: string, email: string, role: string, token: string) {
-  const link = `${env.appUrl}/invite/${token}`;
-  await sendMail({
-    to: email, subject: `${inviterName} invited you to ${orgName} on WindVeal`, link,
-    text: [
-      `${inviterName} invited you to join ${orgName} on WindVeal as ${role}.`,
-      `1. Get the WindVeal app: ${env.siteUrl}/download`,
-      `2. Accept your invitation (expires in ${INVITE_DAYS} days): ${link}`,
-      `Sign up or sign in with this email address (${email}).`,
-    ].join("\n"),
-  });
 }
 
 export default async function memberRoutes(app: FastifyInstance) {

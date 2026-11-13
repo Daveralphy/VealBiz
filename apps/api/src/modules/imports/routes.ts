@@ -16,6 +16,7 @@ import {
   parseWorkbook, type DestinationKey,
 } from "./fields";
 import { saveImportCopy } from "./copy";
+import { cancelWaitingInvites, inviteNewStaff } from "../../lib/invites";
 import {
   EDIT_PREFIX, SYSTEM_SHEET_PREFIX, extraDetails, lc, loadExisting, managerBlank, matchPerson, revalidateRows, willImport, type RowState,
 } from "./validate";
@@ -654,6 +655,13 @@ export default async function importsRoutes(app: FastifyInstance) {
       counts.managersBlank = managerRows.length - linked;
     }
 
+    // Everyone new on the team gets their access to WindVeal (My Workspace, on their job title's role).
+    let invited = 0;
+    for (const r of imported.get("people.employees") ?? []) {
+      if ((await inviteNewStaff(ctx, { email: r.values.email, jobTitle: r.values.jobTitle }).catch(() => "skipped")) === "sent") invited++;
+    }
+    counts.invited = invited;
+
     const total = [...toWrite.values()].reduce((a, l) => a + l.length, 0);
     counts.total = total;
     const undoUntil = new Date(Date.now() + UNDO_HOURS * 3600_000);
@@ -701,6 +709,12 @@ export default async function importsRoutes(app: FastifyInstance) {
         summary: `${ctx.user.name} undid the import of ${job.fileName}: ${removed} removed`,
       }, tx);
     });
+    // Invitations sent to people this import added are taken back, unless they've already joined.
+    const staffIds = created.filter((r) => r.resultEntityType === "employee" && r.resultEntityId).map((r) => r.resultEntityId!);
+    if (staffIds.length) {
+      const gone = await db.select({ email: employees.email }).from(employees).where(and(inArray(employees.id, staffIds), eq(employees.orgId, ctx.org.id)));
+      await cancelWaitingInvites(ctx.org.id, gone.map((g) => g.email).filter((e): e is string => !!e));
+    }
     const [after] = await db.select().from(importJobs).where(eq(importJobs.id, job.id)).limit(1);
     return { job: await jobView(ctx, after!), removed };
   });

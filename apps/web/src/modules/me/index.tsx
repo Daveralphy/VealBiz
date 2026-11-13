@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarPlus, FileText } from "lucide-react";
 import { Button, Card, EmptyState, Loading, PageHeader, Pill, Select } from "@windveal/ui";
@@ -10,6 +10,7 @@ import { DashCard, DashColumns, DashKpis, DashRow } from "../../components/dashb
 import { LeaveRequestRow, RequestLeaveModal, balanceText } from "../people/Leave";
 import { ChecklistDetail } from "../people/Onboarding";
 import type { Balance, LeaveRequest } from "../people/lib";
+import { TaskDrawer, TaskList, useTaskList } from "../workflows/tasks";
 import "./me.css";
 
 type Summary = {
@@ -214,6 +215,20 @@ function Application() {
 }
 
 /** My space: each person's own attendance, leave, pay, onboarding and application. Only theirs. */
+/** The tasks given to this person from anywhere in WindVeal; no Workflows access needed. */
+function MyTasks() {
+  const [params, setParams] = useSearchParams();
+  const { data, isLoading, error } = useTaskList("mine", { q: "", workspace: "", priority: "", createdBy: "" });
+  const open = (id: string | null) => { const p = new URLSearchParams(params); if (id) p.set("task", id); else p.delete("task"); setParams(p, { replace: true }); };
+  return (
+    <>
+      <TaskList data={data} isLoading={isLoading} error={error} onOpen={open} filtered={false} onNew={() => {}} canCreate={false}
+        emptyText="Tasks given to you, from anywhere in WindVeal, show up here." />
+      <TaskDrawer id={params.get("task")} onClose={() => open(null)} />
+    </>
+  );
+}
+
 export default function MySpace() {
   const { user } = useSession();
   useEffect(() => { document.title = "My Workspace · WindVeal"; }, []);
@@ -225,6 +240,7 @@ export default function MySpace() {
         <Route index element={<Overview />} />
         <Route path="attendance" element={<Attendance />} />
         <Route path="leave" element={<Leave />} />
+        <Route path="tasks" element={<MyTasks />} />
         <Route path="pay" element={<Pay />} />
         <Route path="onboarding" element={<Onboarding />} />
         <Route path="application" element={<Application />} />

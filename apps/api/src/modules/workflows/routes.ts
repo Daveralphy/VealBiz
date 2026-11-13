@@ -110,7 +110,7 @@ async function completeTask(ctx: OrgContext, t: Task) {
     }
     await audit(ctx, { action: "task.completed", category: "data", entityType: "task", entityId: t.id, summary: `${ctx.user.name} completed "${t.title}"` }, tx);
     if (t.createdBy && t.createdBy !== ctx.user.id) {
-      await notify(ctx.org.id, t.createdBy, `${ctx.user.name} completed: ${t.title}`, undefined, `/workflows/mine?task=${t.id}`, tx);
+      await notify(ctx.org.id, t.createdBy, `${ctx.user.name} completed: ${t.title}`, undefined, `/me/tasks?task=${t.id}`, tx);
     }
     return { task: done!, next };
   });
@@ -331,7 +331,7 @@ export default async function workflowsRoutes(app: FastifyInstance) {
       [row] = (await db.update(tasks).set({ ...set, version: dsql`${tasks.version} + 1` }).where(eq(tasks.id, t.id)).returning()) as Task[];
       await audit(ctx, { action: "task.updated", category: "data", entityType: "task", entityId: t.id, summary: `${ctx.user.name} changed the ${changed.join(", ")} of "${row!.title}"` });
       if (set.assigneeUserId && set.assigneeUserId !== ctx.user.id) {
-        await notify(ctx.org.id, set.assigneeUserId, `${ctx.user.name} assigned you: ${row!.title}`, undefined, `/workflows/mine?task=${t.id}`);
+        await notify(ctx.org.id, set.assigneeUserId, `${ctx.user.name} assigned you: ${row!.title}`, undefined, `/me/tasks?task=${t.id}`);
       }
     }
     if (input.status === "done" && t.status !== "done") row = (await completeTask(ctx, row!)).task;
@@ -412,12 +412,12 @@ export default async function workflowsRoutes(app: FastifyInstance) {
     const notified = new Set<string>();
     for (const u of mentioned) {
       notified.add(u.id);
-      await notify(ctx.org.id, u.id, `${ctx.user.name} mentioned you on: ${t.title}`, body.slice(0, 200), `/workflows/mine?task=${t.id}`);
+      await notify(ctx.org.id, u.id, `${ctx.user.name} mentioned you on: ${t.title}`, body.slice(0, 200), `/me/tasks?task=${t.id}`);
     }
     for (const uid of [t.assigneeUserId, t.createdBy]) {
       if (uid && uid !== ctx.user.id && !notified.has(uid)) {
         notified.add(uid);
-        await notify(ctx.org.id, uid, `${ctx.user.name} commented on: ${t.title}`, body.slice(0, 200), `/workflows/mine?task=${t.id}`);
+        await notify(ctx.org.id, uid, `${ctx.user.name} commented on: ${t.title}`, body.slice(0, 200), `/me/tasks?task=${t.id}`);
       }
     }
     await audit(ctx, { action: "task.commented", category: "data", entityType: "task", entityId: t.id, summary: `${ctx.user.name} commented on "${t.title}"` });

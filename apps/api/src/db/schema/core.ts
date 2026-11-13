@@ -124,7 +124,8 @@ export const roles = pgTable("roles", {
   orgId: uuid("org_id").notNull().references(() => organisations.id),
   name: text("name").notNull(),
   description: text("description"),
-  kind: text("kind").$type<"manager" | "custom">().notNull().default("custom"),
+  /** "manager" (built in), "job" (made from a job title in People & HR) or "custom" (made in Settings). */
+  kind: text("kind").$type<"manager" | "custom" | "job">().notNull().default("custom"),
   access: jsonb("access").$type<Record<Workspace, AccessLevel>>().notNull(),
   special: jsonb("special").$type<string[]>().notNull().default([]),
   createdBy: uuid("created_by"),

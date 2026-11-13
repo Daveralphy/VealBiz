@@ -1,17 +1,22 @@
 import type { FastifyInstance } from "fastify";
 import { and, eq, isNull, ne, sql as dsql } from "drizzle-orm";
-import { DEFAULT_ACCESS, roleInput, type AccessLevel, type Workspace } from "@windveal/shared";
+import { DEFAULT_ACCESS, opensMore, roleInput, type AccessLevel, type Workspace } from "@windveal/shared";
 import { db } from "../../db/client";
-import { invitations, memberships, roles, users } from "../../db/schema";
+import { employees, invitations, memberships, roles, users } from "../../db/schema";
 import { requireAdmin, requireMemberManager } from "../../lib/context";
 import { badRequest, conflict, forbidden, notFound, parse } from "../../lib/http";
 import { audit } from "../../lib/audit";
-import { canCustomiseRoles, ensureRoles, loadRole, type RoleRow } from "../../lib/roles";
-
-const GROWTH = "Custom roles come with the Growth plan.";
+import { canCustomiseRoles, checkRoleAllowance, ensureRoles, loadRole, roleAllowance, syncJobRoles, type RoleRow } from "../../lib/roles";
 
 function roleView(r: RoleRow, people: number, invited: number) {
-  return { id: r.id, name: r.name, description: r.description, kind: r.kind, access: { ...DEFAULT_ACCESS.member, ...r.access }, special: r.special, people, invited, updatedAt: r.updatedAt };
+  return { id: r.id, name: r.name, description: r.description, kind: r.kind, access: { ...DEFAULT_ACCESS.member, ...r.access }, special: r.special, opensMore: opensMore(r), people, invited, updatedAt: r.updatedAt };
+}
+
+/** Staff on the team with this job title (a job-title role can't go while they're there). */
+async function staffWithTitle(orgId: string, title: string) {
+  const [r] = await db.select({ n: dsql<number>`count(*)::int` }).from(employees)
+    .where(and(eq(employees.orgId, orgId), isNull(employees.deletedAt), dsql`${employees.status} <> 'left'`, dsql`lower(trim(${employees.jobTitle})) = lower(${title})`));
+  return r?.n ?? 0;
 }
 
 async function nameTaken(orgId: string, name: string, except?: string) {
@@ -22,13 +27,15 @@ async function nameTaken(orgId: string, name: string, except?: string) {
 }
 
 /**
- * Settings → Roles. Admin is built in (everything, can't be changed). Manager is on every plan and can be
- * changed; custom roles come with Growth and up. Only admins manage roles.
+ * Settings → Roles. Admin is built in (everything, can't be changed). Every job title in People & HR is a role,
+ * opening only My Workspace until an admin gives it more; admins can add their own roles too. On Free, three roles
+ * can open more than My Workspace; Growth and up, any number. Only admins manage roles.
  */
 export default async function roleRoutes(app: FastifyInstance) {
   app.get("/api/roles", async (req) => {
     const ctx = await requireAdmin(req);
     await ensureRoles(ctx.org);
+    await syncJobRoles(ctx.org);
     const list = await db.select().from(roles).where(and(eq(roles.orgId, ctx.org.id), isNull(roles.deletedAt))).orderBy(roles.createdAt);
     const people = await db.select({ roleId: memberships.roleId, role: memberships.role, n: dsql<number>`count(*)::int` }).from(memberships)
       .where(and(eq(memberships.orgId, ctx.org.id), isNull(memberships.deletedAt))).groupBy(memberships.roleId, memberships.role);
@@ -36,18 +43,18 @@ export default async function roleRoutes(app: FastifyInstance) {
       .where(and(eq(invitations.orgId, ctx.org.id), isNull(invitations.acceptedAt), isNull(invitations.revokedAt))).groupBy(invitations.roleId);
     const sorted = [...list.filter((r) => r.kind === "manager"), ...list.filter((r) => r.kind !== "manager").sort((a, b) => a.name.localeCompare(b.name))];
     return {
-      canCustomise: canCustomiseRoles(ctx.org),
+      canCustomise: canCustomiseRoles(ctx.org), allowance: await roleAllowance(ctx.org),
       admins: people.filter((p) => p.role === "admin").reduce((n, p) => n + p.n, 0),
       roles: sorted.map((r) => roleView(r, people.find((p) => p.roleId === r.id)?.n ?? 0, invited.find((p) => p.roleId === r.id)?.n ?? 0)),
     };
   });
 
-  /** The roles someone can be given (for invitations and changing a role). On Free that's Admin and Manager. */
+  /** The roles someone can be given (for invitations and changing a role). */
   app.get("/api/roles/options", async (req) => {
     const ctx = await requireMemberManager(req);
     await ensureRoles(ctx.org);
-    const list = await db.select().from(roles).where(and(eq(roles.orgId, ctx.org.id), isNull(roles.deletedAt))).orderBy(roles.createdAt);
-    const usable = list.filter((r) => r.kind === "manager" || canCustomiseRoles(ctx.org));
+    await syncJobRoles(ctx.org);
+    const usable = await db.select().from(roles).where(and(eq(roles.orgId, ctx.org.id), isNull(roles.deletedAt))).orderBy(roles.createdAt);
     return [
       ...(ctx.membership.role === "admin" ? [{ id: "admin", name: "Admin", description: "Everything, including settings and billing", access: null }] : []),
       ...[...usable.filter((r) => r.kind === "manager"), ...usable.filter((r) => r.kind !== "manager").sort((a, b) => a.name.localeCompare(b.name))]
@@ -65,17 +72,19 @@ export default async function roleRoutes(app: FastifyInstance) {
       .where(and(eq(memberships.orgId, ctx.org.id), eq(memberships.roleId, r.id), isNull(memberships.deletedAt))).orderBy(users.name);
     const [inv] = await db.select({ n: dsql<number>`count(*)::int` }).from(invitations)
       .where(and(eq(invitations.roleId, r.id), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
+    const allowance = await roleAllowance(ctx.org, r.id);
     return {
-      role: roleView(r, people.length, inv?.n ?? 0), people,
-      canEdit: r.kind === "manager" || canCustomiseRoles(ctx.org), canCustomise: canCustomiseRoles(ctx.org),
+      role: roleView(r, people.length, inv?.n ?? 0), people, canEdit: true, canCustomise: canCustomiseRoles(ctx.org),
+      // On Free with the three roles with access in use, this one can't be given more until another gives some up.
+      allowance, locked: !opensMore(r) && allowance.limit !== null && allowance.used >= allowance.limit,
     };
   });
 
   app.post("/api/roles", async (req) => {
     const ctx = await requireAdmin(req);
-    if (!canCustomiseRoles(ctx.org)) throw forbidden(GROWTH);
     const input = parse(roleInput, req.body);
     if (await nameTaken(ctx.org.id, input.name)) throw conflict("There's already a role with that name.", { name: "Already used" });
+    await checkRoleAllowance(ctx.org, input);
     const [r] = await db.insert(roles).values({
       orgId: ctx.org.id, name: input.name, description: input.description || null, kind: "custom",
       access: { ...DEFAULT_ACCESS.member, ...input.access } as Record<Workspace, AccessLevel>, special: input.special, createdBy: ctx.user.id,
@@ -88,9 +97,12 @@ export default async function roleRoutes(app: FastifyInstance) {
     const ctx = await requireAdmin(req);
     const r = /^[0-9a-f-]{36}$/i.test(req.params.id) ? await loadRole(ctx.org.id, req.params.id) : null;
     if (!r) throw notFound("That role");
-    if (r.kind !== "manager" && !canCustomiseRoles(ctx.org)) throw forbidden(GROWTH);
     const input = parse(roleInput, req.body);
     if (r.kind === "manager" && input.name.trim().toLowerCase() !== "manager") throw badRequest("The Manager role keeps its name.", { name: "Can't be renamed" });
+    if (r.kind === "job" && input.name.trim().toLowerCase() !== r.name.toLowerCase()) {
+      throw badRequest("This role is a job title in People & HR. Change the job title there to rename it.", { name: "Comes from People & HR" });
+    }
+    await checkRoleAllowance(ctx.org, input, r.id);
     if (await nameTaken(ctx.org.id, input.name, r.id)) throw conflict("There's already a role with that name.", { name: "Already used" });
     const [u] = await db.update(roles).set({
       name: input.name, description: input.description || null, access: { ...DEFAULT_ACCESS.member, ...input.access } as Record<Workspace, AccessLevel>,
@@ -102,9 +114,9 @@ export default async function roleRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { id: string } }>("/api/roles/:id/duplicate", async (req) => {
     const ctx = await requireAdmin(req);
-    if (!canCustomiseRoles(ctx.org)) throw forbidden(GROWTH);
     const r = /^[0-9a-f-]{36}$/i.test(req.params.id) ? await loadRole(ctx.org.id, req.params.id) : null;
     if (!r) throw notFound("That role");
+    await checkRoleAllowance(ctx.org, r);
     let name = `${r.name} copy`;
     for (let i = 2; await nameTaken(ctx.org.id, name); i++) name = `${r.name} copy ${i}`;
     const [c] = await db.insert(roles).values({ orgId: ctx.org.id, name, description: r.description, kind: "custom", access: r.access, special: r.special, createdBy: ctx.user.id }).returning();
@@ -117,6 +129,10 @@ export default async function roleRoutes(app: FastifyInstance) {
     const r = /^[0-9a-f-]{36}$/i.test(req.params.id) ? await loadRole(ctx.org.id, req.params.id) : null;
     if (!r) throw notFound("That role");
     if (r.kind === "manager") throw forbidden("The Manager role can't be deleted.");
+    if (r.kind === "job") {
+      const n = await staffWithTitle(ctx.org.id, r.name);
+      if (n) throw conflict(`${n} ${n === 1 ? "person has" : "people have"} the job title ${r.name} in People & HR, so this role stays while they do.`);
+    }
     const [inUse] = await db.select({ n: dsql<number>`count(*)::int` }).from(memberships)
       .where(and(eq(memberships.roleId, r.id), isNull(memberships.deletedAt)));
     const [waiting] = await db.select({ n: dsql<number>`count(*)::int` }).from(invitations)

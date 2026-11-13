@@ -19,7 +19,7 @@ export const AREA_NAMES: Record<AssistantArea, string> = {
  */
 export const AREA_PAGES: Record<AssistantArea, { to: string; label: string }[]> = {
   me: [
-    { to: "/me", label: "My Workspace" }, { to: "/me/attendance", label: "My attendance" }, { to: "/me/leave", label: "My leave" },
+    { to: "/me", label: "My Workspace" }, { to: "/me/attendance", label: "My attendance" }, { to: "/me/leave", label: "My leave" }, { to: "/me/tasks", label: "My tasks" },
     { to: "/me/pay", label: "My pay" }, { to: "/me/onboarding", label: "My onboarding" },
   ],
   people: [

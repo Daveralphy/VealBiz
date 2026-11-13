@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addMember, getApp, signUpWithOrg } from "./helpers";
+import { addMember, getApp, giveAccess, signUpWithOrg } from "./helpers";
 
 describe("crm: leads", () => {
   it("qualifies and converts a lead, reusing an existing company and starting the deal at Qualified", async () => {
@@ -164,7 +164,10 @@ describe("crm: access", () => {
   it("members without crm access get 403", async () => {
     const app = await getApp();
     const { c: admin } = await signUpWithOrg(app);
-    const { c: member } = await addMember(app, admin, "member", "Kofi Mensah");
+    const { c: member, email } = await addMember(app, admin, "member", "Kofi Mensah");
+    // New members open only My Workspace until an admin gives them more.
+    expect((await member.get("/api/crm/overview")).status).toBe(403);
+    await giveAccess(admin, email, { crm: "edit" });
     expect((await member.get("/api/crm/overview")).status).toBe(200);
     const m = (await admin.get("/api/members")).body.find((x: any) => !x.isYou);
     expect((await admin.patch(`/api/members/${m.id}`, { workspaceAccess: { crm: "none" } })).status).toBe(200);

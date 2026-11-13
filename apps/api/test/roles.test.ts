@@ -24,21 +24,74 @@ async function growth(orgId: string) {
 }
 
 describe("roles", () => {
-  it("on Free there's Admin and Manager only; custom roles need Growth", async () => {
+  it("on Free, three roles can open more than My Workspace (Admin doesn't count)", async () => {
     const app = await getApp();
     const { c: admin } = await signUpWithOrg(app);
     const list = await admin.get("/api/roles");
     expect(list.body.canCustomise).toBe(false);
     expect(list.body.roles.map((r: any) => r.name)).toEqual(["Manager"]);
-    expect((await admin.post("/api/roles", { name: "Sales rep", access: { ...NONE, crm: "edit" }, special: [] })).status).toBe(403);
+    // Manager opens more than My Workspace, so it's one of the three.
+    expect(list.body.allowance).toEqual({ used: 1, limit: 3 });
+    expect((await admin.post("/api/roles", { name: "Sales rep", access: { ...NONE, crm: "edit" }, special: [] })).status).toBe(200);
+    expect((await admin.post("/api/roles", { name: "HR officer", access: { ...NONE, people: "view" }, special: [] })).status).toBe(200);
+    // A role with only My Workspace doesn't count, so there can be as many as the business needs.
+    const driver = await admin.post("/api/roles", { name: "Driver", access: NONE, special: [] });
+    expect(driver.status).toBe(200);
+    const full = await admin.post("/api/roles", { name: "Finance", access: { ...NONE, insights: "view" }, special: [] });
+    expect(full.status).toBe(402);
+    expect(full.body.error.message).toContain("Upgrade to Growth");
+    expect((await admin.patch(`/api/roles/${driver.body.role.id}`, { name: "Driver", access: NONE, special: ["export_data"] })).status).toBe(402);
+    expect((await admin.get(`/api/roles/${driver.body.role.id}`)).body.locked).toBe(true);
 
-    // Manager can still be tuned on Free, and people invited as Manager get exactly that.
+    // Manager can still be tuned, and people invited as Manager get exactly that.
     const manager = list.body.roles[0];
     expect((await admin.patch(`/api/roles/${manager.id}`, { name: "Manager", access: { ...manager.access, insights: "none" }, special: [] })).status).toBe(200);
     const { me } = await join(app, admin, manager.id, "Kofi Mensah");
     expect(me.membership.roleName).toBe("Manager");
     expect(me.membership.access.insights).toBe("none");
     expect(me.membership.special).toEqual([]);
+  });
+
+  it("every job title is a role with My Workspace only, and new staff are sent their access straight away", async () => {
+    const app = await getApp();
+    const { c: admin } = await signUpWithOrg(app);
+    const email = `ada.${Date.now()}@example.com`;
+    const add = await admin.post("/api/people/employees", { firstName: "Ada", lastName: "Obi", email, jobTitle: "Accountant" });
+    expect(add.status).toBe(200);
+    expect(add.body.access).toBe("sent");
+    const roles = (await admin.get("/api/roles")).body.roles;
+    const accountant = roles.find((r: any) => r.name === "Accountant");
+    expect(accountant).toMatchObject({ kind: "job", opensMore: false, invited: 1 });
+    // The invitation is in their email; they join on the Accountant role with only My Workspace.
+    const { c } = await signUp(app, "Ada Obi", email);
+    const token = recentMail(email).find((m) => m.link?.includes("/invite/"))!.link!.split("/invite/")[1]!;
+    expect((await c.post(`/api/invite/${token}/accept`)).status).toBe(200);
+    const me = (await c.get("/api/auth/me")).body;
+    expect(me.membership.roleName).toBe("Accountant");
+    expect(Object.values(me.membership.access).every((v) => v === "none")).toBe(true);
+    expect((await c.get("/api/crm/overview")).status).toBe(403);
+    // Their own things work: My Workspace and the tasks given to them.
+    expect((await c.get("/api/my/summary")).status).toBe(200);
+    expect((await c.get("/api/workflows/tasks?scope=mine")).status).toBe(200);
+
+    // The admin gives the role more, and everyone on it gets it.
+    expect((await admin.patch(`/api/roles/${accountant.id}`, { name: "Accountant", access: { ...NONE, insights: "view" }, special: [] })).status).toBe(200);
+    expect((await c.get("/api/auth/me")).body.membership.access.insights).toBe("view");
+    // A job title role keeps its name (change it in People & HR) and stays while someone has that title.
+    expect((await admin.patch(`/api/roles/${accountant.id}`, { name: "Bookkeeper", access: NONE, special: [] })).status).toBe(400);
+    expect((await admin.del(`/api/roles/${accountant.id}`)).status).toBe(409);
+
+    // A new job title moves them to that title's role.
+    expect((await admin.patch(`/api/people/employees/${add.body.employee.id}`, { jobTitle: "Finance lead" })).status).toBe(200);
+    expect((await c.get("/api/auth/me")).body.membership.roleName).toBe("Finance lead");
+
+    // Holding it back, then sending it later.
+    const later = `kofi.${Date.now()}@example.com`;
+    const held = await admin.post("/api/people/employees", { firstName: "Kofi", lastName: "Mensah", email: later, jobTitle: "Driver", sendAccess: false });
+    expect(held.body.access).toBe("held");
+    expect(recentMail(later)).toHaveLength(0);
+    expect((await admin.post(`/api/people/employees/${held.body.employee.id}/send-access`, {})).status).toBe(200);
+    expect(recentMail(later).some((m) => m.link?.includes("/invite/"))).toBe(true);
   });
 
   it("custom roles decide what people can open, and an admin can add more for one person", async () => {

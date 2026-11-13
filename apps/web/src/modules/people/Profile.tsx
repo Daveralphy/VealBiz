@@ -40,6 +40,11 @@ export function ProfilePage() {
     onSuccess: (r) => { setLeft(false); toast(r.accessRemoved ? "Marked as left. Their WindVeal access was removed." : "Marked as left."); refresh(); },
     onError: (e: Error) => toast(e.message, "error"),
   });
+  const sendAccess = useMutation({
+    mutationFn: () => api.post<{ notice: string }>(`/api/people/employees/${id}/send-access`, {}),
+    onSuccess: (r) => { toast(r.notice); refresh(); },
+    onError: (e: Error) => toast(e.message, "error"),
+  });
   const startOnboarding = useMutation({
     mutationFn: () => api.post(`/api/people/employees/${id}/checklists`, { kind: "onboarding" }),
     onSuccess: () => { toast("Onboarding checklist started"); refresh(); },
@@ -84,6 +89,7 @@ export function ProfilePage() {
                   {!e.checklists.some((c) => c.kind === "onboarding") && (
                     <button onClick={() => { close(); startOnboarding.mutate(); }}>Start onboarding checklist</button>
                   )}
+                  {!e.hasAccount && <button onClick={() => { close(); sendAccess.mutate(); }}>Send WindVeal access</button>}
                   {e.status !== "leaving" && <button onClick={() => { close(); setLeaving(true); }}>Mark as leaving</button>}
                   {canManage && <><hr /><button className="danger" onClick={() => { close(); setLeft(true); }}>Mark as left</button></>}
                 </>}

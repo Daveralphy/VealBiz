@@ -48,6 +48,7 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
       { to: "/me", label: "Overview", icon: <LayoutDashboard size={18} /> },
       { to: "/me/attendance", label: "Attendance", icon: <Clock size={18} /> },
       { to: "/me/leave", label: "Leave", icon: <CalendarDays size={18} /> },
+      { to: "/me/tasks", label: "My tasks", icon: <ListTodo size={18} />, badge: "myTasks" },
       { to: "/me/pay", label: "Pay", icon: <Wallet size={18} /> },
       { to: "/me/onboarding", label: "Onboarding", icon: <Flag size={18} />, visible: (v) => v.hasOnboarding },
       { to: "/me/application", label: "My application", icon: <FileText size={18} />, visible: (v) => v.hasApplication },

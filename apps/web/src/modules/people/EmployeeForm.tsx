@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Drawer, Input, Select, Textarea, useToast } from "@windveal/ui";
 import { api } from "../../lib/api";
 import { useForm } from "../../lib/form";
-import { useSession } from "../../lib/session";
 import { toDateInput } from "../../lib/format";
 import { EMPLOYMENT_TYPES, localYmd, peopleKeys, useDepartments, useEmployeeOptions, type Profile } from "./lib";
 
@@ -19,7 +18,7 @@ function initialValues(e?: Profile | null): Values {
     departmentId: e?.departmentId ?? "", managerId: e?.managerId ?? "", startDate: toDateInput(e?.startDate) || (e ? "" : localYmd()),
     employmentType: e?.employmentType ?? (e ? "" : "Full-time"), location: e?.location ?? "", employeeCode: e?.employeeCode ?? "",
     dateOfBirth: toDateInput(e?.personal?.dateOfBirth), homeAddress: e?.personal?.homeAddress ?? "", emergencyContact: e?.personal?.emergencyContact ?? "",
-    nationalId: e?.personal?.nationalId ?? "", startOnboarding: true, invite: false,
+    nationalId: e?.personal?.nationalId ?? "", startOnboarding: true, invite: true,
   };
 }
 
@@ -28,7 +27,6 @@ export function EmployeeDrawer({ open, onClose, onSaved, employee }: {
   open: boolean; onClose: () => void; onSaved?: (id: string) => void; employee?: Profile | null;
 }) {
   const editing = !!employee;
-  const { isAdmin } = useSession();
   const toast = useToast();
   const qc = useQueryClient();
   const f = useForm<Values>(initialValues(employee));
@@ -60,17 +58,13 @@ export function EmployeeDrawer({ open, onClose, onSaved, employee }: {
       toast(`${v.firstName}'s details were saved`);
     } else {
       body.startOnboarding = v.startOnboarding;
-      const r = await api.post<{ employee: { id: string; name: string }; notice: string | null }>("/api/people/employees", body);
+      body.sendAccess = v.invite;
+      const r = await api.post<{ employee: { id: string; name: string }; notice: string | null; access?: string }>("/api/people/employees", body);
       let msg = `${r.employee.name} was added`;
-      if (v.invite && v.email) {
-        try {
-          const inv = await api.post<{ results: { status: string }[] }>("/api/invitations", { invites: [{ email: v.email, role: "member" }] });
-          const st = inv.results[0]?.status;
-          msg += st === "sent" ? " and invited to WindVeal" : st === "already_member" ? " (they already use WindVeal)" : " (an invitation is already pending)";
-        } catch {
-          msg += ", but the invitation couldn't be sent";
-        }
-      }
+      // Their access goes out with the record (My Workspace, on their job title's role).
+      if (r.access === "sent") msg += " and sent their WindVeal access";
+      else if (r.access === "has_account") msg += " (they already use WindVeal)";
+      else if (r.access === "already_invited") msg += " (their access was already sent)";
       toast(r.notice ? `${msg}. ${r.notice}` : msg);
       onSaved?.(r.employee.id);
     }
@@ -124,15 +118,15 @@ export function EmployeeDrawer({ open, onClose, onSaved, employee }: {
               <input type="checkbox" checked={f.values.startOnboarding} onChange={(e) => f.set("startOnboarding", e.target.checked)} />
               <span><b>Start the onboarding checklist</b><small>Creates onboarding tasks in Workflows for {first}'s manager and HR.</small></span>
             </label>
-            {isAdmin && (
-              <label className="ppl-choice soft">
-                <input type="checkbox" checked={f.values.invite} onChange={(e) => f.set("invite", e.target.checked)} />
-                <span>
-                  <b>Invite {first} to WindVeal</b>
-                  <small>{f.values.invite && !f.values.email ? "Add a work email to send the invitation." : `Only if ${first} needs to use the app.`}</small>
-                </span>
-              </label>
-            )}
+            <label className="ppl-choice soft">
+              <input type="checkbox" checked={f.values.invite} onChange={(e) => f.set("invite", e.target.checked)} />
+              <span>
+                <b>Send {first} their WindVeal access now</b>
+                <small>{f.values.invite && !f.values.email ? "Add their email so WindVeal can send it." : f.values.invite
+                  ? `They'll get My Workspace${f.values.jobTitle ? ` as ${f.values.jobTitle}` : ""}. An admin can give them more in Settings.`
+                  : "Untick if they haven't started yet. You can send it later from their profile."}</small>
+              </span>
+            </label>
           </>
         )}
         <button type="submit" hidden />

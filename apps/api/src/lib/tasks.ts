@@ -41,7 +41,7 @@ export async function createTask(t: NewTask, tx: Tx = db) {
     checklistGroup: t.checklistGroup ?? null,
   }).returning();
   if (t.assigneeUserId && t.assigneeUserId !== t.createdBy) {
-    await notify(t.orgId, t.assigneeUserId, `New task: ${t.title}`, t.linkLabel ?? undefined, `/workflows/mine?task=${row!.id}`, tx);
+    await notify(t.orgId, t.assigneeUserId, `New task: ${t.title}`, t.linkLabel ?? undefined, `/me/tasks?task=${row!.id}`, tx);
   }
   return row!;
 }

@@ -160,7 +160,7 @@ export default async function overviewRoutes(app: FastifyInstance) {
     if (can("workflows")) {
       const ts = await db.select().from(tasks).where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), ilike(tasks.title, like),
         or(eq(tasks.assigneeUserId, ctx.user.id), eq(tasks.createdBy, ctx.user.id), notInArray(tasks.workspace, ["people"])))).limit(5);
-      for (const t of ts) results.push({ type: "Tasks", id: t.id, title: t.title, subtitle: t.linkLabel ?? undefined, href: `/workflows/mine?task=${t.id}` });
+      for (const t of ts) results.push({ type: "Tasks", id: t.id, title: t.title, subtitle: t.linkLabel ?? undefined, href: `/me/tasks?task=${t.id}` });
     }
     // Settings: the team (for people who manage members).
     if (here("settings") && (ctx.membership.role === "admin" || ctx.special.includes("manage_members"))) {

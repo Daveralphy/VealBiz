@@ -40,9 +40,9 @@ export class Client {
 
 export const PASSWORD = "Testing#2026x";
 
-export async function signUp(app: FastifyInstance, name = "Test Person") {
+export async function signUp(app: FastifyInstance, name = "Test Person", withEmail?: string) {
   const c = new Client(app);
-  const email = `t-${randomUUID().slice(0, 8)}@example.com`;
+  const email = withEmail ?? `t-${randomUUID().slice(0, 8)}@example.com`;
   const r = await c.post("/api/auth/register", { name, email, password: PASSWORD, acceptTerms: true });
   if (r.status !== 200) throw new Error(`register failed: ${JSON.stringify(r.body)}`);
   const code = recentMail(email)[0]!.code!;
@@ -82,4 +82,12 @@ export async function addMember(app: FastifyInstance, admin: Client, role: "admi
   const r = await c.post(`/api/invite/${token}/accept`);
   if (r.status !== 200) throw new Error(`accept failed: ${JSON.stringify(r.body)}`);
   return { c, email };
+}
+
+/** New members open only My Workspace: this gives one of them access to workspaces (as an admin would on their page). */
+export async function giveAccess(admin: Client, memberEmail: string, access: Record<string, string>) {
+  const m = (await admin.get("/api/members")).body.find((x: any) => x.email === memberEmail);
+  if (!m) throw new Error(`no member ${memberEmail}`);
+  const r = await admin.patch(`/api/members/${m.id}`, { workspaceAccess: access });
+  if (r.status !== 200) throw new Error(`access failed: ${JSON.stringify(r.body)}`);
 }
