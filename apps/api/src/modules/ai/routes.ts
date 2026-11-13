@@ -254,16 +254,18 @@ export default async function aiRoutes(app: FastifyInstance) {
 
   // ---------------- an area's Assistant page ----------------
 
-  /** What Veal sees in an area for this person: worked out once a day, then kept, so opening the page costs nothing. */
+  /**
+   * The last look Veal took at an area for this person, if any. Opening the page never runs Veal (and never uses
+   * the allowance): the person asks for a look when they want one.
+   */
   app.get<{ Params: { area: string } }>("/api/ai/briefing/:area", async (req) => {
     const ctx = await requireOrg(req);
     const area = areaParam(req.params.area, ctx);
     const [b] = await db.select().from(aiBriefings).where(and(eq(aiBriefings.orgId, ctx.org.id), eq(aiBriefings.userId, ctx.user.id), eq(aiBriefings.area, area))).limit(1);
-    if (b && b.day === localDate()) return { briefing: b.content, fresh: false };
-    return { briefing: await brief(ctx, area, req), fresh: true };
+    return { briefing: b?.content ?? null, today: b?.day === localDate() };
   });
 
-  /** "Look again": work it out afresh now. */
+  /** "Look now" / "Look again": Veal works it out now, and it's kept for next time. */
   app.post<{ Params: { area: string } }>("/api/ai/briefing/:area/refresh", async (req) => {
     const ctx = await requireOrg(req);
     const area = areaParam(req.params.area, ctx);

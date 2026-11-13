@@ -210,27 +210,29 @@ describe("WindVeal AI", () => {
     expect(JSON.stringify(seen.at(-1).messages)).not.toContain("Review in Import data");
   });
 
-  it("works out an area's briefing once a day, and again only when asked", async () => {
+  it("never looks at an area by itself: only when asked, and the last look is kept", async () => {
     const app = await getApp();
     const { c, org } = await signUpWithOrg(app);
     await growth(org.id);
     connect();
-    script.push(say(`{"summary": "Nothing is overdue.", "items": [{"tone": "warn", "title": "No follow-ups booked", "detail": "Book one so leads don't go cold.", "page": "/crm/follow-ups"}, {"tone": "info", "title": "Made-up page", "detail": "x", "page": "/crm/secret"}]}`));
     const calls = seen.length;
-    const first = await c.get("/api/ai/briefing/crm");
-    expect(first.status).toBe(200);
-    expect(first.body.briefing.summary).toBe("Nothing is overdue.");
-    expect(first.body.briefing.items[0]).toMatchObject({ tone: "warn", link: { to: "/crm/follow-ups" } });
+    // Opening the page: nothing yet, and Veal isn't run.
+    expect((await c.get("/api/ai/briefing/crm")).body).toEqual({ briefing: null, today: false });
+    expect(seen.length).toBe(calls);
+    expect((await c.get("/api/ai/status")).body.used).toBe(0);
+
+    script.push(say(`{"summary": "Nothing is overdue.", "items": [{"tone": "warn", "title": "No follow-ups booked", "detail": "Book one so leads don't go cold.", "page": "/crm/follow-ups"}, {"tone": "info", "title": "Made-up page", "detail": "x", "page": "/crm/secret"}]}`));
+    const look = await c.post("/api/ai/briefing/crm/refresh", {});
+    expect(look.status).toBe(200);
+    expect(look.body.briefing.summary).toBe("Nothing is overdue.");
+    expect(look.body.briefing.items[0]).toMatchObject({ tone: "warn", link: { to: "/crm/follow-ups" } });
     // Only real pages get a button.
-    expect(first.body.briefing.items[1].link).toBeUndefined();
+    expect(look.body.briefing.items[1].link).toBeUndefined();
     expect(seen.length).toBe(calls + 1);
-    // Opening it again the same day costs nothing.
-    const again = await c.get("/api/ai/briefing/crm");
-    expect(again.body).toMatchObject({ fresh: false, briefing: { summary: "Nothing is overdue." } });
+    // Coming back shows that look, without running Veal again.
+    expect((await c.get("/api/ai/briefing/crm")).body).toMatchObject({ today: true, briefing: { summary: "Nothing is overdue." } });
     expect(seen.length).toBe(calls + 1);
-    script.push(say(`{"summary": "Fresh look.", "items": []}`));
-    expect((await c.post("/api/ai/briefing/crm/refresh", {})).body.briefing.summary).toBe("Fresh look.");
-    expect((await c.get("/api/ai/status")).body.used).toBe(2);
+    expect((await c.get("/api/ai/status")).body.used).toBe(1);
     expect((await c.get("/api/ai/briefing/nowhere")).status).toBe(404);
   });
 });

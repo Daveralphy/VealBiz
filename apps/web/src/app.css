@@ -446,16 +446,10 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
 .home-card b { display: block; font: 700 15px var(--display); color: var(--ink); letter-spacing: -.01em; }
 .home-card span { display: block; font-size: 12px; line-height: 1.45; color: var(--muted); margin-top: 4px; }
 .home-dot { position: absolute; top: 12px; right: 12px; width: 9px; height: 9px; border-radius: 50%; background: #e5484d; box-shadow: 0 0 0 3px var(--surface); }
-/* WindVeal admin: the same card, dark, so it never looks like an ordinary area. */
-.home-admin { background: var(--night); border-color: var(--night); }
-.home-admin:hover, .home-admin:focus-visible { border-color: #8fa8ff; }
-.home-admin .art { --ws-c: #8fa8ff; }
-.home-admin .art .p { fill: #172b63; }
-.home-admin .art .s { opacity: 0; }
-.home-admin b { color: #fff; }
-.home-admin span { color: #b8c3e6; }
-.home-admin .home-dot { box-shadow: 0 0 0 3px var(--night); }
-:root[data-theme="dark"] .home-admin { background: #1a2a5e; border-color: #1a2a5e; }
+/* WindVeal admin: the same white card with a blue outline, so it never looks like an ordinary area. */
+.home-admin { border: 1.5px solid var(--blue); }
+.home-admin:hover, .home-admin:focus-visible { border-color: var(--deep); }
+.home-admin .art { --ws-c: var(--blue); }
 @media (max-width: 1240px) { .home-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
   .home { padding-top: 4px; }
