@@ -438,34 +438,33 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
 /* Grouped: just for you, the team workspaces, running the business, and WindVeal admin set apart. */
 .home-group { margin-top: 26px; }
 .home-group-title { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; font: 600 12px var(--font); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-.home-group-title small { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 12.5px; }
-.home-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-/* A short row: a drawing of what the area is for, its name and one line. A red dot when something is waiting. */
-.home-card { position: relative; display: flex; align-items: center; gap: 14px; padding: 12px 16px 12px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; color: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
-.home-card:hover, .home-card:focus-visible { border-color: var(--ws-c); box-shadow: 0 20px 40px -30px rgba(15, 26, 58, .45); transform: translateY(-1px); }
-.home-card .art, .home-admin .art { width: 78px; height: 56px; flex: none; }
-.home-card .grow, .home-admin .grow { flex: 1; min-width: 0; }
+.home-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+/* A small card: the drawing on top, then the name and what you can do there. A red dot when something is waiting. */
+.home-card { position: relative; display: flex; flex-direction: column; padding: 12px 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; color: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.home-card:hover, .home-card:focus-visible { border-color: var(--ws-c); box-shadow: 0 22px 40px -28px rgba(15, 26, 58, .45); transform: translateY(-2px); }
+.home-card .art { height: 76px; margin: 2px 0 10px; }
 .home-card b { display: block; font: 700 15px var(--display); color: var(--ink); letter-spacing: -.01em; }
-.home-card span { display: block; font-size: 12.5px; line-height: 1.4; color: var(--muted); margin-top: 2px; }
-.home-dot { position: absolute; top: 10px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: #e5484d; box-shadow: 0 0 0 3px var(--surface); }
-.home-admin { position: relative; display: flex; align-items: center; gap: 16px; max-width: calc((100% - 24px) / 3); padding: 14px 18px 14px 14px; border-radius: 16px; background: var(--night); color: #fff; transition: box-shadow .15s, transform .15s; }
-.home-admin:hover, .home-admin:focus-visible { box-shadow: 0 20px 40px -24px rgba(14, 28, 69, .7); transform: translateY(-1px); }
+.home-card span { display: block; font-size: 12px; line-height: 1.45; color: var(--muted); margin-top: 4px; }
+.home-dot { position: absolute; top: 12px; right: 12px; width: 9px; height: 9px; border-radius: 50%; background: #e5484d; box-shadow: 0 0 0 3px var(--surface); }
+/* WindVeal admin: the same card, dark, so it never looks like an ordinary area. */
+.home-admin { background: var(--night); border-color: var(--night); }
+.home-admin:hover, .home-admin:focus-visible { border-color: #8fa8ff; }
 .home-admin .art { --ws-c: #8fa8ff; }
 .home-admin .art .p { fill: #172b63; }
 .home-admin .art .s { opacity: 0; }
-.home-admin small { display: block; font: 600 10.5px var(--font); letter-spacing: .06em; text-transform: uppercase; color: #8fa8ff; margin-bottom: 3px; }
-.home-admin b { display: block; font: 700 15px var(--display); color: #fff; }
-.home-admin span { display: block; font-size: 12.5px; color: #b8c3e6; margin-top: 2px; }
+.home-admin b { color: #fff; }
+.home-admin span { color: #b8c3e6; }
 .home-admin .home-dot { box-shadow: 0 0 0 3px var(--night); }
-:root[data-theme="dark"] .home-admin { background: #1a2a5e; }
-@media (max-width: 1100px) { .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .home-admin { max-width: calc((100% - 12px) / 2); } }
+:root[data-theme="dark"] .home-admin { background: #1a2a5e; border-color: #1a2a5e; }
+@media (max-width: 1240px) { .home-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 640px) {
   .home { padding-top: 4px; }
   .home-hello h1 { font-size: 28px; }
   .home-hello p { font-size: 14.5px; }
   .home-group { margin-top: 20px; }
-  .home-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .home-admin { max-width: none; }
+  .home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .home-card { padding: 12px 12px 14px; }
+  .home-card .art { height: 70px; margin-bottom: 10px; }
 }
 
 /* The drawings on Home: flat shapes in the area colour (see lib/areaArt.ts), no background of their own. */
