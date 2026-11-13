@@ -1,5 +1,5 @@
 import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, bigint } from "drizzle-orm/pg-core";
-import type { AccessLevel, NotificationPrefs, ReviewRequest, Workspace } from "@windveal/shared";
+import type { AccessLevel, Briefing, NotificationPrefs, ReviewRequest, Workspace } from "@windveal/shared";
 import { pk, timestamps, tracked } from "./_common";
 
 // ---------------- accounts ----------------
@@ -253,9 +253,31 @@ export const fileLinks = pgTable("file_links", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("file_links_target_idx").on(t.linkType, t.linkId)]);
 
-/** WindVeal AI requests per business per month, for plan allowances. Only counts: no conversations are kept. */
+/** Veal (WindVeal AI) requests per business per month, for plan allowances. */
 export const aiUsage = pgTable("ai_usage", {
   orgId: uuid("org_id").notNull().references(() => organisations.id),
   month: text("month").notNull(), // "2026-11"
   count: integer("count").notNull().default(0),
 }, (t) => [uniqueIndex("ai_usage_org_month_uq").on(t.orgId, t.month)]);
+
+/** A person's chats with Veal. Only they can see them; cleared 15 days after they were last used. */
+export const aiChats = pgTable("ai_chats", {
+  id: uuid("id").primaryKey(),
+  orgId: uuid("org_id").notNull().references(() => organisations.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  /** Where it was started (an Assistant area, or "home"). */
+  area: text("area").notNull(),
+  title: text("title").notNull(),
+  messages: jsonb("messages").notNull().$type<unknown[]>(),
+  ...timestamps(),
+}, (t) => [index("ai_chats_user_idx").on(t.userId, t.updatedAt)]);
+
+/** What Veal sees in an area for one person, worked out once a day (or when they ask it to look again). */
+export const aiBriefings = pgTable("ai_briefings", {
+  orgId: uuid("org_id").notNull().references(() => organisations.id),
+  userId: uuid("user_id").notNull().references(() => users.id),
+  area: text("area").notNull(),
+  day: text("day").notNull(), // "2026-11-13"
+  content: jsonb("content").notNull().$type<Briefing>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [uniqueIndex("ai_briefings_user_area_uq").on(t.orgId, t.userId, t.area)]);

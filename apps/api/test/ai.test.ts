@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import http from "node:http";
+import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { eq } from "drizzle-orm";
 import { db } from "../src/db/client";
-import { organisations } from "../src/db/schema";
+import { aiChats, organisations } from "../src/db/schema";
 import { env } from "../src/env";
 import { addMember, getApp, signUpWithOrg } from "./helpers";
 
@@ -59,6 +60,8 @@ describe("WindVeal AI", () => {
     const r = await c.post("/api/ai/chat", { messages: [{ role: "user", content: "How much leave do I have?" }] });
     expect(r.status).toBe(200);
     expect(r.body.reply).toBe("You have 20 days of annual leave left.");
+    // A button to where the answer lives, from what it looked at.
+    expect(r.body.links).toEqual([{ label: "Open My leave", to: "/me/leave" }]);
     // The tool's answer went back to the model; the tools were offered in the standard format.
     expect(r.body.messages.some((m: any) => m.role === "tool")).toBe(true);
     expect(seen.at(-1).tools.map((t: any) => t.function.name)).toContain("request_leave");
@@ -151,5 +154,83 @@ describe("WindVeal AI", () => {
     // The model was shown sample values, not just headers.
     expect(seen.at(-1).messages[0].content).toContain("ada@example.com");
     expect(seen.at(-1).tools).toBeUndefined();
+  });
+
+  it("keeps a person's chats for 15 days, for them only", async () => {
+    const app = await getApp();
+    const { c: admin, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    const { c: member } = await addMember(app, admin, "member", "Chat Member");
+    connect();
+    const chatId = randomUUID();
+    script.push(say("Hello! How can I help?"));
+    await admin.post("/api/ai/chat", { chatId, area: "crm", messages: [{ role: "user", content: "Hi Veal" }] });
+    const list = (await admin.get("/api/ai/chats?area=crm")).body;
+    expect(list.chats).toMatchObject([{ id: chatId, title: "Hi Veal", area: "crm" }]);
+    expect(list.keepDays).toBe(15);
+    const got = (await admin.get(`/api/ai/chats/${chatId}`)).body;
+    expect(got.messages.at(-1).content).toBe("Hello! How can I help?");
+    // Nobody else can read it, or write over it.
+    expect((await member.get(`/api/ai/chats/${chatId}`)).status).toBe(404);
+    script.push(say("Hijacked"));
+    await member.post("/api/ai/chat", { chatId, area: "crm", messages: [{ role: "user", content: "mine now" }] });
+    expect((await admin.get(`/api/ai/chats/${chatId}`)).body.messages.at(-1).content).toBe("Hello! How can I help?");
+    expect((await member.get("/api/ai/chats")).body.chats).toEqual([]);
+    // Not used for 15 days: cleared.
+    await db.update(aiChats).set({ updatedAt: new Date(Date.now() - 16 * 86_400_000) }).where(eq(aiChats.id, chatId));
+    expect((await admin.get("/api/ai/chats")).body.chats).toEqual([]);
+    expect((await admin.get(`/api/ai/chats/${chatId}`)).status).toBe(404);
+  });
+
+  it("says what it sees in a file added in the chat, with a button to check it in Import data", async () => {
+    const app = await getApp();
+    const { c, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    connect();
+    const csv = "Name,Col B\nAda Obi,ada@example.com\n";
+    const up = await app.inject({
+      method: "POST", url: "/api/imports/upload",
+      headers: { cookie: Object.entries(c.cookies).map(([k, v]) => `${k}=${v}`).join("; "), "content-type": "multipart/form-data; boundary=X" },
+      payload: `--X\r\nContent-Disposition: form-data; name="file"; filename="team.csv"\r\nContent-Type: text/csv\r\n\r\n${csv}\r\n--X--\r\n`,
+    });
+    const jobId = up.json().job.id;
+    script.push(say("- **team** is your staff list. It belongs in **People & HR**.\n- Col B holds email addresses."));
+    const chatId = randomUUID();
+    const r = await c.post("/api/ai/files", { jobId, chatId, area: "home", messages: [] });
+    expect(r.status).toBe(200);
+    expect(r.body.reply).toContain("People & HR");
+    expect(r.body.links).toEqual([{ label: "Review in Import data", to: `/import/${jobId}/sheets` }]);
+    expect(seen.at(-1).messages[0].content).toContain("ada@example.com");
+    // Saved with the file, titled by it.
+    expect((await c.get("/api/ai/chats")).body.chats[0]).toMatchObject({ id: chatId, title: "team.csv" });
+    // The extras (file, buttons) never reach the model on the next turn.
+    script.push(say("Sure."));
+    await c.post("/api/ai/chat", { chatId, messages: [...r.body.messages, { role: "user", content: "thanks" }] });
+    expect(JSON.stringify(seen.at(-1).messages)).not.toContain("jobId");
+    expect(JSON.stringify(seen.at(-1).messages)).not.toContain("Review in Import data");
+  });
+
+  it("works out an area's briefing once a day, and again only when asked", async () => {
+    const app = await getApp();
+    const { c, org } = await signUpWithOrg(app);
+    await growth(org.id);
+    connect();
+    script.push(say(`{"summary": "Nothing is overdue.", "items": [{"tone": "warn", "title": "No follow-ups booked", "detail": "Book one so leads don't go cold.", "page": "/crm/follow-ups"}, {"tone": "info", "title": "Made-up page", "detail": "x", "page": "/crm/secret"}]}`));
+    const calls = seen.length;
+    const first = await c.get("/api/ai/briefing/crm");
+    expect(first.status).toBe(200);
+    expect(first.body.briefing.summary).toBe("Nothing is overdue.");
+    expect(first.body.briefing.items[0]).toMatchObject({ tone: "warn", link: { to: "/crm/follow-ups" } });
+    // Only real pages get a button.
+    expect(first.body.briefing.items[1].link).toBeUndefined();
+    expect(seen.length).toBe(calls + 1);
+    // Opening it again the same day costs nothing.
+    const again = await c.get("/api/ai/briefing/crm");
+    expect(again.body).toMatchObject({ fresh: false, briefing: { summary: "Nothing is overdue." } });
+    expect(seen.length).toBe(calls + 1);
+    script.push(say(`{"summary": "Fresh look.", "items": []}`));
+    expect((await c.post("/api/ai/briefing/crm/refresh", {})).body.briefing.summary).toBe("Fresh look.");
+    expect((await c.get("/api/ai/status")).body.used).toBe(2);
+    expect((await c.get("/api/ai/briefing/nowhere")).status).toBe(404);
   });
 });

@@ -220,7 +220,7 @@ function Billing() {
           </div>
           <div className="stack" style={{ gap: 14 }}>
             <div><div className="between" style={{ fontSize: 13.5, marginBottom: 6 }}><span>Storage</span><b className="ink">{storage.data ? `${formatBytes(storage.data.used)} of ${formatBytes(storage.data.limit)}` : "…"}</b></div><Progress value={storage.data ? (storage.data.used / storage.data.limit) * 100 : 0} /></div>
-            <div className="between" style={{ fontSize: 13.5 }}><span>WindVeal AI requests this month</span><b className="ink">{current.aiRequestsPerMonth ? `0 of ${current.aiRequestsPerMonth.toLocaleString("en-GB")}` : "Not included"}</b></div>
+            <div className="between" style={{ fontSize: 13.5 }}><span>Veal requests this month</span><b className="ink">{current.aiRequestsPerMonth ? `0 of ${current.aiRequestsPerMonth.toLocaleString("en-GB")}` : "Not included"}</b></div>
             <div className="between" style={{ fontSize: 13.5 }}><span>Team members</span><b className="ink">{members.data?.length ?? "…"} · no limit</b></div>
           </div>
         </div>

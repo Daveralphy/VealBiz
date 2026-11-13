@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import {
   Briefcase, Building2, CalendarDays, CheckSquare, Clock, FileText, Flag, FolderOpen, Globe, History, LayoutDashboard, LineChart, ListChecks,
   ListTodo, Network, Phone, Rows3, Share2, Archive, SquareCheck, Stamp, UserPlus, UserSearch, Users, Workflow, BarChart3, Kanban,
-  Settings, ShieldCheck, Mail, Bell, Wallet, KeyRound, ScrollText, Upload, User, Building, Building2 as Org,
+  Settings, ShieldCheck, Mail, MessageCircle, Bell, Wallet, KeyRound, ScrollText, Upload, User, Building, Building2 as Org,
 } from "lucide-react";
-import type { Workspace } from "@windveal/shared";
+import { ASSISTANT_AREAS, type Workspace } from "@windveal/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "./session";
 import { api } from "./api";
@@ -43,7 +43,7 @@ const UUID = "[0-9a-f-]{36}";
 export const WORKSPACE_DEFS: WorkspaceDef[] = [
   {
     // Everyone's own things, whatever their role.
-    key: "me", label: "My space", base: "/me", icon: i(User), blurb: "Your attendance, leave, pay and onboarding.", group: "workspace",
+    key: "me", label: "My Workspace", base: "/me", icon: i(User), blurb: "Your attendance, leave, pay and onboarding.", group: "workspace",
     sections: [
       { to: "/me", label: "Overview", icon: <LayoutDashboard size={18} /> },
       { to: "/me/attendance", label: "Attendance", icon: <Clock size={18} /> },
@@ -145,6 +145,11 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
     ],
   },
 ];
+// Every area with a sidebar ends with its Assistant: what Veal sees there, and chats about it.
+for (const w of WORKSPACE_DEFS) {
+  if ((ASSISTANT_AREAS as readonly string[]).includes(w.key)) w.sections.push({ to: `${w.base}/assistant`, label: "Assistant", icon: <MessageCircle size={18} /> });
+}
+
 
 /** The workspace a path belongs to, if any (Home, Profile, Settings and the like aren't in a workspace). */
 export function workspaceFor(path: string): WorkspaceDef | null {

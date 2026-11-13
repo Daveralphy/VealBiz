@@ -51,7 +51,7 @@ export async function checkColumns(call: Call, jobId: string, sheetName: string)
     mapping: z.record(z.string(), z.string().nullable()).default({}),
     notes: z.array(z.string()).default([]),
   }).safeParse((() => { try { return JSON.parse(json ?? ""); } catch { return null; } })());
-  if (!parsed.success) throw badRequest("WindVeal AI couldn't read this sheet. Try again, or match the columns yourself.");
+  if (!parsed.success) throw badRequest("Veal couldn't read this sheet. Try again, or match the columns yourself.");
 
   // Only keep what WindVeal can actually use: a real destination, real columns, real fields, each field once.
   const dest = destinations.find((d) => d.key === parsed.data.destination) ?? destinations.find((d) => d.key === sheet.destination) ?? null;
@@ -65,4 +65,32 @@ export async function checkColumns(call: Call, jobId: string, sheetName: string)
   }
   const changes = dest?.key === sheet.destination ? sheet.columns.filter((c) => (mapping[c] ?? null) !== (sheet.mapping[c] ?? null)) : sheet.columns;
   return { destination: dest?.key ?? null, mapping, notes: parsed.data.notes.slice(0, 10).map((n) => n.slice(0, 200)), changes };
+}
+
+/**
+ * A file added in the chat: Veal reads every sheet (headers and sample values) and says, in a few lines,
+ * what each one is, where it belongs in WindVeal, and anything that isn't what it seems. It doesn't add
+ * anything: the reply ends with a button to Import data, where the person checks it all first.
+ */
+export async function describeFile(call: Call, jobId: string): Promise<{ reply: string; fileName: string; rows: number; sheets: number }> {
+  const r = await call("GET", `/api/imports/jobs/${jobId}`);
+  if (r.status >= 400) throw notFound("That file");
+  const job = (r.body?.job ?? r.body) as { fileName: string; sheets: (Sheet & { rowCount: number })[]; destinations: Destination[] };
+  const destinations = job.destinations.filter((d) => d.allowed);
+  const label = (key: string | null) => destinations.find((d) => d.key === key)?.label ?? null;
+  const prompt = [
+    "You are Veal, the assistant in WindVeal, a business app. Someone has just added a spreadsheet in the chat.",
+    `File "${job.fileName}". Its sheets, with each column's header and up to three sample values:`,
+    ...job.sheets.map((s) => [
+      `Sheet "${s.name}" (${s.rowCount} rows${label(s.destination) ? `, WindVeal guessed ${label(s.destination)}` : ""}):`,
+      ...s.columns.map((c) => `  - ${JSON.stringify(c)}: ${JSON.stringify(s.examples[c] ?? [])}`),
+    ].join("\n")),
+    `Places WindVeal can bring rows into: ${destinations.map((d) => d.label).join(", ") || "none for this person"}.`,
+    "Tell them what you see, in short plain English: one line starting with \"- \" per sheet saying what it holds and where it belongs (or that WindVeal can't bring it in).",
+    "Then a line for any column whose values don't match its header (like \"Col B\" holding emails). Judge columns by their values, not their headers.",
+    "No headings, no tables, no greeting. Use **bold** only for sheet and place names. Don't say you've added anything: nothing is added until they check it.",
+  ].join("\n");
+  const res = await chatCompletion([{ role: "user", content: prompt }], []);
+  const reply = (res.content ?? "").trim() || `I can see ${job.sheets.length} sheet${job.sheets.length === 1 ? "" : "s"} in ${job.fileName}.`;
+  return { reply: reply.slice(0, 2500), fileName: job.fileName, rows: job.sheets.reduce((n, s) => n + (s.rowCount ?? 0), 0), sheets: job.sheets.length };
 }

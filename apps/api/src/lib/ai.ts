@@ -18,7 +18,7 @@ export const aiConnected = () => !!env.aiBaseUrl && !!env.aiModel;
 export class AiUnavailable extends Error {}
 
 export async function chatCompletion(messages: ChatMessage[], tools: ToolSpec[]): Promise<{ content: string | null; toolCalls: ToolCall[] }> {
-  if (!aiConnected()) throw new AiUnavailable("WindVeal AI isn't connected yet.");
+  if (!aiConnected()) throw new AiUnavailable("Veal isn't connected yet.");
   let res: Response;
   try {
     res = await fetch(`${env.aiBaseUrl.replace(/\/+$/, "")}/chat/completions`, {
@@ -29,9 +29,9 @@ export async function chatCompletion(messages: ChatMessage[], tools: ToolSpec[])
       signal: AbortSignal.timeout(120_000),
     });
   } catch {
-    throw new AiUnavailable("WindVeal AI isn't answering right now. Try again in a moment.");
+    throw new AiUnavailable("Veal isn't answering right now. Try again in a moment.");
   }
-  if (!res.ok) throw new AiUnavailable(`WindVeal AI couldn't answer (${res.status}).`);
+  if (!res.ok) throw new AiUnavailable(`Veal couldn't answer (${res.status}).`);
   const body = await res.json() as { choices?: { message?: { content?: string | null; tool_calls?: ToolCall[] } }[] };
   const m = body.choices?.[0]?.message;
   return { content: m?.content ?? null, toolCalls: (m?.tool_calls ?? []).map((t, i) => ({ ...t, id: t.id || `call_${i}`, type: "function" })) };

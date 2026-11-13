@@ -10,6 +10,8 @@ import { SetupRoutes } from "./pages/setup";
 import { BillingPage, SettingsRoutes } from "./pages/settings";
 import { ProfileRoutes } from "./pages/profile";
 import { AdminRoutes } from "./pages/admin";
+import { ASSISTANT_AREAS } from "@windveal/shared";
+import { AssistantPage } from "./pages/assistant";
 import { Home } from "./pages/home";
 import { Help, NotFound, DevMailbox } from "./pages/misc";
 import MySpace from "./modules/me";
@@ -90,6 +92,8 @@ const router = createBrowserRouter([{ element: <Root />, children: [
     element: <Gate need="app" />,
     children: [
       { path: "/", element: <Home /> },
+      // Each area's Assistant (more specific than the area's own routes, so it wins).
+      ...ASSISTANT_AREAS.map((area) => ({ path: `/${area}/assistant`, element: <AssistantPage key={area} area={area} /> })),
       { path: "/me/*", element: <MySpace /> },
       { path: "/people/*", element: <PeopleModule /> },
       { path: "/recruitment/*", element: <RecruitmentModule /> },

@@ -4,3 +4,4 @@ export * from "./schemas";
 export * from "./format";
 export * from "./verification";
 export * from "./notifications";
+export * from "./assistant";

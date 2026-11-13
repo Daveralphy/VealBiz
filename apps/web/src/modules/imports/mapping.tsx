@@ -190,7 +190,7 @@ function AiColumnCheck({ job, sheet, onApply }: { job: Job; sheet: Sheet; onAppl
       <div className="grow">
         {!r ? <>
           <b>Not sure the columns are right?</b>
-          <small>WindVeal AI can read the values in each column, not just the headers, and suggest what each one really is.</small>
+          <small>Veal can read the values in each column, not just the headers, and suggest what each one really is.</small>
           {check.error && <small className="imp-ai-err">{check.error instanceof ApiError ? check.error.message : "That didn't work. Try again."}</small>}
         </> : !r.changes.length && r.destination === sheet.destination ? <>
           <b>The columns look right.</b>
@@ -200,7 +200,7 @@ function AiColumnCheck({ job, sheet, onApply }: { job: Job; sheet: Sheet; onAppl
           {r.notes.map((n) => <small key={n}>{n}</small>)}
         </>}
       </div>
-      {!r ? <Button size="sm" variant="secondary" loading={check.isPending} disabled={s.used >= s.limit} onClick={() => check.mutate()}>Check with AI</Button>
+      {!r ? <Button size="sm" variant="secondary" loading={check.isPending} disabled={s.used >= s.limit} onClick={() => check.mutate()}>Check with Veal</Button>
         : (r.changes.length > 0 || r.destination !== sheet.destination) && <Button size="sm" onClick={() => { onApply(r.destination, r.mapping); check.reset(); }}>Apply suggestions</Button>}
     </div>
   );

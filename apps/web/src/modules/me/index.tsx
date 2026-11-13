@@ -216,11 +216,11 @@ function Application() {
 /** My space: each person's own attendance, leave, pay, onboarding and application. Only theirs. */
 export default function MySpace() {
   const { user } = useSession();
-  useEffect(() => { document.title = "My space · WindVeal"; }, []);
+  useEffect(() => { document.title = "My Workspace · WindVeal"; }, []);
   const summary = useMySummary();
   return (
     <div className="me">
-      <PageHeader title="My space" subtitle={summary.data?.employee?.jobTitle ? `${user.name} · ${summary.data.employee.jobTitle}` : user.name} />
+      <PageHeader title="My Workspace" subtitle={summary.data?.employee?.jobTitle ? `${user.name} · ${summary.data.employee.jobTitle}` : user.name} />
       <Routes>
         <Route index element={<Overview />} />
         <Route path="attendance" element={<Attendance />} />

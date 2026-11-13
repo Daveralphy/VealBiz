@@ -15,7 +15,8 @@ import { useSignOut } from "../lib/signout";
 import { usePalette } from "../lib/palette";
 import { sectionActive, useAreaAccess, workspaceFor, type WorkspaceDef } from "../lib/workspaces";
 import { HeaderClock } from "../modules/people/clock";
-import { Assistant } from "../components/Assistant";
+import { VealProvider } from "../components/Veal";
+import { ASSISTANT_AREAS } from "@windveal/shared";
 
 export type HomeData = {
   tiles: Partial<Record<string, { value: string; text: string; before?: string }[]>>;
@@ -253,7 +254,20 @@ function NoAccess({ area, whole }: { area?: string; whole: boolean }) {
   );
 }
 
+/** The area a chat with Veal belongs to, from the page it's started on. */
+function vealArea(pathname: string) {
+  const first = pathname.split("/")[1] ?? "";
+  if (first === "import") return "documents";
+  return (ASSISTANT_AREAS as readonly string[]).includes(first) ? first : "home";
+}
+
+/** Every signed-in screen, with Veal's floating chat button on top (it stays open across pages). */
 export function AppShell() {
+  const { pathname } = useLocation();
+  return <VealProvider area={vealArea(pathname)}><Shell /></VealProvider>;
+}
+
+function Shell() {
   const [mini, setMini] = useState(() => { try { return localStorage.getItem("wv-sidebar") === "mini"; } catch { return false; } });
   const [drawer, setDrawer] = useState(false);
   const [mSearch, setMSearch] = useState(false);
@@ -312,11 +326,11 @@ export function AppShell() {
           <header className={`topbar${onHome ? " topbar-home" : ""}`}>
             <span className="tb-brand"><span className="sb-logo"><OrgMark /></span><OrgBlock /></span>
             {onHome && <GlobalSearch ws={null} />}
-            <div className="right"><HeaderClock /><Assistant /><Notifications /><AccountMenu /></div>
+            <div className="right"><HeaderClock /><Notifications /><AccountMenu /></div>
           </header>
           <header className="mtop">
             <span className="tb-brand"><span className="sb-logo" style={{ width: 32, height: 32 }}><OrgMark size={32} /></span><b>{org.name}</b></span>
-            <div className="r">{onHome && <IconButton label="Search" onClick={() => setMSearch((v) => !v)}><Search size={20} /></IconButton>}<HeaderClock /><Assistant /><Notifications /><AccountMenu /></div>
+            <div className="r">{onHome && <IconButton label="Search" onClick={() => setMSearch((v) => !v)}><Search size={20} /></IconButton>}<HeaderClock /><Notifications /><AccountMenu /></div>
           </header>
           {onHome && mSearch && <div className="m-search"><GlobalSearch ws={null} autoFocus /></div>}
           {page}
@@ -332,11 +346,11 @@ export function AppShell() {
       <div className="main">
         <header className="topbar">
           {ws.search ? <GlobalSearch ws={ws} /> : <span />}
-          <div className="right"><HeaderClock /><Assistant /><Notifications /><AccountMenu /></div>
+          <div className="right"><HeaderClock /><Notifications /><AccountMenu /></div>
         </header>
         <header className="mtop">
           <IconButton label="Open menu" onClick={() => setDrawer(true)}><MenuIcon size={22} /></IconButton>
-          <div className="r">{ws.search && <IconButton label="Search" onClick={() => setMSearch((v) => !v)}><Search size={20} /></IconButton>}<HeaderClock /><Assistant /><Notifications /><AccountMenu /></div>
+          <div className="r">{ws.search && <IconButton label="Search" onClick={() => setMSearch((v) => !v)}><Search size={20} /></IconButton>}<HeaderClock /><Notifications /><AccountMenu /></div>
         </header>
         {ws.search && mSearch && <div className="m-search"><GlobalSearch ws={ws} autoFocus /></div>}
         {page}

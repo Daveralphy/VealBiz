@@ -83,7 +83,7 @@ test("a new business signs up, waits for WindVeal, sends what's asked for and ge
   expect((await latestMail(page, email)).subject).toBe(`${biz} is approved`);
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Ada");
-  await expect(page.locator(".home-tile").first()).toBeVisible();
+  await expect(page.locator(".home-card").first()).toBeVisible();
 });
 
 test("a business WindVeal doesn't approve sees the reason and can't get in", async ({ page, browser }) => {

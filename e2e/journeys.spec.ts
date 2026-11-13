@@ -345,7 +345,7 @@ test("notification settings are all on to start and can be turned off", async ({
 test("a member sees their own things in My space, and nobody else's", async ({ page }) => {
   await signIn(page, "member@example-trading.test");
   await page.locator('.home a[href="/me"]').click();
-  await expect(page.getByRole("heading", { level: 1, name: "My space" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "My Workspace" })).toBeVisible();
   await page.locator('.in-ws .sb a[href="/me/leave"]').click();
   await expect(page.getByRole("button", { name: "Ask for leave" })).toBeVisible();
   await page.locator('.in-ws .sb a[href="/me/pay"]').click();
@@ -359,10 +359,32 @@ test("a member sees their own things in My space, and nobody else's", async ({ p
   await expect(page.getByRole("button", { name: "Company profile" })).toHaveCount(0);
 });
 
-test("WindVeal AI opens from the top bar and says when it isn't switched on", async ({ page }) => {
+test("Chat with Veal floats where you put it, opens there, and each area has an Assistant", async ({ page }) => {
   await signIn(page);
-  await page.getByRole("button", { name: "WindVeal AI" }).first().click();
-  const panel = page.getByRole("dialog", { name: "WindVeal AI" });
-  await expect(panel.getByText("WindVeal AI isn't switched on yet")).toBeVisible();
-  await expect(panel.getByRole("textbox", { name: "Message WindVeal AI" })).toBeDisabled();
+  const fab = page.getByRole("button", { name: "Chat with Veal" });
+  await expect(fab).toBeVisible();
+  // Drag it towards the top left; the chat window then opens where it is.
+  const box = (await fab.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(300, 300, { steps: 8 });
+  await page.mouse.up();
+  const moved = (await fab.boundingBox())!;
+  expect(moved.x).toBeLessThan(box.x - 200);
+  await fab.click();
+  const chat = page.getByRole("dialog", { name: "Chat with Veal" });
+  await expect(chat.getByText("Veal isn't switched on yet")).toBeVisible();
+  await expect(chat.getByRole("textbox", { name: "Message Veal" })).toBeDisabled();
+  const win = (await chat.boundingBox())!;
+  expect(Math.abs(win.x - moved.x)).toBeLessThan(40);
+  expect(Math.abs(win.y - moved.y)).toBeLessThan(40);
+  // Minimising puts the button back where it was.
+  await chat.getByRole("button", { name: "Minimise" }).click();
+  expect(Math.abs((await fab.boundingBox())!.x - moved.x)).toBeLessThan(2);
+
+  await page.locator('.home a[href="/crm"]').click();
+  await page.locator("aside.sb").getByRole("link", { name: "Assistant" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Assistant" })).toBeVisible();
+  await expect(page.getByText("What Veal sees in CRM right now.")).toBeVisible();
+  await expect(page.getByText("Veal isn't switched on yet")).toBeVisible();
 });
