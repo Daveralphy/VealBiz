@@ -83,6 +83,50 @@ const ART: Record<string, string> = {
     ${[54, 76, 98].map((y, i) => { const k = [96, 66, 114][i]!; return `<rect class="t" x="50" y="${y - 3}" width="72" height="6" rx="3"/><rect class="c" x="50" y="${y - 3}" width="${k - 50}" height="6" rx="3"/><circle class="p" cx="${k}" cy="${y}" r="8"/><circle class="ring c-st thin" cx="${k}" cy="${y}" r="8"/>`; }).join("")}
     ${gear(150, 40, 24)}`,
 
+  // A clock on a time card: clocking in and out.
+  attendance: `${ground}
+    <rect class="t" x="40" y="58" width="120" height="64" rx="12"/>
+    <rect class="m" x="52" y="96" width="34" height="6" rx="3"/><rect class="m" x="52" y="108" width="22" height="5" rx="2.5"/>
+    <circle class="p" cx="118" cy="64" r="42"/><circle class="ring" cx="118" cy="64" r="38"/>
+    ${[0, 1, 2, 3].map((i) => { const a = (i * Math.PI) / 2; return `<circle class="m" cx="${(118 + Math.cos(a) * 29).toFixed(1)}" cy="${(64 + Math.sin(a) * 29).toFixed(1)}" r="3"/>`; }).join("")}
+    <path class="hand" d="M118 64 V44 M118 64 L132 72"/><circle class="c" cx="118" cy="64" r="4.5"/>
+    <circle class="arrow-bg" cx="150" cy="30" r="13"/><path class="pl" d="M144 30 l4 4 l8 -8"/>`,
+
+  // A calendar with days marked off, and a suitcase: time off.
+  leave: `${ground}
+    <rect class="p st" x="34" y="28" width="96" height="92" rx="12"/>
+    <path class="c" d="M34 40 a12 12 0 0 1 12 -12 h72 a12 12 0 0 1 12 12 v12 h-96z"/>
+    <rect class="m" x="56" y="18" width="7" height="20" rx="3.5"/><rect class="m" x="101" y="18" width="7" height="20" rx="3.5"/>
+    ${[0, 1, 2].map((r) => [0, 1, 2, 3].map((c) => `<rect class="t" x="${46 + c * 19}" y="${64 + r * 17}" width="13" height="10" rx="3"/>`).join("")).join("")}
+    <rect class="m" x="65" y="81" width="51" height="10" rx="5"/>
+    <rect class="c" x="128" y="70" width="44" height="50" rx="9"/><path class="wire" d="M141 70 v-8 a4 4 0 0 1 4 -4 h10 a4 4 0 0 1 4 4 v8"/>
+    <rect class="pale" x="135" y="86" width="30" height="5" rx="2.5"/>`,
+
+  // A stack of notes with things ticked off: tasks given to you.
+  tasks: `${ground}
+    <rect class="t" x="56" y="20" width="88" height="96" rx="10" transform="rotate(6 100 68)"/>
+    <rect class="p st" x="50" y="22" width="88" height="98" rx="10"/>
+    <rect class="c" x="50" y="22" width="88" height="16" rx="8"/><rect class="c" x="50" y="30" width="88" height="8"/>
+    ${[50, 72, 94].map((y, i) => `<rect class="${i < 2 ? "c" : "box"}" x="62" y="${y}" width="14" height="14" rx="4"/>${i < 2 ? tick(62, y) : ""}
+      <rect class="t" x="84" y="${y + 4}" width="${[42, 34, 40][i]}" height="6" rx="3"/>`).join("")}
+    <path class="c" d="M146 52 l12 -12 l8 8 l-12 12 z"/><path class="m" d="M146 52 l-4 12 l12 -4 z"/>`,
+
+  // A note and a wallet, with a coin: pay.
+  pay: `${ground}
+    <rect class="m" x="40" y="34" width="104" height="58" rx="10" transform="rotate(-8 92 63)"/>
+    <circle class="pale" cx="92" cy="60" r="12"/>
+    <rect class="c" x="52" y="58" width="112" height="64" rx="12"/>
+    <rect class="t" x="126" y="78" width="42" height="24" rx="8"/><circle class="c" cx="140" cy="90" r="4"/>
+    <circle class="gold" cx="66" cy="44" r="13"/><circle class="gold-in" cx="66" cy="44" r="8"/>`,
+
+  // A path to a flag: the first steps in a new job.
+  onboarding: `${ground}
+    <path class="trail" d="M40 118 C70 112 64 92 94 90 S132 76 128 56"/>
+    ${[[40, 118], [74, 104], [108, 86]].map(([x, y], i) => `<circle class="${i === 2 ? "m" : "c"}" cx="${x}" cy="${y}" r="7"/>${i < 2 ? `<path class="pl" d="M${x! - 3.5} ${y} l2.5 2.5 l4.5 -5"/>` : ""}`).join("")}
+    <rect class="c" x="126" y="16" width="5" height="46" rx="2.5"/>
+    <path class="m" d="M131 18 h34 l-8 11 l8 11 h-34 z"/>
+    <ellipse class="t" cx="128.5" cy="62" rx="12" ry="4"/>`,
+
   // A shield with a tick: approving businesses and keeping accounts safe.
   admin: `${ground}
     <path class="c" d="M100 12 L150 30 V66 C150 98 130 117 100 126 C70 117 50 98 50 66 V30 Z"/>

@@ -441,7 +441,18 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
 .home-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
 /* A small card: the drawing on top, then the name and what you can do there. A red dot when something is waiting. */
 .home-card { position: relative; display: flex; flex-direction: column; padding: 12px 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; color: inherit; transition: border-color .15s, box-shadow .15s, transform .15s; }
-.home-card:hover, .home-card:focus-visible { border-color: var(--ws-c); box-shadow: 0 22px 40px -28px rgba(15, 26, 58, .45); transform: translateY(-2px); }
+.home-card:hover, .home-card:focus-within { border-color: var(--ws-c); box-shadow: 0 22px 40px -28px rgba(15, 26, 58, .45); transform: translateY(-2px); }
+/* The whole card opens its page; a quick action sits above that link. */
+.home-card-link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.home-card-link:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.home-card-act { position: relative; z-index: 2; display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 12px; }
+.home-card-act .btn { --ws-c: var(--ws-c); }
+.home-card-act .btn-primary { background: var(--ws-c); border-color: var(--ws-c); }
+.home-next { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; text-align: left; }
+.home-next:hover:not(:disabled) { border-color: var(--ws-c); }
+.home-next .tick { width: 20px; height: 20px; flex: none; border-radius: 6px; border: 1.5px solid var(--ws-c); color: transparent; display: inline-flex; align-items: center; justify-content: center; }
+.home-next:hover:not(:disabled) .tick { background: var(--ws-c); color: #fff; }
+.home-next .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-card .art { height: 76px; margin: 2px 0 10px; }
 .home-card b { display: block; font: 700 15px var(--display); color: var(--ink); letter-spacing: -.01em; }
 .home-card span { display: block; font-size: 12px; line-height: 1.45; color: var(--muted); margin-top: 4px; }
@@ -475,6 +486,7 @@ a.dash-kpi:hover { border-color: var(--ws-c, var(--blue)); }
 .art .box { fill: #fff; stroke: var(--ws-m); stroke-width: 2.5; } .art .grid { stroke: var(--art-t); stroke-width: 1.5; }
 .art .pale { fill: #fff; opacity: .55; } .art .arrow-bg { fill: var(--ws-c); }
 .art .check { fill: none; stroke: #fff; stroke-width: 9; stroke-linecap: round; stroke-linejoin: round; }
+.art .trail { fill: none; stroke: var(--art-l); stroke-width: 6; stroke-linecap: round; stroke-dasharray: 2 11; }
 
 /* Insights uses its own tiles (with an info tip); give them the same spacing and highlight as other dashboards. */
 .in-ws .ins-stats { margin-top: 0; }

@@ -10,7 +10,7 @@ import { useSession } from "./session";
 import { api } from "./api";
 
 /** What decides whether someone can see an area or one of its sections. */
-export type Viewer = { isAdmin: boolean; platformAdmin: boolean; canImport: boolean; canManageMembers: boolean; canDocuments: boolean; hasOnboarding: boolean; hasApplication: boolean };
+export type Viewer = { isAdmin: boolean; platformAdmin: boolean; canImport: boolean; canManageMembers: boolean; canDocuments: boolean; hasOnboarding: boolean };
 
 /** A page inside a workspace, shown in that workspace's sidebar. */
 export type Section = {
@@ -51,7 +51,6 @@ export const WORKSPACE_DEFS: WorkspaceDef[] = [
       { to: "/me/tasks", label: "My tasks", icon: <ListTodo size={18} />, badge: "myTasks" },
       { to: "/me/pay", label: "Pay", icon: <Wallet size={18} /> },
       { to: "/me/onboarding", label: "Onboarding", icon: <Flag size={18} />, visible: (v) => v.hasOnboarding },
-      { to: "/me/application", label: "My application", icon: <FileText size={18} />, visible: (v) => v.hasApplication },
     ],
   },
   {
@@ -168,11 +167,11 @@ export function sectionActive(ws: WorkspaceDef, s: Section, path: string): boole
 /** Who can open which areas and sections (workspace access for workspaces; roles for the rest). */
 export function useAreaAccess() {
   const { isAdmin, user, can, hasSpecial } = useSession();
-  const mine = useQuery({ queryKey: ["my", "summary"], queryFn: () => api.get<{ onboarding: boolean; application: boolean }>("/api/my/summary"), staleTime: 60_000 });
+  const mine = useQuery({ queryKey: ["my", "summary"], queryFn: () => api.get<{ onboarding: boolean }>("/api/my/summary"), staleTime: 60_000 });
   const importer = hasSpecial("import_data");
   const viewer: Viewer = {
     isAdmin, platformAdmin: !!user.platformAdmin, canManageMembers: hasSpecial("manage_members"), canDocuments: can("documents"),
-    hasOnboarding: !!mine.data?.onboarding, hasApplication: !!mine.data?.application,
+    hasOnboarding: !!mine.data?.onboarding,
     canImport: isAdmin || (["people", "crm", "recruitment"] as Workspace[]).some((w) => can(w, "manage") || (importer && can(w, "edit"))),
   };
   // Documents also opens for people who can only import.

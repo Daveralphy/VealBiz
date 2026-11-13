@@ -15,7 +15,8 @@ const memory: (Mail & { id: string; sentAt: string })[] = [];
 export async function sendMail(mail: Mail): Promise<void> {
   const entry = { ...mail, id: randomUUID(), sentAt: new Date().toISOString() };
   memory.unshift(entry);
-  if (memory.length > 200) memory.pop();
+  // Tests send a lot (every WindVeal staff account they made gets new-business emails), so keep more there.
+  if (memory.length > (process.env.VITEST ? 20_000 : 200)) memory.pop();
   if (process.env.VITEST) return;
   try {
     await fs.mkdir(MAILBOX, { recursive: true });

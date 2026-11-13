@@ -344,7 +344,9 @@ test("notification settings are all on to start and can be turned off", async ({
 
 test("a member sees their own things in My Workspace, and nobody else's", async ({ page }) => {
   await signIn(page, "member@example-trading.test");
-  await page.locator('.home a[href="/me"]').click();
+  // Home has a card for each of their own things; the Attendance card opens My Workspace on that page.
+  await expect(page.locator('.home').getByRole("button", { name: "Request leave" })).toBeVisible();
+  await page.locator('.home a[href="/me/attendance"]').click();
   await expect(page.getByRole("heading", { level: 1, name: "My Workspace" })).toBeVisible();
   await page.locator('.in-ws .sb a[href="/me/leave"]').click();
   await expect(page.getByRole("button", { name: "Ask for leave" })).toBeVisible();

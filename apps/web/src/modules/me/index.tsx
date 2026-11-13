@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarPlus, FileText } from "lucide-react";
+import { CalendarPlus } from "lucide-react";
 import { Button, Card, EmptyState, Loading, PageHeader, Pill, Select } from "@windveal/ui";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
@@ -15,7 +15,7 @@ import "./me.css";
 
 type Summary = {
   employee: { id: string; firstName: string; jobTitle: string | null; startDate: string | null; status: string } | null;
-  onboarding: boolean; application: boolean; nextStep: { title: string; dueAt: string | null } | null;
+  onboarding: boolean; nextStep: { title: string; dueAt: string | null } | null;
 };
 type Day = { date: string; clockIn: string | null; clockOut: string | null; breaks: number; corrected: boolean; note: string | null; minutes: number | null };
 type Today = { record: { clockIn: string | null; clockOut: string | null; onBreak?: boolean } | null };
@@ -170,51 +170,8 @@ function Onboarding() {
   );
 }
 
-type MyApplication = {
-  job: { title: string; location: string | null }; appliedAt: string; source: string; hiredAt: string | null; coverLetter: string | null;
-  cv: { id: string; name: string } | null; answers: { question: string; answer: string }[];
-  steps: { label: string; at: string }[]; interviews: { title: string; at: string; mode: string; status: string }[];
-};
 
-function Application() {
-  const q = useQuery({ queryKey: ["my", "application"], queryFn: () => api.get<{ application: MyApplication | null }>("/api/my/application") });
-  if (q.isLoading) return <Loading />;
-  const a = q.data?.application;
-  if (!a) return <Card><EmptyState title="No application">You weren't hired through this business's careers page.</EmptyState></Card>;
-  return (
-    <div className="grid-side side-360">
-      <div>
-        <Card title={a.job.title} subtitle={[a.job.location, `applied ${fmtDate(a.appliedAt)}`, a.source].filter(Boolean).join(" · ")}
-          actions={a.hiredAt ? <Pill tone="ok">Hired {fmtDate(a.hiredAt)}</Pill> : undefined}>
-          <h4 className="pf-sub">What you sent</h4>
-          {a.cv && <a className="me-file" href="/api/my/application/cv" target="_blank" rel="noreferrer"><FileText size={16} />{a.cv.name}</a>}
-          {a.coverLetter && <p className="me-letter">{a.coverLetter}</p>}
-          {a.answers.map((x) => <div key={x.question} className="me-answer"><small className="muted">{x.question}</small><span>{x.answer}</span></div>)}
-          {!a.cv && !a.coverLetter && !a.answers.length && <p className="muted">Nothing else was sent with this application.</p>}
-        </Card>
-      </div>
-      <div>
-        <Card title="How it went">
-          <div className="ad-tl">
-            {[...a.steps].reverse().map((s, i) => (
-              <div key={i}><i className={i === 0 ? "ok" : "b"} /><span><b>{s.label}</b><small>{fmtDate(s.at)}</small></span></div>
-            ))}
-          </div>
-        </Card>
-        {!!a.interviews.length && (
-          <Card title="Interviews">
-            {a.interviews.map((m, i) => (
-              <div key={i} className="list-row"><div className="grow"><b className="ink">{m.title}</b><small className="muted" style={{ display: "block" }}>{fmtDate(m.at)}, {fmtTime(m.at)} · {m.mode}</small></div>
-                <Pill tone={m.status === "completed" ? "ok" : m.status === "cancelled" ? "grey" : "blue"}>{m.status[0]!.toUpperCase() + m.status.slice(1)}</Pill></div>
-            ))}
-          </Card>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** My space: each person's own attendance, leave, pay, onboarding and application. Only theirs. */
+/** My Workspace: each person's own attendance, leave, tasks, pay and onboarding. Only theirs. */
 /** The tasks given to this person from anywhere in WindVeal; no Workflows access needed. */
 function MyTasks() {
   const [params, setParams] = useSearchParams();
@@ -243,7 +200,6 @@ export default function MySpace() {
         <Route path="tasks" element={<MyTasks />} />
         <Route path="pay" element={<Pay />} />
         <Route path="onboarding" element={<Onboarding />} />
-        <Route path="application" element={<Application />} />
         <Route path="*" element={<Navigate to="/me" replace />} />
       </Routes>
       <p className="muted me-note">Your personal details are in <Link className="link" to="/profile">Profile</Link>.</p>
